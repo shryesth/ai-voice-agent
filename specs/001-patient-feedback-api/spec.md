@@ -15,6 +15,10 @@
 - Q: Admin Role & Permission Model - What role and permission model should the system implement? → A: Simple role-based access with two roles: Admin (full access to manage geographies, campaigns, configure settings) and User (read-only access to view campaigns and call results)
 - Q: Healthcare Compliance & Regulatory Requirements - What specific compliance requirements should the system enforce? → A: Deferred - specific healthcare compliance requirements (HIPAA, GDPR, etc.) not specified in MVP; general data protection practices apply
 
+### Session 2026-01-18
+
+- Q: Pipecat Framework Implementation Constraints (v0.0.99) - What are the correct API patterns for implementing voice pipeline with Pipecat v0.0.99? → A: Use new module structure with breaking changes from v0.0.99: (1) Replace OpenAILLMContext with universal LLMContext, (2) Use LLMContextAggregatorPair instead of create_context_aggregator(), (3) Replace turn_analyzer with user_turn_strategies (VADUserTurnStartStrategy, TranscriptionUserTurnStopStrategy), (4) Use strategy-based interruption handling via user_mute_strategies instead of allow_interruptions, (5) Configure FastAPIWebsocketTransport with fixed_audio_packet_size for Twilio media endpoints, (6) Register function handlers directly with OpenAIRealtimeLLMService using register_function(), (7) Use FlowManager pattern for multi-stage conversation state management with dynamic node transitions
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - API Server Infrastructure & Admin Authentication (Priority: P1)
@@ -255,12 +259,12 @@ Campaign managers need to queue bulk patient feedback campaigns that run automat
 **Architecture & Technology**
 
 - FastAPI will serve as REST API framework (specified in requirements)
-- MongoDB will be used for data persistence (specified in requirements)
+- MongoDB 8.0.17 will be used for data persistence (specified in requirements)
 - Twilio will be used for outbound calling (specified in requirements)
 - OpenAI Realtime Model will be used for conversational AI (specified in requirements)
-- Pipecat will be used for voice pipeline orchestration (specified in requirements)
+- Pipecat v0.0.99 will be used for voice pipeline orchestration with new module structure: LLMContext (universal context), LLMContextAggregatorPair (context management), user_turn_strategies (turn detection), user_mute_strategies (interruption handling), FlowManager (multi-stage conversation state), FastAPIWebsocketTransport with fixed_audio_packet_size for Twilio compatibility
 - Celery + Redis will be used for campaign queue processing (chosen in design decisions)
-- Python 3.11+ environment (specified in dependency list)
+- Python 3.12.12 environment (specified in requirements)
 
 **Integration & Configuration**
 

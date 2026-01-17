@@ -11,7 +11,7 @@ Build a FastAPI-based REST API server for AI-powered patient feedback collection
 
 ## Technical Context
 
-**Language/Version**: Python 3.11+
+**Language/Version**: Python 3.12.12
 
 **Primary Dependencies**:
 - FastAPI 0.128.0 (REST API framework)
@@ -23,7 +23,7 @@ Build a FastAPI-based REST API server for AI-powered patient feedback collection
 - Pytest 9.0.2 (testing framework)
 - HTTPX 0.28.1 (async HTTP client for testing/integrations)
 
-**Storage**: MongoDB (campaigns, call records, user accounts, queue state)
+**Storage**: MongoDB 8.0.17 (campaigns, call records, user accounts, queue state)
 
 **Testing**: pytest with async support (pytest-asyncio), contract tests for API endpoints, integration tests for voice pipeline
 
@@ -94,10 +94,10 @@ Build a FastAPI-based REST API server for AI-powered patient feedback collection
 ✅ **PASS** - Contract tests for all API endpoints, integration tests for voice pipeline, pytest with async support
 
 ### Code Quality
-✅ **PASS** - Python 3.11+ type hints, error handling strategy defined (user/system/transient errors), logging without sensitive data exposure
+✅ **PASS** - Python 3.12.12 type hints, error handling strategy defined (user/system/transient errors), logging without sensitive data exposure
 
 ### Dependencies & Package Management
-✅ **PASS** - Python 3.11+, FastAPI, Beanie (not SQLAlchemy as constitution suggests, but Beanie is MongoDB ODM compatible with Pydantic), pytest, versions pinned
+✅ **PASS** - Python 3.12.12, FastAPI, Beanie (not SQLAlchemy as constitution suggests, but Beanie is MongoDB ODM compatible with Pydantic), pytest, versions pinned
 
 **Result**: All constitution gates PASS. No violations requiring justification.
 

@@ -166,3 +166,9 @@ Thumbs.db
 
 # Claude Code config
 .claude
+
+# Application specific
+backups/
+logs/
+.env.local
+.env.*.local

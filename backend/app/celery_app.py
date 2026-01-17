@@ -50,10 +50,10 @@ celery_app.conf.update(
     # Beat schedule for periodic tasks
     beat_schedule={
         "process-campaign-queues": {
-            "task": "backend.app.tasks.queue_processor.process_campaign_queues",
-            "schedule": settings.queue_processor_interval,  # Every 30 seconds
+            "task": "process_campaign_queues",
+            "schedule": 30.0,  # Every 30 seconds
             "options": {
-                "expires": settings.queue_processor_interval - 5,  # Prevent overlap
+                "expires": 25,  # Prevent overlap (30 - 5)
             },
         },
     },

@@ -227,29 +227,29 @@
 ### Implementation for User Story 5
 
 **Models:**
-- [ ] T074 [US5] Create QueueEntry model in backend/app/models/queue_entry.py (retry tracking, state machine, DLQ flags, RetryHistory)
+- [X] T074 [US5] Create QueueEntry model in backend/app/models/queue_entry.py (retry tracking, state machine, DLQ flags, RetryHistory)
 
 **Schemas:**
-- [ ] T075 [P] [US5] Create queue request/response schemas in backend/app/schemas/queue.py (QueueEntryResponse, DLQResponse, RetryHistoryResponse)
+- [X] T075 [P] [US5] Create queue request/response schemas in backend/app/schemas/queue.py (QueueEntryResponse, DLQResponse, RetryHistoryResponse)
 
 **Services:**
-- [ ] T076 [US5] Implement QueueService in backend/app/services/queue_service.py (create queue entries, retry logic, DLQ routing)
+- [X] T076 [US5] Implement QueueService in backend/app/services/queue_service.py (create queue entries, retry logic, DLQ routing)
 
 **Celery Tasks:**
-- [ ] T077 [US5] Implement queue processor task in backend/app/tasks/queue_processor.py (process_campaign_queues every 30s, respect time windows and concurrency)
-- [ ] T078 [US5] Implement retry handler task in backend/app/tasks/retry_handler.py (calculate retry delays per FailureReason, max 3 attempts before DLQ)
-- [ ] T079 [US5] Configure Celery Beat schedule in backend/app/celery_app.py (queue processor every 30s)
+- [X] T077 [US5] Implement queue processor task in backend/app/tasks/queue_processor.py (process_campaign_queues every 30s, respect time windows and concurrency)
+- [X] T078 [US5] Implement retry handler task in backend/app/tasks/retry_handler.py (calculate retry delays per FailureReason, max 3 attempts before DLQ)
+- [X] T079 [US5] Configure Celery Beat schedule in backend/app/celery_app.py (queue processor every 30s)
 
 **API Endpoints:**
-- [ ] T080 [P] [US5] Implement GET /api/v1/campaigns/{id}/queue in backend/app/api/v1/queue.py (queue status with summary stats)
-- [ ] T081 [P] [US5] Implement GET /api/v1/queue/dlq in backend/app/api/v1/queue.py (Dead Letter Queue entries, Admin only)
-- [ ] T082 [P] [US5] Implement POST /api/v1/queue/dlq/{id}/retry in backend/app/api/v1/queue.py (manual retry, Admin only)
-- [ ] T083 [P] [US5] Implement DELETE /api/v1/queue/dlq/{id} in backend/app/api/v1/queue.py (remove from DLQ, Admin only)
-- [ ] T084 [P] [US5] Implement GET /api/v1/queue/stats in backend/app/api/v1/queue.py (global queue statistics, Admin only)
+- [X] T080 [P] [US5] Implement GET /api/v1/campaigns/{id}/queue in backend/app/api/v1/queue.py (queue status with summary stats)
+- [X] T081 [P] [US5] Implement GET /api/v1/queue/dlq in backend/app/api/v1/queue.py (Dead Letter Queue entries, Admin only)
+- [X] T082 [P] [US5] Implement POST /api/v1/queue/dlq/{id}/retry in backend/app/api/v1/queue.py (manual retry, Admin only)
+- [X] T083 [P] [US5] Implement DELETE /api/v1/queue/dlq/{id} in backend/app/api/v1/queue.py (remove from DLQ, Admin only)
+- [X] T084 [P] [US5] Implement GET /api/v1/queue/stats in backend/app/api/v1/queue.py (global queue statistics, Admin only)
 
 **Infrastructure:**
-- [ ] T085 [US5] Register queue routes in backend/app/main.py
-- [ ] T086 [US5] Update CampaignService.start() to create QueueEntry for each patient in backend/app/services/campaign_service.py
+- [X] T085 [US5] Register queue routes in backend/app/main.py
+- [X] T086 [US5] Update CampaignService.start() to create QueueEntry for each patient in backend/app/services/campaign_service.py
 
 **Checkpoint**: Campaign queues process automatically, retry logic works per failure type, DLQ collects exhausted retries
 

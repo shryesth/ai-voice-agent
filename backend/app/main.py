@@ -47,13 +47,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Initialize database connection
     logger.info("Initializing database connection")
     try:
-        # Import models for User Stories 1 and 2
+        # Import models for all user stories
         from backend.app.models.user import User
         from backend.app.models.geography import Geography
         from backend.app.models.campaign import Campaign
+        from backend.app.models.call_record import CallRecord
+        from backend.app.models.queue_entry import QueueEntry
 
         # Initialize database with models
-        await db.connect(document_models=[User, Geography, Campaign])
+        await db.connect(document_models=[User, Geography, Campaign, CallRecord, QueueEntry])
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error("Database initialization failed", error=str(e))
@@ -193,14 +195,14 @@ def create_app() -> FastAPI:
         )
 
     # Register routers
-    from backend.app.api.v1 import auth, health, geographies, campaigns, calls
+    from backend.app.api.v1 import auth, health, geographies, campaigns, calls, queue
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(health.router, prefix="/api/v1", tags=["Health & Metrics"])
     app.include_router(geographies.router, prefix="/api/v1/geographies", tags=["Geographies"])
     app.include_router(campaigns.router, prefix="/api/v1/campaigns", tags=["Campaigns"])
     app.include_router(calls.router, prefix="/api/v1", tags=["Calls & Webhooks"])
-    # More routers will be added in subsequent user stories
+    app.include_router(queue.router, prefix="/api/v1", tags=["Queue & DLQ"])
 
     logger.info("FastAPI application created")
 

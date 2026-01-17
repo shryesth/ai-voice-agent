@@ -211,7 +211,6 @@ class CampaignService:
         Start campaign (transition from DRAFT → ACTIVE).
 
         Creates queue entries for all patients in patient_list.
-        Note: Queue entry creation will be implemented in User Story 5.
 
         Args:
             campaign_id: MongoDB ObjectId as string
@@ -235,19 +234,44 @@ class CampaignService:
             )
             raise ValueError(f"Campaign is already {campaign.state.value}")
 
+        # Create queue entries for all patients
+        from backend.app.services.queue_service import QueueService
+
+        patient_list = campaign.config.patient_list if campaign.config else []
+        language = campaign.config.language_preference if campaign.config else "en"
+
+        created_count = 0
+        for patient_phone in patient_list:
+            try:
+                await QueueService.create_queue_entry(
+                    campaign_id=str(campaign.id),
+                    patient_phone=patient_phone,
+                    language=language
+                )
+                created_count += 1
+            except Exception as e:
+                logger.error(
+                    "Failed to create queue entry",
+                    campaign_id=campaign_id,
+                    patient_phone=patient_phone,
+                    error=str(e)
+                )
+                # Continue with other patients even if one fails
+
         # Update state
         campaign.state = CampaignState.ACTIVE
         campaign.started_at = datetime.utcnow()
         campaign.updated_at = datetime.utcnow()
 
-        # Initialize stats (queue entries will be created in US5)
-        campaign.stats.queued_count = campaign.stats.total_calls
+        # Initialize stats
+        campaign.stats.queued_count = created_count
 
         await campaign.save()
         logger.info(
             "Campaign started",
             campaign_id=campaign_id,
-            total_calls=campaign.stats.total_calls
+            total_calls=campaign.stats.total_calls,
+            queue_entries_created=created_count
         )
 
         return campaign
@@ -365,19 +389,34 @@ class CampaignService:
             )
             raise ValueError(f"Campaign is already {campaign.state.value}")
 
+        # Clean up pending queue entries (move to DLQ)
+        from backend.app.models.queue_entry import QueueEntry, QueueState
+
+        pending_entries = await QueueEntry.find(
+            QueueEntry.campaign_id == str(campaign.id),
+            QueueEntry.state.in_([QueueState.PENDING, QueueState.RETRYING])
+        ).to_list()
+
+        removed_count = 0
+        for entry in pending_entries:
+            entry.state = QueueState.FAILED
+            entry.moved_to_dlq = True
+            entry.dlq_reason = "Campaign cancelled by admin"
+            entry.completed_at = datetime.utcnow()
+            entry.updated_at = datetime.utcnow()
+            await entry.save()
+            removed_count += 1
+
         # Update state
         campaign.state = CampaignState.CANCELLED
         campaign.completed_at = datetime.utcnow()
         campaign.updated_at = datetime.utcnow()
 
-        # Queue cleanup will be handled in US5
-        # For now, just mark as cancelled
-
         await campaign.save()
         logger.info(
             "Campaign cancelled",
             campaign_id=campaign_id,
-            queued_removed=campaign.stats.queued_count
+            queued_removed=removed_count
         )
 
         return campaign

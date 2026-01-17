@@ -13,7 +13,10 @@ Patient Feedback Collection API - an AI-powered voice call system for collecting
 docker compose -f docker-compose.dev.yml up
 
 # Run API server locally (requires MongoDB and Redis running)
-uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
+.venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
+
+# Install dependencies with uv
+uv pip install -r requirements.txt
 
 # Run tests with coverage
 pytest
@@ -22,6 +25,8 @@ pytest
 pytest -m contract      # API contract tests
 pytest -m integration   # Integration tests (voice pipeline)
 pytest -m unit          # Unit tests
+pytest -m voice         # Voice pipeline tests
+pytest -m queue         # Queue processing tests
 
 # Run single test file
 pytest tests/contract/test_auth.py
@@ -64,15 +69,25 @@ backend/app/
 6. Failed calls retry with backoff; max 3 attempts before Dead Letter Queue (DLQ)
 
 ### Key Technologies
-- **Database**: MongoDB 8.0 with Beanie ODM
+- **Database**: MongoDB 8.0 with Beanie ODM 2.0.1 (uses `pymongo.AsyncMongoClient`)
 - **Cache/Broker**: Redis 7 (Celery broker + result backend)
 - **Voice Pipeline**: Pipecat v0.0.99 + custom FlowManager for conversation state machine
 - **Telephony**: Twilio Media Streams (WebSocket)
 - **AI Model**: OpenAI gpt-4o-realtime-preview
 
+### Database Connection
+The database module (`backend/app/core/database.py`) performs fail-fast prechecks on startup:
+1. **Connectivity check** - Pings MongoDB server
+2. **Database access check** - Verifies database can be accessed
+3. **Privileges check** - Verifies user permissions (read-only check)
+
+If any precheck fails, the application exits immediately with a clear error message.
+
 ## Configuration
 
 Settings loaded via Pydantic Settings from `.env` file (see `.env.example`). Key settings:
+- `MONGODB_URI` - MongoDB connection string (e.g., `mongodb://localhost:27017`)
+- `MONGODB_DATABASE` - Database name (e.g., `voice_agent`)
 - `SKIP_STARTUP_VALIDATION=true` - Skip config validation for tests
 - Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`
 

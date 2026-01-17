@@ -132,32 +132,110 @@ def create_app() -> FastAPI:
     Returns:
         Configured FastAPI application instance
     """
+    # OpenAPI metadata
+    description = """
+## Patient Feedback Collection API
+
+AI-powered voice call system for collecting patient feedback after medical appointments.
+
+### Features
+
+* **🤖 AI Voice Calls**: Automated patient outreach via Twilio + OpenAI Realtime API
+* **🌍 Multilingual**: English, Spanish, French, Haitian Creole support
+* **⚠️ Urgency Detection**: Automatic flagging of emergency keywords
+* **🔄 Smart Retry Logic**: Intelligent retry with failure-specific delays
+* **📊 Campaign Management**: Bulk call execution with queue automation
+* **🔒 RBAC**: Admin and User roles with privacy controls
+* **📈 Monitoring**: Prometheus metrics and DLQ management
+
+### Architecture
+
+- **Voice Pipeline**: Pipecat v0.0.99 + OpenAI gpt-4o-realtime-preview
+- **Queue System**: Celery Beat (30s scheduler) + Redis broker
+- **Database**: MongoDB 8.0.17 with Beanie ODM
+- **Telephony**: Twilio Media Streams (WebSocket)
+
+### Authentication
+
+All endpoints except webhooks require JWT authentication.
+
+1. Login via `POST /api/v1/auth/login` with email/password
+2. Receive JWT token in response
+3. Include token in Authorization header: `Bearer <token>`
+
+### User Roles
+
+- **Admin**: Full access (create campaigns, manage queue, access DLQ)
+- **User**: Read-only access (view campaigns/calls, phone numbers redacted)
+"""
+
+    tags_metadata = [
+        {
+            "name": "Authentication",
+            "description": "User authentication and authorization (JWT-based)",
+        },
+        {
+            "name": "Health & Metrics",
+            "description": "Health checks, readiness probes, and Prometheus metrics",
+        },
+        {
+            "name": "Geographies",
+            "description": "Regional organization with configurable retention policies",
+        },
+        {
+            "name": "Campaigns",
+            "description": "Patient feedback campaigns with time windows and concurrency controls",
+        },
+        {
+            "name": "Calls & Webhooks",
+            "description": "Voice call records, transcripts, and Twilio webhook integration",
+        },
+        {
+            "name": "Queue & DLQ",
+            "description": "Campaign queue management and Dead Letter Queue (DLQ) operations (Admin only)",
+        },
+    ]
+
     app = FastAPI(
         title="Patient Feedback Collection API",
-        description="AI-powered patient feedback collection via voice calls",
+        description=description,
         version="1.0.0",
         lifespan=lifespan,
         docs_url="/docs" if settings.is_development else None,
         redoc_url="/redoc" if settings.is_development else None,
+        openapi_tags=tags_metadata,
+        contact={
+            "name": "API Support",
+            "email": "support@example.com",
+        },
+        license_info={
+            "name": "Proprietary",
+        },
     )
 
     # CORS middleware
     if settings.is_development:
+        # Development: Allow all origins for convenience
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # Allow all origins in development
+            allow_origins=["*"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
     else:
-        # TODO: Configure specific origins for production
+        # Production: Use configured origins (set via CORS_ORIGINS env var)
+        # Example: CORS_ORIGINS="https://app.example.com,https://admin.example.com"
+        origins = settings.cors_origins if settings.cors_origins else [
+            "https://localhost:3001",  # Default fallback for production testing
+        ]
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=[],  # Set allowed origins from config
-            allow_credentials=True,
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-            allow_headers=["*"],
+            allow_origins=origins,
+            allow_credentials=settings.cors_allow_credentials,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization", "Accept", "Origin"],
+            max_age=settings.cors_max_age,
         )
 
     # Exception handlers

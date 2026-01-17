@@ -1,0 +1,253 @@
+version: '3.8'
+
+services:
+  # MongoDB Database (Production)
+  mongodb:
+    image: mongo:8.0.17
+    container_name: voice-ai-mongodb-prod
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+      - ./backups:/backups:rw  # For backup scripts
+    environment:
+      MONGO_INITDB_DATABASE: voice_ai
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+    networks:
+      - backend-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/voice_ai --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache & Message Broker (Production)
+  redis:
+    image: redis:7-alpine
+    container_name: voice-ai-redis-prod
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # FastAPI Application Server (Production)
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      args:
+        - BUILD_ENV=production
+    image: voice-ai-api:${VERSION:-latest}
+    container_name: voice-ai-api-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - LOG_FORMAT=json
+      - SKIP_STARTUP_VALIDATION=false
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-network
+      - frontend-network
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --workers 4 --no-access-log
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      replicas: 1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Set to true if app doesn't need to write to filesystem
+    tmpfs:
+      - /tmp
+
+  # Celery Worker (Production)
+  celery-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+      args:
+        - BUILD_ENV=production
+    image: voice-ai-worker:${VERSION:-latest}
+    container_name: voice-ai-celery-worker-prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - LOG_FORMAT=json
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A backend.app.celery_app inspect ping -d celery@$$HOSTNAME"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      replicas: 2  # Scale workers based on load
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+
+  # Celery Beat Scheduler (Production)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.beat
+      args:
+        - BUILD_ENV=production
+    image: voice-ai-beat:${VERSION:-latest}
+    container_name: voice-ai-celery-beat-prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - LOG_FORMAT=json
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      replicas: 1  # Only one beat scheduler
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  # Backend network (database, cache, workers)
+  backend-network:
+    driver: bridge
+    internal: true  # No external access
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  # Frontend network (API exposed to internet)
+  frontend-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  redis_data:
+    driver: local
+
+# Production deployment notes:
+# 1. Set VERSION env var for image tagging: export VERSION=1.0.0
+# 2. Set MONGODB_ROOT_PASSWORD securely (never commit to git)
+# 3. Use secrets management for sensitive env vars
+# 4. Configure nginx/traefik reverse proxy for HTTPS
+# 5. Enable firewall rules to restrict access
+# 6. Set up monitoring with Prometheus/Grafana
+# 7. Configure automated backups via cron + backup_db.sh
+# 8. Review and adjust resource limits based on actual usage
+# 9. Scale celery-worker replicas based on call volume
+# 10. Use docker-compose --compatibility for deploy constraints

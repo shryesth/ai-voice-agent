@@ -1,0 +1,223 @@
+groups:
+  - name: patient_feedback_api_alerts
+    interval: 30s
+    rules:
+      # Dead Letter Queue Alerts
+      - alert: DLQCountHigh
+        expr: dlq_entries_total > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "Dead Letter Queue count is high"
+          description: "DLQ has {{ $value }} entries. Review failed calls and retry if appropriate."
+          runbook: "Check /api/v1/queue/dlq endpoint for failed entries. Investigate common failure reasons."
+
+      - alert: DLQCountCritical
+        expr: dlq_entries_total > 50
+        for: 5m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "Dead Letter Queue count is critical"
+          description: "DLQ has {{ $value }} entries. Immediate attention required."
+          runbook: "Investigate systemic issues causing high failure rate. Check Twilio status, network connectivity, voice pipeline errors."
+
+      # Queue Depth Alerts
+      - alert: QueueDepthHigh
+        expr: queue_pending_total > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "Queue depth is high"
+          description: "{{ $value }} calls pending in queue for over 10 minutes."
+          runbook: "Check if queue processor is running. Verify time windows are configured correctly. Consider scaling Celery workers."
+
+      - alert: QueueProcessorStalled
+        expr: rate(queue_processed_total[5m]) == 0 and queue_pending_total > 0
+        for: 15m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "Queue processor appears stalled"
+          description: "No queue progress detected for 15 minutes despite pending calls."
+          runbook: "Check Celery Beat scheduler status. Review Celery worker logs. Verify campaign time windows."
+
+      # Error Rate Alerts
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} (>5%)."
+          runbook: "Check API logs for exceptions. Review database connectivity. Check external service status (Twilio, OpenAI)."
+
+      - alert: CriticalAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.20
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Critical API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} (>20%)."
+          runbook: "Immediate investigation required. Check application health, database status, and external dependencies."
+
+      # Voice Call Alerts
+      - alert: HighCallFailureRate
+        expr: rate(calls_failed_total[10m]) / rate(calls_initiated_total[10m]) > 0.30
+        for: 5m
+        labels:
+          severity: warning
+          component: voice_pipeline
+        annotations:
+          summary: "High call failure rate"
+          description: "{{ $value | humanizePercentage }} of calls failing (>30%)."
+          runbook: "Check Twilio status. Review voice pipeline logs for errors. Verify OpenAI Realtime API availability."
+
+      - alert: NoCallsProcessed
+        expr: rate(calls_initiated_total[15m]) == 0 and queue_pending_total > 10
+        for: 30m
+        labels:
+          severity: warning
+          component: voice_pipeline
+        annotations:
+          summary: "No calls being processed"
+          description: "No calls initiated in 30 minutes despite pending queue."
+          runbook: "Check Celery worker status. Verify Twilio credentials. Check campaign time windows."
+
+      # Urgency Detection Alerts
+      - alert: HighUrgencyRate
+        expr: rate(calls_urgent_flagged_total[1h]) / rate(calls_completed_total[1h]) > 0.10
+        for: 1h
+        labels:
+          severity: info
+          component: voice_pipeline
+        annotations:
+          summary: "High rate of urgent-flagged calls"
+          description: "{{ $value | humanizePercentage }} of calls flagged as urgent (>10%)."
+          runbook: "Review urgent call transcripts at /api/v1/calls/urgent. May indicate health crisis in surveyed population."
+
+      # Database Alerts
+      - alert: MongoDBDown
+        expr: up{job="mongodb"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "MongoDB is down"
+          description: "MongoDB has been unreachable for 1 minute."
+          runbook: "Check MongoDB container/service status. Review database logs. Verify network connectivity."
+
+      - alert: MongoDBHighConnections
+        expr: mongodb_connections_current / mongodb_connections_available > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "MongoDB connection pool near capacity"
+          description: "{{ $value | humanizePercentage }} of connections in use (>80%)."
+          runbook: "Check for connection leaks. Review slow queries. Consider increasing connection pool size."
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been unreachable for 1 minute. Celery tasks will fail."
+          runbook: "Check Redis container/service status. Review Redis logs. Verify network connectivity."
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.90
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis using {{ $value | humanizePercentage }} of max memory (>90%)."
+          runbook: "Review Redis eviction policy. Consider increasing memory limit. Check for memory leaks."
+
+      # Celery Worker Alerts
+      - alert: CeleryWorkerDown
+        expr: celery_workers_active == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: worker
+        annotations:
+          summary: "No active Celery workers"
+          description: "All Celery workers are down. Tasks will not be processed."
+          runbook: "Check Celery worker container/service status. Review worker logs for errors."
+
+      - alert: CeleryTaskQueueBacklog
+        expr: celery_tasks_pending > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: worker
+        annotations:
+          summary: "Celery task queue backlog"
+          description: "{{ $value }} tasks pending in Celery queue."
+          runbook: "Check worker capacity. Consider scaling workers. Review task execution times."
+
+      # Application Health Alerts
+      - alert: ApplicationUnhealthy
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Application is down"
+          description: "API health check failing for 2 minutes."
+          runbook: "Check API container/service status. Review application logs. Verify database and Redis connectivity."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API response time"
+          description: "95th percentile response time is {{ $value }}s (>2s)."
+          runbook: "Check database query performance. Review application profiling. Investigate slow endpoints."
+
+      # Retry Alerts
+      - alert: HighRetryRate
+        expr: rate(queue_retries_total[10m]) / rate(calls_initiated_total[10m]) > 0.50
+        for: 10m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "High call retry rate"
+          description: "{{ $value | humanizePercentage }} of calls requiring retries (>50%)."
+          runbook: "Investigate common retry reasons. Check Twilio status. Review patient phone number quality."
+
+      # Disk Space Alerts (for backup volumes)
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.10
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.mountpoint }}"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining (<10%)."
+          runbook: "Clean up old backups. Review log rotation. Consider expanding volume."

@@ -259,18 +259,18 @@
 
 **Purpose**: Production readiness, deployment configuration, documentation
 
-- [ ] T087 [P] Create docker-compose.production.yml with resource limits, network segmentation, health checks
-- [ ] T088 [P] Create captain-definition.json for CapRover deployment (rolling updates, pre-deploy hooks)
-- [ ] T089 [P] Create scripts/migrate_db.py for database migrations (if needed)
-- [ ] T090 [P] Create scripts/backup_db.sh for automated MongoDB backups
+- [X] T087 [P] Create docker-compose.production.yml with resource limits, network segmentation, health checks
+- [X] T088 [P] Create captain-definition.json for CapRover deployment (rolling updates, pre-deploy hooks)
+- [X] T089 [P] Create scripts/migrate_db.py for database migrations (if needed)
+- [X] T090 [P] Create scripts/backup_db.sh for automated MongoDB backups
 - [ ] T091 [P] Add unit tests for services in tests/unit/test_services/ (AuthService, GeographyService, CampaignService, CallService, QueueService)
 - [ ] T092 [P] Add unit tests for models in tests/unit/test_models/ (Pydantic validation, enum constraints)
 - [ ] T093 [P] Add unit tests for Celery tasks in tests/unit/test_tasks/ (queue_processor, voice_call, retry_handler)
-- [ ] T094 Add Prometheus alert rules in prometheus-alerts.yml (DLQ count > 10, queue depth, error rate)
-- [ ] T095 [P] Add CORS configuration for production in backend/app/main.py
+- [X] T094 Add Prometheus alert rules in prometheus-alerts.yml (DLQ count > 10, queue depth, error rate)
+- [X] T095 [P] Add CORS configuration for production in backend/app/main.py
 - [ ] T096 Run quickstart.md validation (local dev setup, test calls, campaign execution)
-- [ ] T097 Add API documentation with examples in backend/app/main.py (OpenAPI tags, descriptions)
-- [ ] T098 Security audit: verify no secrets in logs, phone number redaction for User role, Twilio signature validation
+- [X] T097 Add API documentation with examples in backend/app/main.py (OpenAPI tags, descriptions)
+- [X] T098 Security audit: verify no secrets in logs, phone number redaction for User role, Twilio signature validation
 
 ---
 

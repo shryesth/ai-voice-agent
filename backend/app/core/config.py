@@ -133,6 +133,20 @@ class Settings(BaseSettings):
         description="Enable multi-network Docker architecture"
     )
 
+    # CORS Configuration
+    cors_origins: list[str] = Field(
+        default_factory=list,
+        description="Allowed CORS origins (comma-separated in env: CORS_ORIGINS)"
+    )
+    cors_allow_credentials: bool = Field(
+        default=True,
+        description="Allow credentials in CORS requests"
+    )
+    cors_max_age: int = Field(
+        default=600,
+        description="CORS preflight cache duration in seconds"
+    )
+
     # Celery Configuration
     celery_worker_concurrency: int = Field(
         default=10,
@@ -193,6 +207,17 @@ class Settings(BaseSettings):
         if v is None:
             return info.data.get("redis_url", "redis://localhost:6379/0")
         return v
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Optional[str]) -> list[str]:
+        """Parse CORS_ORIGINS from comma-separated string."""
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return v
+        # Parse comma-separated string from environment variable
+        return [origin.strip() for origin in v.split(",") if origin.strip()]
 
     @property
     def supported_languages_list(self) -> list[str]:

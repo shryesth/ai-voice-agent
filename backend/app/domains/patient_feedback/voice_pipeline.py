@@ -34,7 +34,7 @@ from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.turns.user_start import VADUserTurnStartStrategy
 from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
-from pipecat.turns.user_mute import (
+from pipecat.turns.mute import (
     MuteUntilFirstBotCompleteUserMuteStrategy,
     FunctionCallUserMuteStrategy
 )

@@ -126,9 +126,20 @@ class Database:
     async def close(cls) -> None:
         """Close MongoDB connection gracefully."""
         if cls._initialized and cls._client:
-            cls._client.close()
-            cls._initialized = False
-            logger.info("MongoDB connection closed")
+            try:
+                # Motor's close() is now async in recent versions
+                if hasattr(cls._client.close, '__call__'):
+                    result = cls._client.close()
+                    # Check if it's a coroutine
+                    if hasattr(result, '__await__'):
+                        await result
+            except Exception as e:
+                logger.warning("Error closing MongoDB client", error=str(e))
+            finally:
+                cls._initialized = False
+                logger.info("MongoDB connection closed")
+                cls._client = None
+                logger.info("MongoDB connection closed")
 
     @classmethod
     async def ping(cls) -> bool:

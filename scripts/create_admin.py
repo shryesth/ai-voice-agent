@@ -38,9 +38,26 @@ async def create_admin_user(email: str, password: str) -> None:
 
         logger.info("Creating admin user", email=email)
 
-        # Check if user already exists
-        existing_user = await User.find_one(User.email == email)
+        # Check if user already exists (use raw collection to avoid validation issues)
+        collection = db._client[settings.mongodb_database]["users"]
+        existing_user = await collection.find_one({"email": email})
         if existing_user:
+            if "hashed_password" not in existing_user:
+                # Repair legacy/incomplete user record
+                await collection.update_one(
+                    {"_id": existing_user.get("_id")},
+                    {
+                        "$set": {
+                            "hashed_password": hash_password(password),
+                            "role": UserRole.ADMIN.value,
+                            "is_active": True,
+                        }
+                    },
+                )
+                logger.info("Admin user updated with password", email=email)
+                print(f"Admin user updated: {email}")
+                return
+
             logger.warning("User already exists", email=email)
             print(f"User with email '{email}' already exists")
             return

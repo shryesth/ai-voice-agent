@@ -5,6 +5,16 @@
 **Status**: Draft
 **Input**: Initialise a FastAPI REST API server with admin authentication, geography/project management, and AI-powered patient feedback collection via voice calls using Twilio integration
 
+## Clarifications
+
+### Session 2026-01-17
+
+- Q: Patient Data Identification & Verification Strategy - How should the system verify patient identity during calls? → A: Trust phone number ownership - caller is assumed to be patient or patient guardian or helper based on scenario
+- Q: Campaign Data Retention & Archival Policy - How long should campaign and call data be retained? → A: Configurable per geography (some regions require longer retention for regulatory compliance); default is indefinite retention with compliance audit trail; admin can override with archival configuration per geography
+- Q: Observability & Monitoring Strategy - What monitoring and metrics strategy should the system implement? → A: Multi-layered approach: (1) Basic logging to stdout/files for log aggregation, (2) Application metrics endpoint (/metrics) with custom format for health/call stats, (3) Structured logging + metrics export (Prometheus/OpenTelemetry compatible)
+- Q: Admin Role & Permission Model - What role and permission model should the system implement? → A: Simple role-based access with two roles: Admin (full access to manage geographies, campaigns, configure settings) and User (read-only access to view campaigns and call results)
+- Q: Healthcare Compliance & Regulatory Requirements - What specific compliance requirements should the system enforce? → A: Deferred - specific healthcare compliance requirements (HIPAA, GDPR, etc.) not specified in MVP; general data protection practices apply
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - API Server Infrastructure & Admin Authentication (Priority: P1)
@@ -17,10 +27,14 @@ Platform administrators need a secure REST API backend with health checks and ac
 
 **Acceptance Scenarios**:
 
-1. **Given** admin credentials are registered, **When** admin calls `POST /api/v1/auth/login` with credentials, **Then** receives authentication token valid for 24 hours
-2. **Given** valid authentication token, **When** admin calls `GET /api/v1/health` with token header, **Then** receives 200 OK with server status
-3. **Given** invalid or expired token, **When** admin calls any protected endpoint, **Then** receives 401 Unauthorized
-4. **Given** no authentication header, **When** admin calls protected endpoint, **Then** receives 401 Unauthorized
+1. **Given** user credentials are registered with role, **When** user calls `POST /api/v1/auth/login` with credentials, **Then** receives authentication token valid for 24 hours including role information
+2. **Given** valid Admin role token, **When** admin calls protected endpoint requiring write access, **Then** receives successful response
+3. **Given** valid User role token, **When** user calls protected endpoint requiring write access, **Then** receives 403 Forbidden
+4. **Given** valid User role token, **When** user calls read-only endpoint (view campaigns, view calls), **Then** receives successful response
+5. **Given** valid authentication token, **When** user calls `GET /api/v1/health` with token header, **Then** receives 200 OK with server status
+6. **Given** monitoring system, **When** calls `GET /api/v1/metrics`, **Then** receives current application health and call statistics in JSON format
+7. **Given** invalid or expired token, **When** user calls any protected endpoint, **Then** receives 401 Unauthorized
+8. **Given** no authentication header, **When** user calls protected endpoint, **Then** receives 401 Unauthorized
 
 ---
 
@@ -34,7 +48,7 @@ Operations managers need to organize patient feedback campaigns by geography and
 
 **Acceptance Scenarios**:
 
-1. **Given** authenticated admin, **When** calls `POST /api/v1/geographies`, **Then** can create new geography with name and region metadata
+1. **Given** authenticated admin, **When** calls `POST /api/v1/geographies`, **Then** can create new geography with name, region metadata, and optional data retention policy configuration
 2. **Given** existing geography, **When** admin calls `POST /api/v1/geographies/{geo-id}/campaigns`, **Then** can create feedback collection campaign with name and configuration
 3. **Given** existing campaign, **When** admin calls `GET /api/v1/campaigns/{campaign-id}`, **Then** receives complete campaign configuration including time windows and concurrency limits
 4. **Given** multiple campaigns, **When** admin filters by geography, **Then** receives only campaigns in that geography
@@ -95,7 +109,7 @@ Campaign managers need to queue bulk patient feedback campaigns that run automat
 
 ### Edge Cases
 
-- **Wrong person answers**: If patient verification fails 2 times, system marks "wrong_person" and stops, offers callback to reach actual patient
+- **Wrong person answers**: If caller indicates they are not patient/guardian/helper or cannot provide feedback, and no appropriate person is available after 2 retry attempts, system marks "wrong_person" and stops, offers callback to reach appropriate respondent
 - **Severe side effects reported**: AI detects keywords indicating urgent medical concern (e.g., "hospital", "severe", "can't breathe") and flags for immediate clinical review
 - **Network/Twilio failure mid-call**: Call disconnects during conversation; system logs partial transcript and schedules intelligent retry based on duration
 - **Time window edge case**: If campaign time window is 22:00-02:00 UTC (crosses midnight), scheduler correctly includes both dates in processing
@@ -110,68 +124,85 @@ Campaign managers need to queue bulk patient feedback campaigns that run automat
 **API & Infrastructure**
 
 - **FR-001**: System MUST provide REST API endpoints under `/api/v1/` routing structure for all functionality
-- **FR-002**: System MUST support admin user authentication with login endpoint returning time-limited access tokens (24-hour validity)
-- **FR-003**: System MUST authenticate all protected endpoints and reject requests without valid tokens with 401 Unauthorized
-- **FR-004**: System MUST provide GET `/api/v1/health` endpoint confirming server is running (publicly accessible, no auth required)
-- **FR-005**: System MUST return request/response validation errors as structured JSON with error codes and descriptive messages
+- **FR-002**: System MUST support user authentication with login endpoint returning time-limited access tokens (24-hour validity)
+- **FR-003**: System MUST support two user roles: Admin (full access to create/modify/delete resources) and User (read-only access to view resources)
+- **FR-004**: System MUST authenticate all protected endpoints and reject requests without valid tokens with 401 Unauthorized
+- **FR-005**: System MUST enforce role-based authorization: reject User role requests to create/modify/delete resources with 403 Forbidden
+- **FR-006**: System MUST provide GET `/api/v1/health` endpoint confirming server is running (publicly accessible, no auth required)
+- **FR-007**: System MUST return request/response validation errors as structured JSON with error codes and descriptive messages
 
 **Geography & Campaign Management**
 
-- **FR-006**: System MUST allow admins to create and list geographies with names and metadata
-- **FR-007**: System MUST allow admins to create feedback collection campaigns within geographies
-- **FR-008**: System MUST support campaign configuration with: name, start/end time windows (UTC), days of week, max concurrent calls, patient list
-- **FR-009**: System MUST return complete campaign configuration including current call queue state and progress metrics
-- **FR-010**: System MUST allow filtering campaigns by geography
+- **FR-008**: System MUST allow Admin role to create and list geographies with names, metadata, and optional data retention policy configuration (defaults to indefinite retention if not specified)
+- **FR-009**: System MUST allow Admin role to create feedback collection campaigns within geographies
+- **FR-010**: System MUST allow User role to view (but not modify) geographies and campaigns
+- **FR-011**: System MUST support campaign configuration with: name, start/end time windows (UTC), days of week, max concurrent calls, patient list
+- **FR-012**: System MUST return complete campaign configuration including current call queue state and progress metrics
+- **FR-013**: System MUST allow filtering campaigns by geography
 
 **Voice Call Testing**
 
-- **FR-011**: System MUST provide endpoint to initiate test call to specified phone number
-- **FR-012**: System MUST return test call status (queued, ringing, in-progress, completed, failed) with unique call ID
-- **FR-013**: System MUST provide endpoint to query test call metadata including duration, transcript, AI responses, and error reason if failed
-- **FR-014**: System MUST provide endpoint to simulate test conversation scenarios allowing admins to specify language and conversation path
+- **FR-014**: System MUST provide endpoint to initiate test call to specified phone number (Admin role only)
+- **FR-015**: System MUST return test call status (queued, ringing, in-progress, completed, failed) with unique call ID
+- **FR-016**: System MUST provide endpoint to query test call metadata including duration, transcript, AI responses, and error reason if failed (both Admin and User roles)
+- **FR-017**: System MUST provide endpoint to simulate test conversation scenarios allowing admins to specify language and conversation path (Admin role only)
 
 **Patient Feedback Collection (Voice Calls)**
 
-- **FR-015**: System MUST support multilingual patient calls in: English, Spanish, French, Haitian Creole
-- **FR-016**: System MUST implement 6-stage conversation flow: Greeting → Language Selection → Patient Verification → Feedback Collection → Urgency Detection → Call Completion
-- **FR-017**: System MUST verify patient identity (or note if different person answered) before collecting feedback
-- **FR-018**: System MUST collect structured feedback: overall satisfaction (1-10 scale), specific concerns/complaints, reported side effects, experience quality
-- **FR-019**: System MUST detect urgency signals in patient responses (keywords: "hospital", "severe", "can't breathe", etc.) and flag for clinical review
-- **FR-020**: System MUST handle wrong person scenario: retry patient verification up to 2 times, then mark "wrong_person" and end call with callback offer
-- **FR-021**: System MUST capture complete call transcript with timestamps and speaker identification (patient/AI)
-- **FR-022**: System MUST save all call data (transcript, feedback responses, urgency flags, metadata) immediately after call ends
-- **FR-023**: System MUST integrate with Twilio API to place outbound calls with proper WebSocket media streaming
-- **FR-024**: System MUST integrate with OpenAI Realtime Model for natural conversation with function calling support
-- **FR-025**: System MUST use Pipecat framework to orchestrate voice pipeline: Twilio audio → VAD → Transcription → OpenAI LLM → Audio synthesis → Twilio
+- **FR-018**: System MUST support multilingual patient calls in: English, Spanish, French, Haitian Creole
+- **FR-019**: System MUST implement 6-stage conversation flow: Greeting → Language Selection → Patient Verification → Feedback Collection → Urgency Detection → Call Completion
+- **FR-020**: System MUST verify patient identity by confirming caller is appropriate respondent (patient, guardian, or authorized helper answering on patient's behalf); phone number ownership serves as primary authentication; conversation confirms caller context but does not require additional identity verification (no DOB, SSN, or account credentials)
+- **FR-021**: System MUST collect structured feedback: overall satisfaction (1-10 scale), specific concerns/complaints, reported side effects, experience quality
+- **FR-022**: System MUST detect urgency signals in patient responses (keywords: "hospital", "severe", "can't breathe", etc.) and flag for clinical review
+- **FR-023**: System MUST handle wrong person scenario (caller indicates they are not patient/guardian/helper or cannot provide feedback): retry up to 2 times asking if appropriate person is available, then mark "wrong_person" and end call with callback offer
+- **FR-024**: System MUST capture complete call transcript with timestamps and speaker identification (patient/AI)
+- **FR-025**: System MUST save all call data (transcript, feedback responses, urgency flags, metadata) immediately after call ends
+- **FR-026**: System MUST integrate with Twilio API to place outbound calls with proper WebSocket media streaming
+- **FR-027**: System MUST integrate with OpenAI Realtime Model for natural conversation with function calling support
+- **FR-028**: System MUST use Pipecat framework to orchestrate voice pipeline: Twilio audio → VAD → Transcription → OpenAI LLM → Audio synthesis → Twilio
 
 **Campaign Queue & Scheduling**
 
-- **FR-026**: System MUST support campaign state transitions: active → paused → completed, with manual admin control
-- **FR-027**: System MUST queue all calls in a campaign for automatic processing via Celery + Redis
-- **FR-028**: System MUST respect time windows (UTC-based start/end times, day-of-week filtering) for campaign execution
-- **FR-029**: System MUST enforce maximum concurrent calls limit during active campaign processing
-- **FR-030**: System MUST implement intelligent retry strategy: per-failure-reason delays (NO_ANSWER=30min, BUSY=1hr, FAILED=15min, PERSON_NOT_AVAILABLE=2hr, SHORT_DURATION=1hr)
-- **FR-031**: System MUST route non-retriable failures (INVALID_NUMBER, REJECTED) directly to Dead Letter Queue without retry
-- **FR-032**: System MUST track call entry state: pending → calling → success/failed, with full history of status changes
-- **FR-033**: System MUST provide campaign status endpoint showing: queued count, in-progress count, completed count, failed count, urgent-flagged count
+- **FR-029**: System MUST support campaign state transitions: active → paused → completed, with manual admin control (Admin role only)
+- **FR-030**: System MUST queue all calls in a campaign for automatic processing via Celery + Redis
+- **FR-031**: System MUST respect time windows (UTC-based start/end times, day-of-week filtering) for campaign execution
+- **FR-032**: System MUST enforce maximum concurrent calls limit during active campaign processing
+- **FR-033**: System MUST implement intelligent retry strategy: per-failure-reason delays (NO_ANSWER=30min, BUSY=1hr, FAILED=15min, PERSON_NOT_AVAILABLE=2hr, SHORT_DURATION=1hr)
+- **FR-034**: System MUST route non-retriable failures (INVALID_NUMBER, REJECTED) directly to Dead Letter Queue without retry
+- **FR-035**: System MUST track call entry state: pending → calling → success/failed, with full history of status changes
+- **FR-036**: System MUST provide campaign status endpoint showing: queued count, in-progress count, completed count, failed count, urgent-flagged count (both Admin and User roles)
 
 **Data Persistence**
 
-- **FR-034**: System MUST persist all data in MongoDB with appropriate indexes for query performance
-- **FR-035**: System MUST store call records with full metadata: patient contact info, feedback responses, transcript, duration, timestamps, urgency flags
-- **FR-036**: System MUST store campaign records with configuration, patient lists, call status for each patient, and execution metrics
+- **FR-037**: System MUST persist all data in MongoDB with appropriate indexes for query performance
+- **FR-038**: System MUST store call records with full metadata: patient contact info, feedback responses, transcript, duration, timestamps, urgency flags
+- **FR-039**: System MUST store campaign records with configuration, patient lists, call status for each patient, and execution metrics
+- **FR-040**: System MUST support configurable data retention policies per geography to accommodate regulatory compliance requirements
+- **FR-041**: System MUST retain all campaign and call data indefinitely with compliance audit trail by default
+- **FR-042**: System MUST allow Admin role to configure archival settings per geography (retention duration, archival destination, purge policy)
 
 **Error Handling & Logging**
 
-- **FR-037**: System MUST distinguish between user errors (invalid input), system errors (database down), and transient failures (network timeout)
-- **FR-038**: System MUST log all errors with sufficient detail for debugging: call_sid, error type, context, timestamp
-- **FR-039**: System MUST not expose sensitive data (phone numbers, API keys) in error messages returned to clients
-- **FR-040**: System MUST log all authentication attempts and API access for audit trail
+- **FR-043**: System MUST distinguish between user errors (invalid input), system errors (database down), and transient failures (network timeout)
+- **FR-044**: System MUST log all errors with sufficient detail for debugging: call_sid, error type, context, timestamp
+- **FR-045**: System MUST not expose sensitive data (phone numbers, API keys) in error messages returned to clients
+- **FR-046**: System MUST log all authentication attempts and API access for audit trail
+
+**Observability & Monitoring**
+
+- **FR-047**: System MUST write logs to stdout/files in both human-readable and structured JSON formats for log aggregation
+- **FR-048**: System MUST provide GET `/api/v1/metrics` endpoint exposing application health and call statistics in custom JSON format (accessible to both Admin and User roles)
+- **FR-049**: System MUST export metrics in Prometheus-compatible format for external monitoring systems
+- **FR-050**: System MUST support OpenTelemetry-compatible structured logging and metrics export
+- **FR-051**: System MUST track and expose key operational metrics: active calls count, queued calls count, call success/failure rates, average call duration, campaign processing rate
+- **FR-052**: System MUST include trace identifiers in logs for correlating events across call lifecycle (call_sid, stream_sid, campaign_id)
 
 ### Key Entities
 
-- **Admin User**: Platform administrator with email/password credentials; permissions to manage geographies, campaigns, and view call results
-- **Geography**: Logical operational unit representing region/market; contains multiple campaigns; has name and metadata
+- **User**: Platform user with email/password credentials and assigned role (Admin or User); authenticated via access token
+- **Admin Role**: Full permissions to create/modify/delete geographies, campaigns, configure retention policies, initiate test calls, and control campaign state
+- **User Role**: Read-only permissions to view geographies, campaigns, call results, and metrics; cannot create or modify resources
+- **Geography**: Logical operational unit representing region/market; contains multiple campaigns; has name, metadata, and configurable data retention policy (retention duration, archival rules, compliance requirements)
 - **Campaign**: Feedback collection initiative; specifies patient list, time windows, concurrency limits, and aggregates call results
 - **Patient Call Record**: Individual outbound call with patient contact info, feedback responses, transcript, duration, outcome, urgency flags
 - **Call Queue Entry**: Individual entry in campaign queue; tracks state (pending/calling/success/failed), retry history, failure reason
@@ -215,6 +246,9 @@ Campaign managers need to queue bulk patient feedback campaigns that run automat
 - **SC-019**: Call duration metadata is accurate within ±2 seconds
 - **SC-020**: Error logs include sufficient context (call_sid, error type, timestamp) to debug 90% of issues without code inspection
 - **SC-021**: Admin can troubleshoot failed call by querying call record and seeing full transcript + error reason
+- **SC-022**: Metrics endpoint responds within 1 second with current system health and call statistics
+- **SC-023**: All logs include trace identifiers (call_sid, campaign_id) for 100% of call-related events
+- **SC-024**: Prometheus metrics export updates at least every 15 seconds with current operational state
 
 ## Assumptions
 
@@ -241,13 +275,21 @@ Campaign managers need to queue bulk patient feedback campaigns that run automat
 - Default campaign concurrency limit is 10 concurrent calls per campaign
 - Campaign execution respects 1 call attempt per 2 seconds per phone number (carrier compliance)
 - Session tokens expire after 24 hours of inactivity
-- Admin users are pre-registered by system administrator (no self-serve admin registration)
+- Users are pre-registered by system administrator with assigned role (Admin or User); no self-serve registration
+- Admin role has full access to create/modify/delete resources; User role has read-only access
+- Role assignment is permanent per user account (no dynamic role switching during session)
+- Logs are written to stdout/files for ingestion by external log aggregation systems (e.g., ELK, Loki, Splunk)
+- Metrics are exposed for scraping by external monitoring systems (e.g., Prometheus, Grafana, Datadog)
+- Structured logs use JSON format with consistent field naming for machine parsing
+- OpenTelemetry format is used for distributed tracing compatibility
 
 **Call Flow Assumptions**
 
-- Patient feedback collection prioritizes: patient verification → core feedback collection → urgency assessment
+- Patient feedback collection prioritizes: caller context confirmation → core feedback collection → urgency assessment
+- Phone number ownership serves as primary authentication; caller may be patient, guardian, or authorized helper
+- Verification stage confirms caller is appropriate respondent who can provide feedback (not identity authentication with credentials)
 - Urgency keywords (for clinical follow-up) include: "hospital", "severe", "emergency", "can't breathe", "pain", "allergic reaction"
-- Wrong person scenarios: retry patient verification max 2 times before marking call unsuccessful
+- Wrong person scenarios: caller indicates they cannot provide feedback; retry up to 2 times asking if appropriate person is available before marking call unsuccessful
 - Each conversation stage has max 2 retries before gracefully moving to next achievable stage
 - Partial call data (due to network failure mid-call) is saved with "incomplete" flag for human review
 
@@ -260,7 +302,9 @@ Campaign managers need to queue bulk patient feedback campaigns that run automat
 
 **Data & Privacy Assumptions**
 
-- Call transcripts are retained for 90 days (industry standard for healthcare feedback)
+- Data retention is configurable per geography to accommodate regional regulatory requirements
+- Default retention policy: indefinite storage with compliance audit trail (no automatic purge)
+- Admins can configure per-geography archival rules (retention duration, archival destination, purge policy)
 - Patient phone numbers are not exposed in API responses to non-admin users
 - All data access is logged for audit trail (required for healthcare compliance)
 - Patient feedback responses are treated as potentially sensitive health information

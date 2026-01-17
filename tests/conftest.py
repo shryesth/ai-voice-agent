@@ -12,7 +12,7 @@ import pytest
 import pytest_asyncio
 from typing import AsyncGenerator, Dict
 from httpx import AsyncClient, ASGITransport
-from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import init_beanie
 
 from backend.app.main import app
 from backend.app.core.config import settings
@@ -31,21 +31,36 @@ async def test_db() -> AsyncGenerator:
     """
     Provide test database connection with isolation.
 
-    Creates a test database, yields connection, then cleans up.
+    Uses Beanie's native connection handling. Creates a test database,
+    yields connection, then cleans up.
     """
     # Use a separate test database
     test_db_name = f"{settings.mongodb_database}_test"
-    client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client[test_db_name]
+    connection_string = f"{settings.mongodb_uri}/{test_db_name}"
 
-    # Initialize database (if needed, import and init Beanie models here)
-    # For now, basic connection
+    # Import models for registration
+    from backend.app.models.user import User
+    from backend.app.models.geography import Geography
+    from backend.app.models.campaign import Campaign
+    from backend.app.models.call_record import CallRecord
+    from backend.app.models.queue_entry import QueueEntry
+
+    # Initialize Beanie with test database using native connection
+    await init_beanie(
+        connection_string=connection_string,
+        document_models=[User, Geography, Campaign, CallRecord, QueueEntry]
+    )
+
+    # Access the database through Beanie's internal state
+    from beanie.odm.utils.state import current_state
+    db = current_state.database
 
     yield db
 
     # Cleanup: Drop test database after tests
-    await client.drop_database(test_db_name)
-    client.close()
+    if db is not None:
+        await db.client.drop_database(test_db_name)
+        db.client.close()
 
 
 @pytest_asyncio.fixture

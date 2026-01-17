@@ -13,7 +13,9 @@ Stages:
 6. Call Completion - Thank caller and end conversation
 """
 
-from pipecat_flows import FlowArgs, FlowManager, FlowResult, NodeConfig, FlowsFunctionSchema
+from backend.app.domains.patient_feedback.flow_manager import (
+    FlowArgs, FlowManager, FlowResult, NodeConfig, FlowsFunctionSchema
+)
 from pydantic import BaseModel
 from typing import List
 

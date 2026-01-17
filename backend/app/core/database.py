@@ -1,12 +1,12 @@
 """
 Beanie ODM database initialization.
 
-Manages MongoDB connection and Beanie document initialization.
+Manages MongoDB connection using Beanie 2.0.1's native connection handling.
+Motor client is managed internally by Beanie.
 """
 
 from typing import List, Type
 from beanie import Document, init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
 
 from backend.app.core.config import settings
 from backend.app.core.logging import get_logger
@@ -17,12 +17,15 @@ logger = get_logger(__name__)
 class Database:
     """Database connection manager for MongoDB with Beanie ODM."""
 
-    client: AsyncIOMotorClient | None = None
+    _initialized: bool = False
 
     @classmethod
     async def connect(cls, document_models: List[Type[Document]]) -> None:
         """
         Connect to MongoDB and initialize Beanie with document models.
+
+        Uses Beanie 2.0.1's native connection_string parameter which
+        handles motor client creation internally.
 
         Args:
             document_models: List of Beanie Document classes to register
@@ -37,14 +40,16 @@ class Database:
                 database=settings.mongodb_database,
             )
 
-            # Create async motor client
-            cls.client = AsyncIOMotorClient(settings.mongodb_uri)
+            # Beanie 2.0.1 handles motor client creation internally
+            # Build connection string with database name
+            connection_string = f"{settings.mongodb_uri}/{settings.mongodb_database}"
 
-            # Initialize Beanie with document models
             await init_beanie(
-                database=cls.client[settings.mongodb_database],
+                connection_string=connection_string,
                 document_models=document_models,
             )
+
+            cls._initialized = True
 
             logger.info(
                 "MongoDB connected successfully",
@@ -63,10 +68,11 @@ class Database:
     @classmethod
     async def close(cls) -> None:
         """Close MongoDB connection gracefully."""
-        if cls.client:
+        if cls._initialized:
             logger.info("Closing MongoDB connection")
-            cls.client.close()
-            cls.client = None
+            # Beanie manages the motor client internally
+            # The connection is closed when the application shuts down
+            cls._initialized = False
             logger.info("MongoDB connection closed")
 
     @classmethod
@@ -74,14 +80,24 @@ class Database:
         """
         Ping MongoDB to check connection health.
 
+        Uses Beanie's internal motor client to execute ping command.
+
         Returns:
             True if connection is healthy, False otherwise
         """
-        if not cls.client:
+        if not cls._initialized:
             return False
 
         try:
-            await cls.client.admin.command("ping")
+            # Access the motor database through any registered Document class
+            # Beanie stores the database reference internally
+            from beanie.odm.utils.state import current_state
+
+            motor_db = current_state.database
+            if motor_db is None:
+                return False
+
+            await motor_db.client.admin.command("ping")
             return True
         except Exception as e:
             logger.warning("MongoDB ping failed", error=str(e))

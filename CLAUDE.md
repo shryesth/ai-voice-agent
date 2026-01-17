@@ -66,7 +66,7 @@ backend/app/
 ### Key Technologies
 - **Database**: MongoDB 8.0 with Beanie ODM
 - **Cache/Broker**: Redis 7 (Celery broker + result backend)
-- **Voice Pipeline**: Pipecat v0.0.99 + pipecat-flows for conversation state machine
+- **Voice Pipeline**: Pipecat v0.0.99 + custom FlowManager for conversation state machine
 - **Telephony**: Twilio Media Streams (WebSocket)
 - **AI Model**: OpenAI gpt-4o-realtime-preview
 

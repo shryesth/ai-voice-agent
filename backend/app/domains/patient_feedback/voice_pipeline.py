@@ -41,7 +41,7 @@ from pipecat.strategies.user_mute import (
     FunctionCallUserMuteStrategy
 )
 
-from pipecat_flows import FlowManager
+from backend.app.domains.patient_feedback.flow_manager import FlowManager
 from backend.app.domains.patient_feedback.conversation_flow import create_greeting_node
 
 logger = logging.getLogger(__name__)

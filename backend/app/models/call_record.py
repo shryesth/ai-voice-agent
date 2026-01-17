@@ -12,8 +12,11 @@ Tracks:
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from backend.app.models.campaign import Campaign
 
 
 class CallOutcome(str, Enum):
@@ -110,10 +113,7 @@ class CallRecord(Document):
     - created_at: Sort by recency
     """
 
-    # Import Campaign here to avoid circular import
-    from backend.app.models.campaign import Campaign
-
-    campaign_id: Link[Campaign]
+    campaign_id: Link["Campaign"]
 
     # Patient contact (phone number ownership = authentication)
     patient_phone: str = Field(..., description="E.164 format")

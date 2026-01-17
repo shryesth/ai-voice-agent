@@ -57,6 +57,8 @@ async def readiness_probe():
 
     Note: Results cached for 5s to avoid hammering dependencies
     """
+    global _health_check_cache, _cache_timestamp
+    
     # Check if we should use cached result
     if settings.health_check_cache_ttl > 0:
         cache_age = time.time() - _cache_timestamp
@@ -109,7 +111,6 @@ async def readiness_probe():
     }
 
     # Update cache
-    global _health_check_cache, _cache_timestamp
     _health_check_cache = result
     _cache_timestamp = time.time()
 

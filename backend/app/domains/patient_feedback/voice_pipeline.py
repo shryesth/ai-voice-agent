@@ -25,18 +25,16 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContext,
     LLMContextAggregatorPair
 )
-from pipecat.transports.fastapi_websocket import (
+from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketTransport,
     FastAPIWebsocketParams
 )
 from pipecat.serializers.twilio import TwilioFrameSerializer
-from pipecat.vad.silero import SileroVADAnalyzer
-from pipecat.vad.vad_analyzer import VADParams
-from pipecat.strategies.user_turn import (
-    VADUserTurnStartStrategy,
-    TranscriptionUserTurnStopStrategy
-)
-from pipecat.strategies.user_mute import (
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.turns.user_start import VADUserTurnStartStrategy
+from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
+from pipecat.turns.user_mute import (
     MuteUntilFirstBotCompleteUserMuteStrategy,
     FunctionCallUserMuteStrategy
 )

@@ -6,6 +6,7 @@ Motor client is managed internally by Beanie.
 """
 
 from typing import List, Type
+from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import Document, init_beanie
 
 from backend.app.core.config import settings
@@ -18,6 +19,7 @@ class Database:
     """Database connection manager for MongoDB with Beanie ODM."""
 
     _initialized: bool = False
+    _client: AsyncIOMotorClient = None
 
     @classmethod
     async def connect(cls, document_models: List[Type[Document]]) -> None:
@@ -40,12 +42,13 @@ class Database:
                 database=settings.mongodb_database,
             )
 
-            # Beanie 2.0.1 handles motor client creation internally
-            # Build connection string with database name
-            connection_string = f"{settings.mongodb_uri}/{settings.mongodb_database}"
+            # Create motor client and get database
+            cls._client = AsyncIOMotorClient(settings.mongodb_uri)
+            database = cls._client[settings.mongodb_database]
 
+            # Initialize Beanie with database instance
             await init_beanie(
-                connection_string=connection_string,
+                database=database,
                 document_models=document_models,
             )
 
@@ -68,10 +71,8 @@ class Database:
     @classmethod
     async def close(cls) -> None:
         """Close MongoDB connection gracefully."""
-        if cls._initialized:
-            logger.info("Closing MongoDB connection")
-            # Beanie manages the motor client internally
-            # The connection is closed when the application shuts down
+        if cls._initialized and cls._client:
+            cls._client.close()
             cls._initialized = False
             logger.info("MongoDB connection closed")
 

@@ -22,7 +22,7 @@
 **Purpose**: Project initialization and directory structure
 
 - [X] T001 Create project directory structure per plan.md (backend/app/, tests/, docker/, scripts/)
-- [X] T002 Initialize Python 3.12.12 project with requirements.txt (FastAPI 0.128.0, Beanie 2.0.1, Celery, Pipecat-ai[silero] 0.0.99)
+- [X] T002 Initialize Python 3.12.12 project with requirements.txt (FastAPI 0.128.0, Beanie 2.0.1, Celery, Pipecat-ai[silero] 0.0.99, pipecat-flows 0.0.10)
 - [X] T003 [P] Create .env.example with all configuration variables from research.md
 - [X] T004 [P] Configure pytest.ini for contract/integration/unit test organization
 - [X] T005 [P] Create docker/Dockerfile.api for API server container (Python 3.12.12, MongoDB 8.0.17)
@@ -150,32 +150,32 @@
 ### Implementation for User Story 4
 
 **Models:**
-- [ ] T050 [US4] Create CallRecord model in backend/app/models/call_record.py (FeedbackData, ConversationState, CallTracking, urgency flags)
+- [X] T050 [US4] Create CallRecord model in backend/app/models/call_record.py (FeedbackData, ConversationState, CallTracking, urgency flags)
 
 **Schemas:**
-- [ ] T051 [P] [US4] Create call request/response schemas in backend/app/schemas/call.py (CallRecordResponse, FeedbackDataResponse, ConversationStateResponse)
+- [X] T051 [P] [US4] Create call request/response schemas in backend/app/schemas/call.py (CallRecordResponse, FeedbackDataResponse, ConversationStateResponse)
 
 **Domain Logic (Voice Pipeline):**
-- [ ] T052 [P] [US4] Implement conversation flow state machine in backend/app/domains/patient_feedback/conversation_flow.py (6 stages: greeting, language, verification, feedback, urgency, completion) using FlowManager pattern with dynamic node transitions per Pipecat v0.0.99
-- [ ] T053 [P] [US4] Implement urgency keyword detector in backend/app/domains/patient_feedback/urgency_detector.py (hospital, severe, can't breathe, etc.)
-- [ ] T054 [US4] Implement Twilio integration in backend/app/domains/patient_feedback/twilio_integration.py (initiate call, WebSocket media streaming, status webhooks) using FastAPIWebsocketTransport with fixed_audio_packet_size
-- [ ] T055 [US4] Implement Pipecat v0.0.99 voice pipeline orchestration in backend/app/domains/patient_feedback/voice_pipeline.py (use LLMContext, LLMContextAggregatorPair, user_turn_strategies for VAD/transcription, register functions with OpenAIRealtimeLLMService)
+- [X] T052 [P] [US4] Implement conversation flow state machine in backend/app/domains/patient_feedback/conversation_flow.py with 6 stage NodeConfig functions (create_greeting_node, create_language_selection_node, create_verification_node, create_feedback_node, create_urgency_detection_node, create_completion_node) using pipecat-flows FlowManager pattern. Each NodeConfig must include: (1) role_messages list defining system identity, (2) task_messages list with stage-specific instructions, (3) functions list with FlowsFunctionSchema having properties dict + required list (NOT parameters dict), (4) handler with signature async def handler(args: FlowArgs, flow_manager: FlowManager) returning (FlowResult, next_node), (5) FlowResult base classes (GreetingResult, LanguageResult, VerificationResult, FeedbackResult, UrgencyResult, CompletionResult) with typed fields
+- [X] T053 [P] [US4] Implement urgency keyword detector in backend/app/domains/patient_feedback/urgency_detector.py (hospital, severe, can't breathe, etc.)
+- [X] T054 [US4] Implement Twilio integration in backend/app/domains/patient_feedback/twilio_integration.py (initiate outbound calls via Twilio API, parse WebSocket "start" event, extract call_sid/stream_sid, handle status webhooks with signature validation) using FastAPIWebsocketTransport + TwilioFrameSerializer for ALL audio conversion (µ-law 8kHz ↔ PCM 16kHz)
+- [X] T055 [US4] Implement Pipecat v0.0.99 voice pipeline orchestration in backend/app/domains/patient_feedback/voice_pipeline.py with create_voice_pipeline(websocket, call_record_id, call_data) function implementing: (1) TwilioFrameSerializer initialization with stream_sid/call_sid, (2) FastAPIWebsocketTransport with Silero VAD, (3) OpenAIRealtimeLLMService with language-specific voice, (4) LLMContext with initial system message, (5) LLMContextAggregatorPair with VADUserTurnStartStrategy + TranscriptionUserTurnStopStrategy + MuteUntilFirstBotCompleteUserMuteStrategy + FunctionCallUserMuteStrategy, (6) FlowManager initialization with create_greeting_node(), (7) Pipeline assembly in correct order: transport.input() → user_aggregator → llm_service → transport.output() → assistant_aggregator, (8) PipelineTask with PipelineParams (no allow_interruptions parameter), (9) Return flow_manager.state for CallRecord persistence
 
 **Services:**
-- [ ] T056 [US4] Implement CallService in backend/app/services/call_service.py (create call record, query calls, export CSV)
+- [X] T056 [US4] Implement CallService in backend/app/services/call_service.py (create call record, query calls, export CSV)
 
 **Celery Tasks:**
-- [ ] T057 [US4] Implement voice call task in backend/app/tasks/voice_call.py (initiate_patient_call, integrate with Pipecat pipeline)
+- [X] T057 [US4] Implement voice call task in backend/app/tasks/voice_call.py (initiate_patient_call, integrate with Pipecat pipeline)
 
 **API Endpoints:**
-- [ ] T058 [US4] Implement GET /api/v1/calls/{id} in backend/app/api/v1/calls.py (get call record with full transcript)
-- [ ] T059 [P] [US4] Implement GET /api/v1/campaigns/{id}/calls in backend/app/api/v1/calls.py (list calls with filtering)
-- [ ] T060 [P] [US4] Implement GET /api/v1/calls/urgent in backend/app/api/v1/calls.py (urgent-flagged calls for clinical review)
-- [ ] T061 [P] [US4] Implement POST /api/v1/webhooks/twilio/status in backend/app/api/v1/calls.py (Twilio status callback with signature validation)
+- [X] T058 [US4] Implement GET /api/v1/calls/{id} in backend/app/api/v1/calls.py (get call record with full transcript)
+- [X] T059 [P] [US4] Implement GET /api/v1/campaigns/{id}/calls in backend/app/api/v1/calls.py (list calls with filtering)
+- [X] T060 [P] [US4] Implement GET /api/v1/calls/urgent in backend/app/api/v1/calls.py (urgent-flagged calls for clinical review)
+- [X] T061 [P] [US4] Implement POST /api/v1/webhooks/twilio/status in backend/app/api/v1/calls.py (Twilio status callback with signature validation)
 
 **Infrastructure:**
-- [ ] T062 [US4] Register call routes and webhooks in backend/app/main.py
-- [ ] T063 [US4] Add multilingual support configuration (en, es, fr, ht) in backend/app/core/config.py
+- [X] T062 [US4] Register call routes and webhooks in backend/app/main.py
+- [X] T063 [US4] Add multilingual support configuration (en, es, fr, ht) in backend/app/core/config.py
 
 **Checkpoint**: Voice calls work end-to-end, full conversation flow completes, transcripts and feedback saved, urgency detection functional
 
@@ -195,15 +195,15 @@
 ### Implementation for User Story 3
 
 **Schemas:**
-- [ ] T066 [P] [US3] Create test call request schemas in backend/app/schemas/call.py (TestCallRequest, TestScenarioRequest with TestScenario enum)
+- [X] T066 [P] [US3] Create test call request schemas in backend/app/schemas/call.py (TestCallRequest, TestScenarioRequest with TestScenario enum)
 
 **Services:**
-- [ ] T067 [US3] Add test call methods to CallService in backend/app/services/call_service.py (initiate_test_call, simulate_scenario)
+- [X] T067 [US3] Add test call methods to CallService in backend/app/services/call_service.py (initiate_test_call, simulate_scenario)
 
 **API Endpoints:**
-- [ ] T068 [US3] Implement POST /api/v1/campaigns/{id}/calls/test in backend/app/api/v1/calls.py (initiate test call, bypass queue)
-- [ ] T069 [US3] Implement POST /api/v1/campaigns/{id}/calls/test-scenario in backend/app/api/v1/calls.py (simulate scenarios: happy_path, wrong_person, urgent_keywords, etc.)
-- [ ] T070 [US3] Implement GET /api/v1/campaigns/{id}/calls/export in backend/app/api/v1/calls.py (CSV export, Admin only)
+- [X] T068 [US3] Implement POST /api/v1/campaigns/{id}/calls/test in backend/app/api/v1/calls.py (initiate test call, bypass queue)
+- [X] T069 [US3] Implement POST /api/v1/campaigns/{id}/calls/test-scenario in backend/app/api/v1/calls.py (simulate scenarios: happy_path, wrong_person, urgent_keywords, etc.)
+- [X] T070 [US3] Implement GET /api/v1/campaigns/{id}/calls/export in backend/app/api/v1/calls.py (CSV export, Admin only)
 
 **Checkpoint**: Test calls can be initiated, scenarios simulated, call metadata queryable
 

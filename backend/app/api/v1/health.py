@@ -82,9 +82,12 @@ async def readiness_probe():
     # Check MongoDB
     if settings.health_check_dependencies:
         try:
-            await db.client.admin.command('ping')
-            checks["mongodb"] = True
-            logger.debug("MongoDB health check passed")
+            mongodb_healthy = await db.ping()
+            checks["mongodb"] = mongodb_healthy
+            if mongodb_healthy:
+                logger.debug("MongoDB health check passed")
+            else:
+                logger.warning("MongoDB health check failed: ping returned false")
         except Exception as e:
             checks["mongodb"] = False
             logger.warning("MongoDB health check failed", error=str(e))

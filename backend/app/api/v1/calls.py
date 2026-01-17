@@ -171,6 +171,30 @@ async def initiate_test_scenario(
     return TestCallResponse(**result)
 
 
+@router.get("/calls/urgent", response_model=CallListResponse)
+async def list_urgent_calls(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    List all urgent-flagged calls for clinical review.
+
+    Returns calls where urgency_flagged=true, sorted by most recent.
+    """
+    calls, total = await CallService.list_urgent_calls(
+        skip=skip,
+        limit=limit
+    )
+
+    return CallListResponse(
+        total=total,
+        skip=skip,
+        limit=limit,
+        items=[call_to_response(call, user_role=current_user.role) for call in calls]
+    )
+
+
 @router.get("/calls/{call_id}", response_model=CallRecordResponse)
 async def get_call_record(
     call_id: str,
@@ -182,13 +206,13 @@ async def get_call_record(
     Privacy: patient_phone is redacted for User role.
     """
     call = await CallService.get_call_by_id(call_id, user_role=current_user.role)
-    
+
     if not call:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Call record {call_id} not found"
         )
-    
+
     return call_to_response(call, user_role=current_user.role)
 
 
@@ -203,7 +227,7 @@ async def list_campaign_calls(
 ):
     """
     List all calls for a campaign with filtering.
-    
+
     Query parameters:
     - outcome: Filter by call outcome
     - urgency_flagged: Filter by urgency flag (true/false)
@@ -218,31 +242,7 @@ async def list_campaign_calls(
         urgency_flagged=urgency_flagged,
         user_role=current_user.role
     )
-    
-    return CallListResponse(
-        total=total,
-        skip=skip,
-        limit=limit,
-        items=[call_to_response(call, user_role=current_user.role) for call in calls]
-    )
 
-
-@router.get("/calls/urgent", response_model=CallListResponse)
-async def list_urgent_calls(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    List all urgent-flagged calls for clinical review.
-    
-    Returns calls where urgency_flagged=true, sorted by most recent.
-    """
-    calls, total = await CallService.list_urgent_calls(
-        skip=skip,
-        limit=limit
-    )
-    
     return CallListResponse(
         total=total,
         skip=skip,

@@ -4,7 +4,7 @@ Pydantic schemas for Geography API requests and responses.
 These schemas define the API contract for geography endpoints.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -38,7 +38,7 @@ class RetentionPolicyCreate(BaseModel):
 
 class RetentionPolicyResponse(RetentionPolicyCreate):
     """Retention policy in API responses (same as create)"""
-    pass
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GeographyCreate(BaseModel):
@@ -89,6 +89,8 @@ class GeographyUpdate(BaseModel):
 
 class GeographyResponse(BaseModel):
     """Response schema for geography endpoints"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     description: Optional[str]
@@ -97,24 +99,6 @@ class GeographyResponse(BaseModel):
     metadata: Dict[str, Any]
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "65a1b2c3d4e5f6g7h8i9j0k1",
-                "name": "North America - East Coast",
-                "description": "US East Coast operations",
-                "region_code": "US-EAST",
-                "retention_policy": {
-                    "retention_days": 2555,
-                    "archival_destination": "s3://backups/us-east/",
-                    "auto_purge_enabled": False
-                },
-                "metadata": {"timezone": "America/New_York"},
-                "created_at": "2026-01-18T14:30:00Z",
-                "updated_at": "2026-01-18T14:30:00Z"
-            }
-        }
 
 
 class GeographyListResponse(BaseModel):

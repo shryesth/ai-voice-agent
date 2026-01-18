@@ -21,6 +21,14 @@ from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask, PipelineParams
 from pipecat.frames.frames import LLMRunFrame, EndFrame, TTSSpeakFrame
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
+from pipecat.services.openai.realtime.events import (
+    SessionProperties,
+    AudioConfiguration,
+    AudioInput,
+    InputAudioTranscription,
+    SemanticTurnDetection,
+    InputAudioNoiseReduction
+)
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContext,
     LLMContextAggregatorPair,
@@ -117,10 +125,24 @@ async def create_voice_pipeline(
 
     # 3. Initialize OpenAI Realtime LLM Service with language-specific voice
     voice = LANGUAGE_VOICE_MAP.get(call_data.get("language", "en"), "alloy")
+    
+    # Configure session properties with input audio transcription enabled
+    # This is CRITICAL for capturing user messages - OpenAI Realtime needs explicit transcription config
+    session_properties = SessionProperties(
+        audio=AudioConfiguration(
+            input=AudioInput(
+                transcription=InputAudioTranscription(),  # Enable transcription for user audio
+                turn_detection=SemanticTurnDetection(),   # Use semantic turn detection
+                noise_reduction=InputAudioNoiseReduction(type="near_field")  # Near-field noise reduction
+            )
+        )
+    )
+    
     llm_service = OpenAIRealtimeLLMService(
         api_key=settings.openai_api_key,
         model=settings.openai_model,
-        voice=voice
+        voice=voice,
+        session_properties=session_properties  # REQUIRED for user transcription!
     )
 
     # 4. Create LLMContext with initial system message
@@ -160,8 +182,10 @@ async def create_voice_pipeline(
     async def on_user_turn_stopped(aggregator, strategy, message):
         """Capture user message when they finish speaking"""
         try:
+            logger.debug(f"🎤 User turn stopped event fired. Message type: {type(message)}, Content: '{message.content if hasattr(message, 'content') else 'NO CONTENT ATTR'}'")
+            
             # message is a UserTurnStoppedMessage with .content and .timestamp
-            if message.content and message.content.strip():
+            if hasattr(message, 'content') and message.content and message.content.strip():
                 from backend.app.models.call_record import ConversationTurn
                 turn = ConversationTurn(
                     speaker="patient",
@@ -173,6 +197,8 @@ async def create_voice_pipeline(
                 call_record.updated_at = datetime.utcnow()
                 await call_record.save()
                 logger.info(f"📝 [patient]: {message.content[:50]}...")
+            else:
+                logger.warning(f"⚠️ User turn stopped but content is empty or missing")
         except Exception as e:
             logger.error(f"Error capturing user transcript: {e}", exc_info=True)
 
@@ -180,8 +206,10 @@ async def create_voice_pipeline(
     async def on_assistant_turn_stopped(aggregator, message):
         """Capture assistant message when it finishes responding"""
         try:
+            logger.debug(f"🤖 Assistant turn stopped event fired. Message type: {type(message)}, Content: '{message.content if hasattr(message, 'content') else 'NO CONTENT ATTR'}'")
+            
             # message is an AssistantTurnStoppedMessage with .content and .timestamp
-            if message.content and message.content.strip():
+            if hasattr(message, 'content') and message.content and message.content.strip():
                 from backend.app.models.call_record import ConversationTurn
                 turn = ConversationTurn(
                     speaker="ai",
@@ -192,6 +220,8 @@ async def create_voice_pipeline(
                 call_record.updated_at = datetime.utcnow()
                 await call_record.save()
                 logger.info(f"📝 [ai]: {message.content[:50]}...")
+            else:
+                logger.warning(f"⚠️ Assistant turn stopped but content is empty or missing")
         except Exception as e:
             logger.error(f"Error capturing assistant transcript: {e}", exc_info=True)
 

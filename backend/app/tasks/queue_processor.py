@@ -6,10 +6,9 @@ Respects time windows, concurrency limits, and retry schedules.
 """
 
 from celery import Task
-from backend.app.celery_app import celery_app
+from backend.app.celery_app import celery_app, get_worker_event_loop
 from datetime import datetime, time
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +98,7 @@ def process_campaign_queues(self):
         from backend.app.tasks.voice_call import initiate_patient_call
 
         # Run async operations in event loop
-        loop = asyncio.get_event_loop()
+        loop = get_worker_event_loop()
 
         # Find all active campaigns
         active_campaigns = loop.run_until_complete(

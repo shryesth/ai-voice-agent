@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     twilio_account_sid: str = Field(..., description="Twilio Account SID")
     twilio_auth_token: str = Field(..., description="Twilio Auth Token")
     twilio_phone_number: str = Field(..., description="Twilio phone number for outbound calls")
+    twilio_websocket_url: str = Field(
+        default="wss://api.example.com/api/v1/webhooks/twilio/media",
+        description="WebSocket URL for Twilio Media Streams"
+    )
 
     # OpenAI Configuration
     openai_api_key: str = Field(..., description="OpenAI API key")

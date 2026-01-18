@@ -8,7 +8,7 @@ Integrates:
 """
 
 from celery import Task
-from backend.app.celery_app import celery_app
+from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.domains.patient_feedback.twilio_integration import TwilioIntegration
 from backend.app.services.call_service import CallService
 from backend.app.models.call_record import CallOutcome
@@ -16,6 +16,24 @@ from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def get_or_create_event_loop():
+    """Get existing event loop or create a new one if needed."""
+    try:
+        loop = asyncio.get_running_loop()
+        return loop
+    except RuntimeError:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            return loop
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
 
 
 class VoiceCallTask(Task):
@@ -58,8 +76,8 @@ def initiate_patient_call(
 
     try:
         # 1. Create CallRecord
-        import asyncio
-        call_record = asyncio.run(CallService.create_call_record(
+        loop = get_worker_event_loop()
+        call_record = loop.run_until_complete(CallService.create_call_record(
             campaign_id=campaign_id,
             patient_phone=patient_phone,
             language=language
@@ -82,7 +100,7 @@ def initiate_patient_call(
         call_record.call_tracking.call_sid = call_data["call_sid"]
         call_record.call_tracking.status = call_data["status"]
         call_record.call_tracking.created_at = datetime.utcnow()
-        asyncio.run(call_record.save())
+        loop.run_until_complete(call_record.save())
 
         logger.info(f"Call initiated: {call_data['call_sid']} for record {call_record.id}")
 
@@ -99,8 +117,8 @@ def initiate_patient_call(
         if 'call_record' in locals():
             call_record.error_message = str(e)
             call_record.call_tracking.outcome = CallOutcome.FAILED
-            import asyncio
-            asyncio.run(call_record.save())
+            loop = get_worker_event_loop()
+            loop.run_until_complete(call_record.save())
         
         raise
 
@@ -121,10 +139,10 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
     logger.info(f"Updating call {call_sid} with status {status}")
 
     try:
-        import asyncio
+        loop = get_worker_event_loop()
         
         # Find call record by Twilio SID
-        call_record = asyncio.run(CallService.get_call_by_twilio_sid(call_sid))
+        call_record = loop.run_until_complete(CallService.get_call_by_twilio_sid(call_sid))
         
         if not call_record:
             logger.warning(f"Call record not found for Twilio SID: {call_sid}")
@@ -156,7 +174,7 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
                 call_record.call_tracking.outcome = CallOutcome.FAILED
 
         call_record.updated_at = datetime.utcnow()
-        asyncio.run(call_record.save())
+        loop.run_until_complete(call_record.save())
 
         logger.info(f"Updated call record {call_record.id} with status {status}")
 

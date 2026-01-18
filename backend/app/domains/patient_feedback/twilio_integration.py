@@ -7,11 +7,12 @@ Handles:
 - Status webhook validation
 """
 
-import os
 from typing import Optional, Dict, Any
 from twilio.rest import Client
 from twilio.request_validator import RequestValidator
 import logging
+
+from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +36,15 @@ class TwilioIntegration:
         Initialize Twilio client.
 
         Args:
-            account_sid: Twilio Account SID (defaults to env var)
-            auth_token: Twilio Auth Token (defaults to env var)
-            phone_number: Twilio phone number (defaults to env var)
-            websocket_url: WebSocket URL for media streaming (defaults to env var)
+            account_sid: Twilio Account SID (defaults to settings)
+            auth_token: Twilio Auth Token (defaults to settings)
+            phone_number: Twilio phone number (defaults to settings)
+            websocket_url: WebSocket URL for media streaming (defaults to settings)
         """
-        self.account_sid = account_sid or os.getenv("TWILIO_ACCOUNT_SID")
-        self.auth_token = auth_token or os.getenv("TWILIO_AUTH_TOKEN")
-        self.phone_number = phone_number or os.getenv("TWILIO_PHONE_NUMBER")
-        self.websocket_url = websocket_url or os.getenv("TWILIO_WEBSOCKET_URL", "wss://api.example.com/api/v1/webhooks/twilio/media")
+        self.account_sid = account_sid or settings.twilio_account_sid
+        self.auth_token = auth_token or settings.twilio_auth_token
+        self.phone_number = phone_number or settings.twilio_phone_number
+        self.websocket_url = websocket_url or settings.twilio_websocket_url
 
         if not all([self.account_sid, self.auth_token, self.phone_number]):
             raise ValueError("Missing required Twilio credentials")

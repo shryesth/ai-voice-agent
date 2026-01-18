@@ -6,12 +6,11 @@ Calls are automatically retried with delays based on failure reason, or moved to
 """
 
 from celery import Task
-from backend.app.celery_app import celery_app
+from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.models.call_record import CallOutcome
 from backend.app.services.queue_service import QueueService
 from backend.app.models.queue_entry import FailureReason
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ def handle_call_completion(
     )
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = get_worker_event_loop()
 
         # Get queue entry
         queue_entry = loop.run_until_complete(
@@ -158,7 +157,7 @@ def update_queue_from_call(call_record_id: str):
     logger.info(f"Updating queue entry from call record {call_record_id}")
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = get_worker_event_loop()
 
         # Find call record
         from backend.app.services.call_service import CallService

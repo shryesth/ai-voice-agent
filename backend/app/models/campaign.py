@@ -5,13 +5,13 @@ This model represents a patient feedback collection campaign with configurable
 time windows, concurrency limits, and patient lists.
 """
 
+from __future__ import annotations
+
 from beanie import Document, Link
 from pydantic import BaseModel, Field, validator
 from datetime import datetime, time
 from typing import Optional, List
 from enum import Enum
-
-from backend.app.models.geography import Geography
 
 
 class CampaignState(str, Enum):
@@ -197,3 +197,11 @@ class Campaign(Document):
                 }
             }
         }
+
+
+# Import Geography after Campaign class definition to resolve Link[Geography]
+# This works with `from __future__ import annotations` which makes annotations lazy
+from backend.app.models.geography import Geography
+
+# Rebuild model to resolve forward references
+Campaign.model_rebuild()

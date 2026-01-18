@@ -9,14 +9,13 @@ Tracks:
 - Call tracking metadata (Twilio integration)
 """
 
+from __future__ import annotations
+
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, Dict, TYPE_CHECKING
+from typing import Optional, List, Dict
 from enum import Enum
-
-if TYPE_CHECKING:
-    from backend.app.models.campaign import Campaign
 
 
 class CallOutcome(str, Enum):
@@ -113,7 +112,7 @@ class CallRecord(Document):
     - created_at: Sort by recency
     """
 
-    campaign_id: Link["Campaign"]
+    campaign_id: Link[Campaign]
 
     # Patient contact (phone number ownership = authentication)
     patient_phone: str = Field(..., description="E.164 format")
@@ -170,3 +169,11 @@ class CallRecord(Document):
                 }
             }
         }
+
+
+# Import Campaign after CallRecord class definition to resolve Link[Campaign]
+# This works with `from __future__ import annotations` which makes annotations lazy
+from backend.app.models.campaign import Campaign
+
+# Rebuild model to resolve forward references
+CallRecord.model_rebuild()

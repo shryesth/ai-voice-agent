@@ -15,6 +15,25 @@ from backend.app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Global event loop for Celery worker - MUST be reused for all async operations
+# to avoid "Cannot use AsyncMongoClient in different event loop" errors
+_worker_event_loop = None
+
+
+def get_worker_event_loop():
+    """
+    Get the worker's event loop that was created during initialization.
+    This MUST be used for all async operations to ensure MongoDB client compatibility.
+    """
+    global _worker_event_loop
+    if _worker_event_loop is None or _worker_event_loop.is_closed():
+        # Create new loop if needed (shouldn't happen after worker init)
+        _worker_event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_worker_event_loop)
+        logger.warning("Created new event loop - this may cause issues if DB was initialized on different loop")
+    return _worker_event_loop
+
+
 # Create Celery app
 celery_app = Celery(
     "patient_feedback_api",
@@ -79,14 +98,12 @@ logger.info(
 @worker_process_init.connect
 def init_worker(**kwargs):
     """Initialize event loop and Beanie when Celery worker starts."""
-    # 1. Set up event loop first
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError as e:
-        if "There is no current event loop" in str(e):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            logger.info("Event loop created for Celery worker")
+    global _worker_event_loop
+    
+    # 1. Create and store the event loop globally
+    _worker_event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_worker_event_loop)
+    logger.info("Event loop created and stored for Celery worker")
 
     # 2. Initialize Beanie with models
     from backend.app.core.database import db
@@ -96,8 +113,7 @@ def init_worker(**kwargs):
     from backend.app.models.call_record import CallRecord
     from backend.app.models.queue_entry import QueueEntry
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(db.connect(
+    _worker_event_loop.run_until_complete(db.connect(
         document_models=[User, Geography, Campaign, CallRecord, QueueEntry]
     ))
 

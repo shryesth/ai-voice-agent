@@ -9,7 +9,7 @@ from twilio.rest import Client
 
 from backend.app.celery_app import celery_app
 from backend.app.core.config import settings
-from backend.app.core.database import get_database
+from backend.app.core.database import db
 from backend.app.models.call_record import CallRecord
 from backend.app.services.recording_service import RecordingService
 
@@ -62,7 +62,6 @@ def download_twilio_recording(
         logger.info(f"✅ Downloaded recording: {len(audio_data)} bytes")
 
         # Get call record from database
-        db = get_database()
         call_record = asyncio.run(CallRecord.find_one(
             CallRecord.call_tracking.call_sid == call_sid
         ))

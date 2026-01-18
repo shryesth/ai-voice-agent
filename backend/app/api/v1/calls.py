@@ -15,9 +15,10 @@ from fastapi.responses import StreamingResponse, Response
 from typing import Optional
 import io
 import logging
+from bson import ObjectId
 
 from backend.app.models.user import User, UserRole
-from backend.app.models.call_record import CallOutcome
+from backend.app.models.call_record import CallOutcome, CallRecord
 from backend.app.schemas.call import (
     CallRecordResponse,
     CallListResponse,
@@ -28,9 +29,11 @@ from backend.app.schemas.call import (
     RecordingMetadataResponse,
     TestCallRequest,
     TestCallResponse,
-    TestScenarioRequest
+    TestScenarioRequest,
+    SplitRecordingResponse
 )
 from backend.app.services.call_service import CallService
+from backend.app.services.recording_service import RecordingService
 from backend.app.api.v1.auth import get_current_user
 from backend.app.domains.patient_feedback.twilio_integration import TwilioIntegration
 from backend.app.core.config import settings
@@ -488,4 +491,78 @@ async def export_campaign_calls_csv(
         io.StringIO(csv_data),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=campaign_{campaign_id}_calls.csv"}
+    )
+
+
+@router.post(
+    "/{call_id}/split-recording",
+    response_model=SplitRecordingResponse,
+    summary="Split dual-channel recording into caller/callee/mixed tracks"
+)
+async def split_recording(
+    call_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Split dual-channel recording into separate tracks (lazy + cache).
+
+    - Downloads dual-channel MP3 from MinIO
+    - Splits into: caller-only, callee-only, mixed-mono
+    - Uploads all 3 to MinIO
+    - Caches S3 keys in CallRecord
+    - Returns presigned URLs for all tracks
+
+    If already split, returns cached URLs immediately.
+    """
+    logger.info(f"Splitting recording for call: {call_id}")
+
+    # Get call record
+    try:
+        call_record = await CallRecord.get(ObjectId(call_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Call record not found")
+
+    if not call_record:
+        raise HTTPException(status_code=404, detail="Call record not found")
+
+    # Check if recording exists
+    if not call_record.recording or not call_record.recording.s3_object_key:
+        raise HTTPException(status_code=404, detail="No recording found for this call")
+
+    # Check if already split (cache hit)
+    if (call_record.recording.caller_s3_key and
+        call_record.recording.callee_s3_key and
+        call_record.recording.mixed_s3_key):
+        logger.info(f"Recording already split, returning cached URLs")
+
+        # Generate presigned URLs
+        recording_service = RecordingService()
+        return SplitRecordingResponse(
+            caller_url=await recording_service.get_presigned_url(
+                call_record.recording.caller_s3_key
+            ),
+            callee_url=await recording_service.get_presigned_url(
+                call_record.recording.callee_s3_key
+            ),
+            mixed_url=await recording_service.get_presigned_url(
+                call_record.recording.mixed_s3_key
+            ),
+            dual_url=await recording_service.get_presigned_url(
+                call_record.recording.s3_object_key
+            ),
+            split_created_at=call_record.recording.split_created_at,
+            status="completed"
+        )
+
+    # Cache miss - trigger split task
+    from backend.app.tasks.split_recording import split_recording_task
+
+    task = split_recording_task.delay(call_id=call_id)
+
+    logger.info(f"Queued split task {task.id} for call: {call_id}")
+
+    return SplitRecordingResponse(
+        task_id=task.id,
+        status="processing",
+        message=f"Recording split in progress. Poll /api/v1/calls/{call_id} for status.",
     )

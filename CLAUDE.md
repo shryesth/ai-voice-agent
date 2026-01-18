@@ -55,12 +55,15 @@ backend/app/
 ├── models/          # Beanie ODM models (User, Geography, Campaign, CallRecord, QueueEntry)
 ├── schemas/         # Pydantic request/response schemas
 ├── services/        # Business logic layer
-├── tasks/           # Celery tasks (queue_processor, retry_handler, voice_call)
+├── tasks/           # Celery tasks (queue_processor, retry_handler, voice_call, recording_download, split_recording)
+├── infrastructure/  # External service integrations (S3/MinIO storage)
 └── domains/         # Domain-specific modules
-    └── patient_feedback/  # Voice pipeline, Twilio integration, urgency detection
+    └── patient_feedback/  # Voice pipeline, Twilio integration, urgency detection, FlowManager
 ```
 
 ### Data Flow
+
+**Call Initiation & Execution:**
 1. Campaign created with patient phone list → QueueEntry records created
 2. Celery Beat triggers `queue_processor` every 30s
 3. Queue processor dequeues entries respecting concurrency limits
@@ -68,12 +71,20 @@ backend/app/
 5. Twilio webhooks update CallRecord with status/transcript
 6. Failed calls retry with backoff; max 3 attempts before Dead Letter Queue (DLQ)
 
+**Recording Processing Pipeline:**
+1. Call completes → Twilio webhook provides recording URL
+2. `download_twilio_recording` task fetches MP3 from Twilio, uploads dual-channel recording to MinIO
+3. `split_recording_task` downloads dual-channel MP3, splits into caller/callee/mixed mono tracks using pydub
+4. Split tracks uploaded to MinIO with S3 keys cached in CallRecord.recording
+
 ### Key Technologies
 - **Database**: MongoDB 8.0 with Beanie ODM 2.0.1 (uses `pymongo.AsyncMongoClient`)
 - **Cache/Broker**: Redis 7 (Celery broker + result backend)
 - **Voice Pipeline**: Pipecat v0.0.99 + custom FlowManager for conversation state machine
 - **Telephony**: Twilio Media Streams (WebSocket)
 - **AI Model**: OpenAI gpt-4o-realtime-preview
+- **Storage**: S3/MinIO via boto3 for call recordings (supports both AWS S3 and self-hosted MinIO)
+- **Audio Processing**: pydub for splitting dual-channel recordings into caller/callee/mixed tracks
 
 ### Database Connection
 The database module (`backend/app/core/database.py`) performs fail-fast prechecks on startup:
@@ -89,7 +100,9 @@ Settings loaded via Pydantic Settings from `.env` file (see `.env.example`). Key
 - `MONGODB_URI` - MongoDB connection string (e.g., `mongodb://localhost:27017`)
 - `MONGODB_DATABASE` - Database name (e.g., `voice_agent`)
 - `SKIP_STARTUP_VALIDATION=true` - Skip config validation for tests
-- Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`
+- `S3_ENDPOINT_URL` - MinIO endpoint (e.g., `http://localhost:9000`); leave empty for AWS S3
+- `S3_BUCKET_NAME` - Bucket for call recordings
+- Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
 
 ## Testing
 
@@ -117,3 +130,18 @@ All endpoints under `/api/v1/`:
 - `/queue` - Queue status and DLQ management (Admin only)
 
 Role-based access: Admin has full access; User role has read-only with phone numbers redacted.
+
+## Voice Pipeline Architecture
+
+### FlowManager (State Machine)
+The custom FlowManager (`backend/app/domains/patient_feedback/flow_manager.py`) replaces the imaginary pipecat-flows package with a local implementation:
+- **NodeConfig**: Defines conversation stages with role/task messages and available LLM functions
+- **FlowManager**: Manages conversation state transitions and provides function schemas to OpenAI Realtime API
+- **FlowsFunctionSchema**: Converts function definitions to OpenAI tool calling format
+- Used in `conversation_flow.py` to orchestrate multi-stage patient feedback collection
+
+### Recording Storage
+S3StorageClient (`backend/app/infrastructure/storage/s3_storage.py`) provides unified interface for both AWS S3 and MinIO:
+- Automatically detects MinIO vs AWS based on `S3_ENDPOINT_URL` setting
+- Supports upload, download, presigned URLs, and deletion
+- Used by recording tasks to persist and retrieve call audio

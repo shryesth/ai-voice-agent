@@ -12,8 +12,10 @@ from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.domains.patient_feedback.twilio_integration import TwilioIntegration
 from backend.app.services.call_service import CallService
 from backend.app.models.call_record import CallOutcome
+from backend.app.core.config import settings
 from datetime import datetime
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -86,17 +88,24 @@ def initiate_patient_call(
         # 2. Initialize Twilio integration
         twilio = TwilioIntegration()
 
-        # 3. Initiate Twilio call
+        # 3. Construct recording callback URL if enabled
+        recording_callback_url = None
+        if settings.recording_enabled and settings.public_url:
+            recording_callback_url = f"{settings.public_url.rstrip('/')}/api/v1/calls/webhooks/twilio/recording"
+            logger.info(f"Recording callback URL: {recording_callback_url}")
+
+        # 4. Initiate Twilio call
         # The call will connect to the WebSocket endpoint which runs the voice pipeline
         call_data = twilio.initiate_call(
             to_number=patient_phone,
             campaign_id=campaign_id,
             patient_phone=patient_phone,
             language=language,
-            status_callback_url=status_callback_url
+            status_callback_url=status_callback_url,
+            recording_status_callback_url=recording_callback_url
         )
 
-        # 4. Update CallRecord with Twilio metadata
+        # 5. Update CallRecord with Twilio metadata
         call_record.call_tracking.call_sid = call_data["call_sid"]
         call_record.call_tracking.status = call_data["status"]
         call_record.call_tracking.created_at = datetime.utcnow()

@@ -31,9 +31,9 @@ class Settings(BaseSettings):
     twilio_account_sid: str = Field(..., description="Twilio Account SID")
     twilio_auth_token: str = Field(..., description="Twilio Auth Token")
     twilio_phone_number: str = Field(..., description="Twilio phone number for outbound calls")
-    twilio_websocket_url: str = Field(
-        default="wss://api.example.com/api/v1/webhooks/twilio/media",
-        description="WebSocket URL for Twilio Media Streams"
+    twilio_websocket_url: Optional[str] = Field(
+        default=None,
+        description="WebSocket URL for Twilio Media Streams (optional - derived from public_url if not set)"
     )
 
     # OpenAI Configuration
@@ -232,6 +232,12 @@ class Settings(BaseSettings):
         description="Recording sample rate in Hz"
     )
 
+    # Public URL for Twilio webhooks and media streams
+    public_url: Optional[str] = Field(
+        default=None,
+        description="Public URL for Twilio callbacks and WebSocket (e.g., https://your-domain.com or https://your-domain.ngrok.io)"
+    )
+
     @field_validator("celery_broker_url", mode="before")
     @classmethod
     def set_celery_broker_url(cls, v: Optional[str], info) -> str:
@@ -273,6 +279,31 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Check if running in development environment."""
         return self.environment.lower() == "development"
+
+    @property
+    def twilio_websocket_url_derived(self) -> str:
+        """
+        Get Twilio WebSocket URL, deriving from public_url if not explicitly set.
+
+        Converts https:// to wss:// and appends the media stream endpoint path.
+        Falls back to twilio_websocket_url if public_url is not set (backward compatibility).
+
+        Returns:
+            WebSocket URL for Twilio Media Streams
+        """
+        if self.twilio_websocket_url:
+            # Explicit configuration takes precedence (backward compatibility)
+            return self.twilio_websocket_url
+
+        if self.public_url:
+            # Derive from public_url
+            base_url = self.public_url.rstrip('/')
+            # Convert https:// to wss:// for WebSocket protocol
+            ws_url = base_url.replace('https://', 'wss://').replace('http://', 'ws://')
+            return f"{ws_url}/api/v1/webhooks/twilio/media"
+
+        # Fallback to default (for local dev without proper config)
+        return "wss://api.example.com/api/v1/webhooks/twilio/media"
 
 
 # Global settings instance

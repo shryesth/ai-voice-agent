@@ -189,6 +189,32 @@ class RecordingMetadataResponse(BaseModel):
         }
 
 
+class SplitRecordingResponse(BaseModel):
+    """Response schema for split recording endpoint"""
+    # If already split (cached)
+    caller_url: Optional[str] = None
+    callee_url: Optional[str] = None
+    mixed_url: Optional[str] = None
+    dual_url: Optional[str] = None
+    split_created_at: Optional[datetime] = None
+
+    # If splitting in progress
+    task_id: Optional[str] = None
+    status: Optional[str] = None  # "processing" or "completed"
+    message: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "caller_url": "https://minio.example.com/voice-recordings/recordings/campaign123/2026/01/call456_caller.mp3?signature=...",
+                "callee_url": "https://minio.example.com/voice-recordings/recordings/campaign123/2026/01/call456_callee.mp3?signature=...",
+                "mixed_url": "https://minio.example.com/voice-recordings/recordings/campaign123/2026/01/call456_mixed.mp3?signature=...",
+                "dual_url": "https://minio.example.com/voice-recordings/recordings/campaign123/2026/01/call456_dual.mp3?signature=...",
+                "split_created_at": "2026-01-19T12:00:00Z"
+            }
+        }
+
+
 class CallRecordResponse(BaseModel):
     """Response schema for call record endpoints"""
     id: str

@@ -10,8 +10,8 @@ Endpoints:
 - WebSocket /api/v1/webhooks/twilio/media - Twilio media stream
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect, Query, Form
+from fastapi.responses import StreamingResponse, Response
 from typing import Optional
 import io
 import logging
@@ -33,6 +33,8 @@ from backend.app.schemas.call import (
 from backend.app.services.call_service import CallService
 from backend.app.api.v1.auth import get_current_user
 from backend.app.domains.patient_feedback.twilio_integration import TwilioIntegration
+from backend.app.core.config import settings
+from twilio.request_validator import RequestValidator
 from backend.app.domains.patient_feedback.voice_pipeline import create_voice_pipeline
 from backend.app.tasks.voice_call import update_call_from_webhook
 
@@ -298,8 +300,59 @@ async def twilio_status_webhook(request: Request):
     )
     
     logger.info(f"Twilio status webhook processed: {status_data['call_sid']} - {status_data['call_status']}")
-    
+
     return {"status": "ok"}
+
+
+@router.post("/webhooks/twilio/recording", include_in_schema=False)
+async def twilio_recording_callback(
+    request: Request,
+    CallSid: str = Form(...),
+    RecordingSid: str = Form(...),
+    RecordingUrl: str = Form(...),
+    RecordingStatus: str = Form(...),
+    RecordingDuration: str = Form(...),
+):
+    """
+    Webhook called by Twilio when recording is complete.
+    Downloads recording from Twilio and uploads to MinIO.
+    """
+    logger.info(f"📼 Recording callback - CallSid: {CallSid}, RecordingSid: {RecordingSid}")
+    logger.info(f"   Status: {RecordingStatus}, Duration: {RecordingDuration}s")
+
+    # Validate Twilio signature
+    validator = RequestValidator(settings.twilio_auth_token)
+    signature = request.headers.get("X-Twilio-Signature", "")
+
+    form_data = await request.form()
+    url = str(request.url)
+
+    if not validator.validate(url, dict(form_data), signature):
+        logger.warning(f"⚠️ Invalid Twilio signature for recording callback")
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    # Only process completed recordings
+    if RecordingStatus != "completed":
+        logger.warning(f"⚠️ Recording not completed: {RecordingStatus}")
+        return Response(status_code=200)
+
+    # Check if recording is enabled
+    if not settings.recording_enabled:
+        logger.warning("⚠️ Recording disabled, skipping download")
+        return Response(status_code=200)
+
+    # Trigger async task to download and store recording
+    from backend.app.tasks.recording_download import download_twilio_recording
+
+    download_twilio_recording.delay(
+        call_sid=CallSid,
+        recording_sid=RecordingSid,
+        recording_url=RecordingUrl,
+        recording_duration=int(RecordingDuration),
+    )
+
+    logger.info(f"✅ Queued recording download task for call: {CallSid}")
+    return Response(status_code=200)
 
 
 @router.websocket("/webhooks/twilio/media")

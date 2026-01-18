@@ -102,13 +102,14 @@ class CallTracking(BaseModel):
 
 class RecordingMetadata(BaseModel):
     """Metadata for call recording stored in S3/MinIO."""
+    # Original dual-channel recording (always stored)
     recording_url: Optional[str] = Field(
         None,
         description="S3/MinIO URL to the recording file"
     )
     s3_object_key: Optional[str] = Field(
         None,
-        description="S3 object key (path within bucket)"
+        description="S3 object key for dual-channel recording (e.g., {call_id}_dual.mp3)"
     )
     duration_seconds: Optional[int] = Field(
         None,
@@ -119,16 +120,48 @@ class RecordingMetadata(BaseModel):
         description="Recording file size in bytes"
     )
     sample_rate: int = Field(
-        default=24000,
-        description="Audio sample rate in Hz"
+        default=8000,
+        description="Audio sample rate in Hz (8kHz for Twilio telephony)"
     )
     num_channels: int = Field(
-        default=1,
-        description="Number of audio channels (1=mono, 2=stereo)"
+        default=2,
+        description="Number of audio channels (1=mono, 2=stereo/dual-channel)"
     )
     uploaded_at: Optional[datetime] = Field(
         None,
         description="Timestamp when recording was uploaded to S3"
+    )
+
+    # Twilio-specific metadata
+    recording_source: str = Field(
+        default="twilio",
+        description="Source of recording (twilio or pipecat)"
+    )
+    recording_sid: Optional[str] = Field(
+        None,
+        description="Twilio Recording SID"
+    )
+    recording_format: str = Field(
+        default="mp3",
+        description="Audio format (mp3, wav, etc.)"
+    )
+
+    # Split recordings (lazy-created on demand via /split-recording endpoint)
+    caller_s3_key: Optional[str] = Field(
+        None,
+        description="S3 object key for caller-only track (e.g., {call_id}_caller.mp3)"
+    )
+    callee_s3_key: Optional[str] = Field(
+        None,
+        description="S3 object key for callee-only track (e.g., {call_id}_callee.mp3)"
+    )
+    mixed_s3_key: Optional[str] = Field(
+        None,
+        description="S3 object key for mixed mono track (e.g., {call_id}_mixed.mp3)"
+    )
+    split_created_at: Optional[datetime] = Field(
+        None,
+        description="Timestamp when split recordings were created (cache validation)"
     )
 
 

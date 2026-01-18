@@ -109,6 +109,64 @@ class RecordingService:
             )
             raise
 
+    async def upload_twilio_recording(
+        self,
+        call_record: "CallRecord",
+        audio_data: bytes,
+        duration_seconds: int,
+        metadata: dict,
+    ) -> bool:
+        """
+        Upload Twilio recording (MP3 format) to MinIO.
+
+        Args:
+            call_record: CallRecord document to update
+            audio_data: MP3 audio bytes from Twilio
+            duration_seconds: Recording duration
+            metadata: Recording metadata (recording_sid, channels, etc.)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Generate S3 object key
+            object_key = self._generate_object_key(
+                call_record=call_record,
+                format="mp3",  # Twilio provides MP3
+            )
+
+            # Upload to S3/MinIO
+            url = await self.storage.upload_recording(
+                object_key=object_key,
+                audio_data=audio_data,
+                content_type="audio/mpeg"  # MP3 MIME type
+            )
+
+            logger.info(f"Uploaded Twilio recording to S3: {object_key}")
+
+            # Update CallRecord with recording metadata
+            call_record.recording = RecordingMetadata(
+                recording_url=url,
+                s3_object_key=object_key,
+                duration_seconds=duration_seconds,
+                file_size_bytes=len(audio_data),
+                sample_rate=8000,  # Twilio uses 8kHz for telephony
+                num_channels=2,    # Dual-channel recording
+                uploaded_at=datetime.utcnow(),
+                recording_source="twilio",
+                recording_sid=metadata.get("recording_sid"),
+                recording_format="mp3"
+            )
+
+            await call_record.save()
+            logger.info(f"Updated CallRecord with recording metadata: {call_record.id}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error uploading Twilio recording: {e}", exc_info=True)
+            return False
+
     def _create_wav(
         self,
         audio_data: bytes,
@@ -158,14 +216,19 @@ class RecordingService:
         duration = total_samples / sample_rate
         return round(duration)
 
-    def _generate_object_key(self, call_record: "CallRecord") -> str:
+    def _generate_object_key(
+        self,
+        call_record: "CallRecord",
+        format: str = "wav"
+    ) -> str:
         """
         Generate S3 object key for the recording.
 
-        Format: recordings/{campaign_id}/{year}/{month:02d}/{call_id}.wav
+        Format: recordings/{campaign_id}/{year}/{month:02d}/{call_id}.{format}
 
         Args:
             call_record: CallRecord document
+            format: File format extension (wav, mp3, etc.)
 
         Returns:
             S3 object key string
@@ -174,7 +237,7 @@ class RecordingService:
         campaign_id = str(call_record.campaign_id)
         call_id = str(call_record.id)
 
-        return f"recordings/{campaign_id}/{now.year}/{now.month:02d}/{call_id}.wav"
+        return f"recordings/{campaign_id}/{now.year}/{now.month:02d}/{call_id}_dual.{format}"
 
     def get_presigned_url(
         self,

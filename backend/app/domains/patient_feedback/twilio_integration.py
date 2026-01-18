@@ -39,12 +39,13 @@ class TwilioIntegration:
             account_sid: Twilio Account SID (defaults to settings)
             auth_token: Twilio Auth Token (defaults to settings)
             phone_number: Twilio phone number (defaults to settings)
-            websocket_url: WebSocket URL for media streaming (defaults to settings)
+            websocket_url: WebSocket URL for media streaming (defaults to derived from settings.public_url)
         """
         self.account_sid = account_sid or settings.twilio_account_sid
         self.auth_token = auth_token or settings.twilio_auth_token
         self.phone_number = phone_number or settings.twilio_phone_number
-        self.websocket_url = websocket_url or settings.twilio_websocket_url
+        # Use provided websocket_url, or derive from settings
+        self.websocket_url = websocket_url or settings.twilio_websocket_url_derived
 
         if not all([self.account_sid, self.auth_token, self.phone_number]):
             raise ValueError("Missing required Twilio credentials")
@@ -58,7 +59,8 @@ class TwilioIntegration:
         campaign_id: str,
         patient_phone: str,
         language: str = "en",
-        status_callback_url: Optional[str] = None
+        status_callback_url: Optional[str] = None,
+        recording_status_callback_url: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Initiate outbound call to patient.
@@ -69,6 +71,7 @@ class TwilioIntegration:
             patient_phone: Patient phone for tracking
             language: Preferred language (en, es, fr, ht)
             status_callback_url: URL for status callbacks
+            recording_status_callback_url: URL for recording completion callbacks
 
         Returns:
             Dict with call_sid, status, and metadata
@@ -86,6 +89,9 @@ class TwilioIntegration:
 </Response>'''
 
         try:
+            # Enable Twilio recording if callback URL provided
+            recording_enabled = recording_status_callback_url is not None
+
             call = self.client.calls.create(
                 to=to_number,
                 from_=self.phone_number,
@@ -94,7 +100,11 @@ class TwilioIntegration:
                 status_callback_event=["initiated", "ringing", "answered", "completed"],
                 status_callback_method="POST",
                 timeout=30,  # Ring timeout in seconds
-                record=False  # Don't record calls (we have transcript)
+                # Twilio Recording Configuration
+                record=recording_enabled,
+                recording_channels="dual" if recording_enabled else None,  # Record both caller and callee separately
+                recording_status_callback=recording_status_callback_url,
+                recording_status_callback_event=["completed"] if recording_enabled else None,
             )
 
             logger.info(f"Twilio call initiated: {call.sid} to {to_number}")

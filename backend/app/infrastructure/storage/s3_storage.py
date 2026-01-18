@@ -102,6 +102,29 @@ class S3StorageClient:
             logger.error(f"Failed to upload recording to S3: {e}")
             raise
 
+    async def download_recording(self, object_key: str) -> Optional[bytes]:
+        """
+        Download recording from S3/MinIO.
+
+        Args:
+            object_key: S3 object key (path within bucket)
+
+        Returns:
+            Audio bytes if successful, None otherwise
+        """
+        try:
+            response = self.client.get_object(
+                Bucket=self.bucket,
+                Key=object_key
+            )
+            audio_data = response['Body'].read()
+            logger.info(f"Downloaded {len(audio_data)} bytes from S3: {object_key}")
+            return audio_data
+
+        except ClientError as e:
+            logger.error(f"Failed to download from S3: {e}")
+            return None
+
     def get_presigned_url(
         self,
         object_key: str,

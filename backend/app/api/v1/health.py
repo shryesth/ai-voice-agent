@@ -9,14 +9,15 @@ Endpoints:
 
 import time
 from datetime import datetime
-from typing import Dict, Any
-from fastapi import APIRouter, Request, Response, status
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, Request, Response, status, Depends
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from backend.app.core.config import settings
 from backend.app.core.logging import get_logger
 from backend.app.core.database import db
 from backend.app.core.redis import redis_client
+from backend.app.services.openai_realtime_prewarmer import OpenAIRealtimePrewarmer
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -196,3 +197,37 @@ def _format_prometheus_metrics(metrics: Dict[str, Any]) -> str:
     lines.append("")
 
     return "\n".join(lines) + "\n"
+
+
+@router.get("/metrics/realtime-prewarmer")
+async def get_realtime_prewarmer_metrics() -> Dict[str, Any]:
+    """
+    Get OpenAI Realtime API connection prewarmer metrics.
+
+    Returns:
+        Realtime API prewarmer performance metrics including:
+        - enabled: Whether prewarmer is enabled
+        - pre_acquired: Total connections pre-acquired
+        - used: Connections actually used (Phase 2)
+        - expired: Connections expired before use
+        - failed: Failed pre-acquisition attempts
+        - circuit_breaks: Circuit breaker activations
+        - retries: Retry attempts
+        - usage_rate_percent: Percentage of pre-acquired connections used
+        - waste_rate_percent: Percentage of pre-acquired connections expired
+        - total_latency_saved_ms: Cumulative latency saved
+        - avg_latency_saved_ms: Average latency saved per call
+        - circuit_breaker_state: Current circuit breaker state
+        - active_connections: Number of active pre-warmed connections
+        - timeout_ms: Connection timeout in milliseconds
+    """
+    # Import here to avoid circular dependency
+    from backend.app.main import realtime_prewarmer
+
+    if not realtime_prewarmer:
+        return {
+            "enabled": False,
+            "message": "Realtime API prewarmer is not enabled"
+        }
+
+    return realtime_prewarmer.get_metrics()

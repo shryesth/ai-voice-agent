@@ -9,6 +9,26 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 
+class OpenAIRealtimeGeographyConfigCreate(BaseModel):
+    """OpenAI Realtime API configuration for geography creation/update"""
+    enable_prewarmer: Optional[bool] = Field(
+        None,
+        description="Override global Realtime API prewarmer setting (None = inherit global)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "enable_prewarmer": True
+            }
+        }
+
+
+class OpenAIRealtimeGeographyConfigResponse(OpenAIRealtimeGeographyConfigCreate):
+    """OpenAI Realtime API configuration in API responses"""
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RetentionPolicyCreate(BaseModel):
     """Retention policy configuration for geography creation/update"""
     retention_days: Optional[int] = Field(
@@ -47,6 +67,7 @@ class GeographyCreate(BaseModel):
     description: Optional[str] = None
     region_code: Optional[str] = Field(None, max_length=20)
     retention_policy: RetentionPolicyCreate = Field(default_factory=RetentionPolicyCreate)
+    openai_realtime_config: Optional[OpenAIRealtimeGeographyConfigCreate] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     class Config:
@@ -73,6 +94,7 @@ class GeographyUpdate(BaseModel):
     description: Optional[str] = None
     region_code: Optional[str] = None
     retention_policy: Optional[RetentionPolicyCreate] = None
+    openai_realtime_config: Optional[OpenAIRealtimeGeographyConfigCreate] = None
     metadata: Optional[Dict[str, Any]] = None
 
     class Config:
@@ -96,6 +118,7 @@ class GeographyResponse(BaseModel):
     description: Optional[str]
     region_code: Optional[str]
     retention_policy: RetentionPolicyResponse
+    openai_realtime_config: Optional[OpenAIRealtimeGeographyConfigResponse]
     metadata: Dict[str, Any]
     created_at: datetime
     updated_at: datetime

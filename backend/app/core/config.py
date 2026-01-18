@@ -196,6 +196,28 @@ class Settings(BaseSettings):
     )
     default_language: str = Field(default="en", description="Default language code")
 
+    # OpenAI Realtime API Prewarmer Configuration
+    openai_realtime_prewarmer_enabled: bool = Field(
+        default=False,
+        description="Enable OpenAI Realtime API connection pre-warming (global default)"
+    )
+    openai_realtime_prewarmer_timeout_ms: int = Field(
+        default=30000,
+        description="Max age before pre-warmed Realtime API connection expires unused (30s)"
+    )
+    openai_realtime_prewarmer_cleanup_interval_ms: int = Field(
+        default=5000,
+        description="Cleanup interval for expired Realtime API connections (5s)"
+    )
+    openai_realtime_prewarmer_connect_timeout_ms: int = Field(
+        default=5000,
+        description="Timeout for WebSocket connect to OpenAI Realtime API (5s)"
+    )
+    openai_realtime_prewarmer_max_retries: int = Field(
+        default=3,
+        description="Max retry attempts for Realtime API pre-acquisition with exponential backoff"
+    )
+
     @field_validator("celery_broker_url", mode="before")
     @classmethod
     def set_celery_broker_url(cls, v: Optional[str], info) -> str:

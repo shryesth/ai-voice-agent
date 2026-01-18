@@ -13,6 +13,38 @@ import re
 from backend.app.models.campaign import CampaignState, DayOfWeek
 
 
+class OpenAIRealtimeCampaignConfigCreate(BaseModel):
+    """OpenAI Realtime API configuration for campaign creation/update"""
+    enable_prewarmer: Optional[bool] = Field(
+        None,
+        description="Override geography/global Realtime API prewarmer setting (None = inherit)"
+    )
+    voice: Optional[str] = Field(
+        None,
+        description="OpenAI Realtime voice override (alloy, shimmer, nova, echo)"
+    )
+    temperature: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Realtime API response temperature override (None = 0.8 default)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "enable_prewarmer": True,
+                "voice": "alloy",
+                "temperature": 0.8
+            }
+        }
+
+
+class OpenAIRealtimeCampaignConfigResponse(OpenAIRealtimeCampaignConfigCreate):
+    """OpenAI Realtime API configuration in API responses"""
+    pass
+
+
 def validate_time_string(v: str) -> str:
     """Validate time string format (HH:MM:SS or HH:MM)"""
     if not re.match(r'^\d{2}:\d{2}(:\d{2})?$', v):
@@ -67,6 +99,7 @@ class CampaignConfigCreate(BaseModel):
     time_windows: List[TimeWindowCreate] = Field(default_factory=list)
     patient_list: List[str] = Field(..., min_items=1)  # Required, at least one patient
     language_preference: str = Field(default="en", pattern="^(en|es|fr|ht)$")
+    openai_realtime_config: Optional[OpenAIRealtimeCampaignConfigCreate] = None
 
     @validator('patient_list', each_item=True)
     def validate_phone_number(cls, v):
@@ -97,6 +130,7 @@ class CampaignConfigUpdate(BaseModel):
     time_windows: Optional[List[TimeWindowCreate]] = None
     patient_list: Optional[List[str]] = None
     language_preference: Optional[str] = Field(default=None, pattern="^(en|es|fr|ht)$")
+    openai_realtime_config: Optional[OpenAIRealtimeCampaignConfigCreate] = None
 
     @validator('patient_list', each_item=True, pre=True)
     def validate_phone_number(cls, v):
@@ -122,6 +156,7 @@ class CampaignConfigResponse(BaseModel):
     time_windows: List[TimeWindowResponse]
     patient_list: List[str]  # Hidden from User role in service layer
     language_preference: str
+    openai_realtime_config: Optional[OpenAIRealtimeCampaignConfigResponse]
 
     class Config:
         json_schema_extra = {

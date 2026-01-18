@@ -146,6 +146,56 @@ class TestCampaignCreate:
 
         assert response.status_code == 404
 
+    @pytest.mark.asyncio
+    async def test_create_campaign_with_openai_realtime_config(self, async_client: AsyncClient, auth_token: str, geography_id: str):
+        """Test creating campaign with OpenAI Realtime config override"""
+        response = await async_client.post(
+            f"/api/v1/geographies/{geography_id}/campaigns",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={
+                "name": "Test Campaign with Realtime Prewarmer",
+                "config": {
+                    "max_concurrent_calls": 5,
+                    "patient_list": ["+12025551234"],
+                    "language_preference": "en",
+                    "openai_realtime_config": {
+                        "enable_prewarmer": True,
+                        "voice": "nova",
+                        "temperature": 0.7
+                    }
+                }
+            }
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+
+        # Verify OpenAI Realtime config is returned
+        assert "openai_realtime_config" in data["config"]
+        assert data["config"]["openai_realtime_config"]["enable_prewarmer"] is True
+        assert data["config"]["openai_realtime_config"]["voice"] == "nova"
+        assert data["config"]["openai_realtime_config"]["temperature"] == 0.7
+
+    @pytest.mark.asyncio
+    async def test_create_campaign_without_openai_realtime_config(self, async_client: AsyncClient, auth_token: str, geography_id: str):
+        """Test creating campaign without OpenAI Realtime config (should be None)"""
+        response = await async_client.post(
+            f"/api/v1/geographies/{geography_id}/campaigns",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={
+                "name": "Test Campaign without Realtime Config",
+                "config": {
+                    "patient_list": ["+12025551234"]
+                }
+            }
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+
+        # Verify OpenAI Realtime config is None (inherits from geography/global)
+        assert data["config"]["openai_realtime_config"] is None
+
 
 class TestCampaignList:
     """Test GET /api/v1/campaigns"""

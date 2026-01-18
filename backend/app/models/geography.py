@@ -47,6 +47,21 @@ class RetentionPolicy(BaseModel):
         }
 
 
+class OpenAIRealtimeGeographyConfig(BaseModel):
+    """OpenAI Realtime API configuration overrides for geography"""
+    enable_prewarmer: Optional[bool] = Field(
+        None,
+        description="Override global Realtime API prewarmer setting for this geography (None = inherit global)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "enable_prewarmer": True
+            }
+        }
+
+
 class Geography(Document):
     """
     Geographic region or operational unit containing campaigns.
@@ -68,6 +83,12 @@ class Geography(Document):
     retention_policy: RetentionPolicy = Field(
         default_factory=RetentionPolicy,
         description="Data retention rules for this geography"
+    )
+
+    # OpenAI Realtime API configuration overrides
+    openai_realtime_config: Optional[OpenAIRealtimeGeographyConfig] = Field(
+        None,
+        description="OpenAI Realtime API configuration overrides for this geography"
     )
 
     # Metadata for operational tracking

@@ -70,6 +70,33 @@ class TimeWindow(BaseModel):
         }
 
 
+class OpenAIRealtimeCampaignConfig(BaseModel):
+    """OpenAI Realtime API configuration overrides for campaign"""
+    enable_prewarmer: Optional[bool] = Field(
+        None,
+        description="Override geography/global Realtime API prewarmer setting for this campaign (None = inherit)"
+    )
+    voice: Optional[str] = Field(
+        None,
+        description="OpenAI Realtime voice override (alloy, shimmer, nova, echo) (None = use language default)"
+    )
+    temperature: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Realtime API response temperature override (None = 0.8 default)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "enable_prewarmer": True,
+                "voice": "alloy",
+                "temperature": 0.8
+            }
+        }
+
+
 class CampaignConfig(BaseModel):
     """Campaign execution parameters"""
     max_concurrent_calls: int = Field(
@@ -89,6 +116,10 @@ class CampaignConfig(BaseModel):
     language_preference: str = Field(
         default="en",
         description="Default language: en, es, fr, ht"
+    )
+    openai_realtime_config: Optional[OpenAIRealtimeCampaignConfig] = Field(
+        None,
+        description="OpenAI Realtime API configuration overrides for this campaign"
     )
 
     @validator('patient_list', each_item=True)

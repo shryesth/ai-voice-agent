@@ -9,7 +9,7 @@ Creates and configures the FastAPI application with:
 """
 
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -19,8 +19,12 @@ from backend.app.core.config import settings
 from backend.app.core.logging import get_logger
 from backend.app.core.database import db
 from backend.app.core.redis import redis_client
+from backend.app.services.openai_realtime_prewarmer import OpenAIRealtimePrewarmer
 
 logger = get_logger(__name__)
+
+# Global Realtime API prewarmer instance
+realtime_prewarmer: Optional[OpenAIRealtimePrewarmer] = None
 
 
 @asynccontextmanager
@@ -72,12 +76,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         if not settings.skip_startup_validation:
             raise
 
+    # Initialize OpenAI Realtime API prewarmer
+    global realtime_prewarmer
+    if settings.openai_realtime_prewarmer_enabled:
+        logger.info("Starting OpenAI Realtime API connection prewarmer")
+        try:
+            realtime_prewarmer = OpenAIRealtimePrewarmer()
+            await realtime_prewarmer.start()
+            logger.info("OpenAI Realtime API prewarmer started")
+        except Exception as e:
+            logger.error("OpenAI Realtime API prewarmer initialization failed", error=str(e))
+            if not settings.skip_startup_validation:
+                raise
+    else:
+        logger.info("OpenAI Realtime API prewarmer is disabled")
+
     logger.info("Application startup complete")
 
     yield
 
     # Shutdown
     logger.info("Shutting down application")
+
+    # Stop Realtime API prewarmer
+    if realtime_prewarmer:
+        logger.info("Stopping OpenAI Realtime API prewarmer")
+        try:
+            await realtime_prewarmer.stop()
+            logger.info("OpenAI Realtime API prewarmer stopped")
+        except Exception as e:
+            logger.error("Error stopping OpenAI Realtime API prewarmer", error=str(e))
 
     # Close Redis connection
     try:
@@ -123,6 +151,11 @@ def _validate_required_configs() -> None:
         raise ValueError(error_msg)
 
     logger.info("Configuration validation passed")
+
+
+def get_realtime_prewarmer() -> Optional[OpenAIRealtimePrewarmer]:
+    """FastAPI dependency to get Realtime API prewarmer instance"""
+    return realtime_prewarmer
 
 
 def create_app() -> FastAPI:

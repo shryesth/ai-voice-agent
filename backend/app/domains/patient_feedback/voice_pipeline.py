@@ -45,7 +45,6 @@ from pipecat.turns.mute import (
 
 from backend.app.domains.patient_feedback.flow_manager import FlowManager
 from backend.app.domains.patient_feedback.conversation_flow import create_greeting_node
-from backend.app.domains.patient_feedback.transcript_processor import TranscriptProcessor
 from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord
 
@@ -76,7 +75,8 @@ async def create_voice_pipeline(
     3. LLMContextAggregatorPair: User/Assistant turn management with VAD strategies
     4. OpenAIRealtimeLLMService: gpt-4o-realtime for conversational AI
     5. FlowManager: 6-stage conversation state machine
-    6. TranscriptProcessor: Real-time transcript capture to MongoDB
+    6. Aggregator Event Handlers: Turn-based transcript capture to MongoDB
+       (on_user_turn_stopped, on_assistant_turn_stopped)
 
     Args:
         websocket: FastAPI WebSocket connection from Twilio
@@ -154,8 +154,56 @@ async def create_voice_pipeline(
     user_aggregator = context_aggregator.user()
     assistant_aggregator = context_aggregator.assistant()
 
-    # 6. Initialize TranscriptProcessor for real-time transcript capture
-    transcript_processor = TranscriptProcessor(call_record=call_record)
+    # 6. Register aggregator event handlers for transcript capture
+    # Following Pipecat 0.0.99 best practices for turn-based transcript capture
+    @user_aggregator.event_handler("on_user_turn_stopped")
+    async def on_user_turn_stopped(aggregator, context):
+        """Capture user message when they finish speaking"""
+        try:
+            messages = context.get_messages_for_persistent_storage()
+            if messages:
+                last_message = messages[-1]
+                if last_message.get("role") == "user":
+                    content = last_message.get("content", "")
+                    if isinstance(content, str) and content.strip():
+                        # Create ConversationTurn
+                        from backend.app.models.call_record import ConversationTurn
+                        turn = ConversationTurn(
+                            speaker="patient",
+                            text=content.strip(),
+                            timestamp=datetime.utcnow(),
+                            language=call_data.get("language")
+                        )
+                        call_record.transcript.append(turn)
+                        call_record.updated_at = datetime.utcnow()
+                        await call_record.save()
+                        logger.info(f"📝 [patient]: {content[:50]}...")
+        except Exception as e:
+            logger.error(f"Error capturing user transcript: {e}", exc_info=True)
+
+    @assistant_aggregator.event_handler("on_assistant_turn_stopped")
+    async def on_assistant_turn_stopped(aggregator, context):
+        """Capture assistant message when it finishes responding"""
+        try:
+            messages = context.get_messages_for_persistent_storage()
+            if messages:
+                last_message = messages[-1]
+                if last_message.get("role") == "assistant":
+                    content = last_message.get("content", "")
+                    if isinstance(content, str) and content.strip():
+                        # Create ConversationTurn
+                        from backend.app.models.call_record import ConversationTurn
+                        turn = ConversationTurn(
+                            speaker="ai",
+                            text=content.strip(),
+                            timestamp=datetime.utcnow()
+                        )
+                        call_record.transcript.append(turn)
+                        call_record.updated_at = datetime.utcnow()
+                        await call_record.save()
+                        logger.info(f"📝 [ai]: {content[:50]}...")
+        except Exception as e:
+            logger.error(f"Error capturing assistant transcript: {e}", exc_info=True)
 
     # 7. Initialize FlowManager with starting node
     flow_manager = FlowManager(
@@ -172,13 +220,13 @@ async def create_voice_pipeline(
         )
 
     # 9. Build Pipeline (order matters!)
+    # Note: Transcript capture now handled by aggregator event handlers (on_user_turn_stopped, on_assistant_turn_stopped)
     pipeline = Pipeline([
         transport.input(),        # 1. Twilio audio input (µ-law 8kHz → PCM 16kHz via serializer)
         user_aggregator,          # 2. User turn aggregation (VAD + transcription strategies)
-        transcript_processor,     # 3. Capture transcripts (user & AI) in real-time
-        llm_service,              # 4. OpenAI Realtime processing (with FlowManager functions)
-        transport.output(),       # 5. Twilio audio output (PCM 16kHz → µ-law 8kHz via serializer)
-        assistant_aggregator      # 6. Assistant turn aggregation (after output for logging)
+        llm_service,              # 3. OpenAI Realtime processing (with FlowManager functions)
+        transport.output(),       # 4. Twilio audio output (PCM 16kHz → µ-law 8kHz via serializer)
+        assistant_aggregator      # 5. Assistant turn aggregation (fires transcript event handlers)
     ])
 
     # 10. Create Pipeline Task

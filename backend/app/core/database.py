@@ -108,6 +108,10 @@ class Database:
                 document_models=document_models,
             )
 
+            # Rebuild models to resolve forward references (e.g., Link["Campaign"])
+            for model in document_models:
+                model.model_rebuild()
+
             cls._initialized = True
 
             logger.info(

@@ -5,8 +5,10 @@ Configures Celery with Redis broker and beat schedule for
 periodic tasks like queue processing.
 """
 
+import asyncio
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init
 
 from backend.app.core.config import settings
 from backend.app.core.logging import get_logger
@@ -72,3 +74,31 @@ logger.info(
     backend=settings.celery_result_backend,
     concurrency=settings.celery_worker_concurrency,
 )
+
+
+@worker_process_init.connect
+def init_worker(**kwargs):
+    """Initialize event loop and Beanie when Celery worker starts."""
+    # 1. Set up event loop first
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError as e:
+        if "There is no current event loop" in str(e):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            logger.info("Event loop created for Celery worker")
+
+    # 2. Initialize Beanie with models
+    from backend.app.core.database import db
+    from backend.app.models.user import User
+    from backend.app.models.geography import Geography
+    from backend.app.models.campaign import Campaign
+    from backend.app.models.call_record import CallRecord
+    from backend.app.models.queue_entry import QueueEntry
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(db.connect(
+        document_models=[User, Geography, Campaign, CallRecord, QueueEntry]
+    ))
+
+    logger.info("Celery worker initialized with event loop and Beanie models")

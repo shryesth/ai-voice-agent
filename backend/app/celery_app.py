@@ -46,6 +46,7 @@ celery_app.conf.update(
     # Retry settings
     task_acks_late=True,  # Acknowledge after task completion
     task_reject_on_worker_lost=True,
+    broker_connection_retry_on_startup=True,  # Retry broker connection on startup
 
     # Beat schedule for periodic tasks
     beat_schedule={

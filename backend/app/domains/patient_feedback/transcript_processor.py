@@ -53,6 +53,9 @@ class TranscriptProcessor(FrameProcessor):
             frame: The frame to process
             direction: Frame direction (DOWNSTREAM or UPSTREAM)
         """
+        # Let base class handle StartFrame and other system frames
+        await super().process_frame(frame, direction)
+
         from backend.app.models.call_record import ConversationTurn
 
         try:

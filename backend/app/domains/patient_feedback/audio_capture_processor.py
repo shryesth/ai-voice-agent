@@ -95,6 +95,9 @@ class AudioCaptureProcessor(FrameProcessor):
             frame: The frame to process
             direction: Frame direction (DOWNSTREAM or UPSTREAM)
         """
+        # Let base class handle StartFrame and other system frames
+        await super().process_frame(frame, direction)
+
         try:
             # Capture audio frames
             if isinstance(frame, AudioRawFrame) and self._is_recording:

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     openai_api_key: str = Field(..., description="OpenAI API key")
     openai_model: str = Field(
-        default="gpt-4o-realtime-preview-2024-12-17",
+        default="gpt-realtime-mini-2025-10-06",
         description="OpenAI Realtime model"
     )
 
@@ -195,6 +195,42 @@ class Settings(BaseSettings):
         description="Comma-separated list of supported language codes"
     )
     default_language: str = Field(default="en", description="Default language code")
+
+    # S3/MinIO Configuration (for call recordings)
+    s3_endpoint_url: Optional[str] = Field(
+        default=None,
+        description="S3 endpoint URL (required for MinIO, omit for AWS S3)"
+    )
+    s3_bucket_name: str = Field(
+        default="voice-recordings",
+        description="S3 bucket name for call recordings"
+    )
+    s3_access_key_id: Optional[str] = Field(
+        default=None,
+        description="S3 access key ID"
+    )
+    s3_secret_access_key: Optional[str] = Field(
+        default=None,
+        description="S3 secret access key"
+    )
+    s3_region: str = Field(
+        default="us-east-1",
+        description="S3 region"
+    )
+
+    # Recording Settings
+    recording_enabled: bool = Field(
+        default=True,
+        description="Enable call recording and upload to S3"
+    )
+    recording_format: str = Field(
+        default="wav",
+        description="Recording format: wav or mp3"
+    )
+    recording_sample_rate: int = Field(
+        default=24000,
+        description="Recording sample rate in Hz"
+    )
 
     @field_validator("celery_broker_url", mode="before")
     @classmethod

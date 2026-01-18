@@ -26,6 +26,9 @@ pipecat-ai[silero]==0.0.99
 # Twilio Integration
 twilio==9.5.0
 
+# S3/MinIO Storage
+boto3==1.42.30
+
 # HTTP Client
 httpx==0.28.1
 

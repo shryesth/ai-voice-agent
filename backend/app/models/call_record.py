@@ -100,6 +100,38 @@ class CallTracking(BaseModel):
     )
 
 
+class RecordingMetadata(BaseModel):
+    """Metadata for call recording stored in S3/MinIO."""
+    recording_url: Optional[str] = Field(
+        None,
+        description="S3/MinIO URL to the recording file"
+    )
+    s3_object_key: Optional[str] = Field(
+        None,
+        description="S3 object key (path within bucket)"
+    )
+    duration_seconds: Optional[int] = Field(
+        None,
+        description="Recording duration in seconds"
+    )
+    file_size_bytes: Optional[int] = Field(
+        None,
+        description="Recording file size in bytes"
+    )
+    sample_rate: int = Field(
+        default=24000,
+        description="Audio sample rate in Hz"
+    )
+    num_channels: int = Field(
+        default=1,
+        description="Number of audio channels (1=mono, 2=stereo)"
+    )
+    uploaded_at: Optional[datetime] = Field(
+        None,
+        description="Timestamp when recording was uploaded to S3"
+    )
+
+
 class CallRecord(Document):
     """
     Individual patient feedback call with full conversation history.
@@ -135,6 +167,12 @@ class CallRecord(Document):
 
     # Call tracking
     call_tracking: CallTracking = Field(default_factory=CallTracking)
+
+    # Recording metadata (S3/MinIO)
+    recording: Optional[RecordingMetadata] = Field(
+        default=None,
+        description="Call recording metadata (when recording_enabled=true)"
+    )
 
     # Error context
     error_message: Optional[str] = Field(

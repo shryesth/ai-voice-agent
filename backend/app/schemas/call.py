@@ -165,6 +165,30 @@ class CallTrackingResponse(BaseModel):
         }
 
 
+class RecordingMetadataResponse(BaseModel):
+    """Recording metadata in API responses"""
+    recording_url: Optional[str]
+    s3_object_key: Optional[str]
+    duration_seconds: Optional[int]
+    file_size_bytes: Optional[int]
+    sample_rate: int
+    num_channels: int
+    uploaded_at: Optional[datetime]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "recording_url": "https://s3.us-east-1.amazonaws.com/voice-recordings/recordings/campaign123/2026/01/call456.wav",
+                "s3_object_key": "recordings/campaign123/2026/01/call456.wav",
+                "duration_seconds": 180,
+                "file_size_bytes": 8640000,
+                "sample_rate": 24000,
+                "num_channels": 1,
+                "uploaded_at": "2026-01-18T15:03:30Z"
+            }
+        }
+
+
 class CallRecordResponse(BaseModel):
     """Response schema for call record endpoints"""
     id: str
@@ -177,6 +201,7 @@ class CallRecordResponse(BaseModel):
     urgency_flagged: bool
     urgency_keywords_detected: List[str]
     call_tracking: CallTrackingResponse
+    recording: Optional[RecordingMetadataResponse] = None
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

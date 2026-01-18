@@ -25,6 +25,7 @@ from backend.app.schemas.call import (
     FeedbackDataResponse,
     CallTrackingResponse,
     ConversationTurnResponse,
+    RecordingMetadataResponse,
     TestCallRequest,
     TestCallResponse,
     TestScenarioRequest
@@ -82,6 +83,15 @@ def call_to_response(call, user_role: Optional[UserRole] = None) -> CallRecordRe
             ended_at=call.call_tracking.ended_at,
             duration_seconds=call.call_tracking.duration_seconds
         ),
+        recording=RecordingMetadataResponse(
+            recording_url=call.recording.recording_url,
+            s3_object_key=call.recording.s3_object_key,
+            duration_seconds=call.recording.duration_seconds,
+            file_size_bytes=call.recording.file_size_bytes,
+            sample_rate=call.recording.sample_rate,
+            num_channels=call.recording.num_channels,
+            uploaded_at=call.recording.uploaded_at
+        ) if call.recording else None,
         error_message=call.error_message,
         created_at=call.created_at,
         updated_at=call.updated_at
@@ -366,7 +376,8 @@ async def twilio_media_stream(websocket: WebSocket):
         final_state = await create_voice_pipeline(
             websocket=websocket,
             call_record_id=str(call_record.id),
-            call_data=pipeline_call_data
+            call_data=pipeline_call_data,
+            call_record=call_record  # Pass call_record for real-time transcript updates
         )
 
         # 5. Update CallRecord with final conversation state

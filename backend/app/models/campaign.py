@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from beanie import Document, Link
 from pydantic import BaseModel, Field, validator
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from typing import Optional, List
 from enum import Enum
 
@@ -166,8 +166,8 @@ class Campaign(Document):
     stats: CampaignStats = Field(default_factory=CampaignStats)
 
     # Audit timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None

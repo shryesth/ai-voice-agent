@@ -72,6 +72,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         if not settings.skip_startup_validation:
             raise
 
+    # Ensure S3 bucket exists
+    logger.info("Checking S3 bucket configuration")
+    try:
+        from backend.app.infrastructure.storage.s3_storage import S3StorageClient
+        s3_client = S3StorageClient()
+        await s3_client.ensure_bucket_exists()
+        logger.info("S3 bucket verified successfully")
+    except Exception as e:
+        logger.error("S3 bucket verification failed", error=str(e))
+        if not settings.skip_startup_validation:
+            raise
+
     logger.info("Application startup complete")
 
     yield

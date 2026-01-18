@@ -72,7 +72,7 @@ def initiate_patient_call(
         # 3. Construct recording callback URL if enabled
         recording_callback_url = None
         if settings.recording_enabled and settings.public_url:
-            recording_callback_url = f"{settings.public_url.rstrip('/')}/api/v1/calls/webhooks/twilio/recording"
+            recording_callback_url = f"{settings.public_url.rstrip('/')}/api/v1/webhooks/twilio/recording"
             logger.info(f"Recording callback URL: {recording_callback_url}")
 
         # 4. Initiate Twilio call

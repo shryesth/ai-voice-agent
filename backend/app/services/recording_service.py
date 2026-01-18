@@ -234,7 +234,8 @@ class RecordingService:
             S3 object key string
         """
         now = datetime.utcnow()
-        campaign_id = str(call_record.campaign_id)
+        # Extract ID from Beanie Link object
+        campaign_id = str(call_record.campaign_id.ref.id)
         call_id = str(call_record.id)
 
         return f"recordings/{campaign_id}/{now.year}/{now.month:02d}/{call_id}_dual.{format}"

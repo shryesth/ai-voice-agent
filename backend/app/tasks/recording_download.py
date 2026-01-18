@@ -51,10 +51,8 @@ def download_twilio_recording(
         audio_url = f"https://api.twilio.com{recording.uri.replace('.json', '.mp3')}"
         logger.info(f"📥 Downloading recording from: {audio_url}")
 
-        # Get worker event loop for async operations
-        loop = get_worker_event_loop()
-
         # Download audio from Twilio with authentication
+        loop = get_worker_event_loop()
         audio_data = loop.run_until_complete(_download_audio(audio_url))
 
         if not audio_data:
@@ -63,13 +61,32 @@ def download_twilio_recording(
 
         logger.info(f"✅ Downloaded recording: {len(audio_data)} bytes")
 
-        # Process recording upload in async context
-        success = loop.run_until_complete(_process_recording_upload(
-            call_sid=call_sid,
-            recording_sid=recording_sid,
-            recording_url=recording_url,
-            recording_duration=recording_duration,
+        # Get call record from database
+        call_record = loop.run_until_complete(CallRecord.find_one(
+            CallRecord.call_tracking.call_sid == call_sid
+        ))
+
+        if not call_record:
+            logger.error(f"❌ CallRecord not found for call_sid: {call_sid}")
+            raise Exception(f"CallRecord not found: {call_sid}")
+
+        # Prepare metadata
+        metadata = {
+            "domain": "patient_feedback",
+            "campaign_id": str(call_record.campaign_id),
+            "recording_sid": recording_sid,
+            "twilio_url": recording_url,
+            "channels": "dual",
+            "format": "mp3",
+        }
+
+        # Upload to MinIO via RecordingService
+        recording_service = RecordingService()
+        success = loop.run_until_complete(recording_service.upload_twilio_recording(
+            call_record=call_record,
             audio_data=audio_data,
+            duration_seconds=recording_duration,
+            metadata=metadata,
         ))
 
         if not success:
@@ -107,46 +124,3 @@ async def _download_audio(audio_url: str) -> Optional[bytes]:
     except Exception as e:
         logger.error(f"❌ Failed to download audio: {e}")
         return None
-
-
-async def _process_recording_upload(
-    call_sid: str,
-    recording_sid: str,
-    recording_url: str,
-    recording_duration: int,
-    audio_data: bytes,
-) -> bool:
-    """
-    Process recording upload asynchronously.
-    
-    This function handles all async database and storage operations.
-    """
-    # Get call record from database
-    call_record = await CallRecord.find_one(
-        CallRecord.call_tracking.call_sid == call_sid
-    )
-
-    if not call_record:
-        logger.error(f"❌ CallRecord not found for call_sid: {call_sid}")
-        raise Exception(f"CallRecord not found: {call_sid}")
-
-    # Prepare metadata
-    metadata = {
-        "domain": "patient_feedback",
-        "campaign_id": str(call_record.campaign_id),
-        "recording_sid": recording_sid,
-        "twilio_url": recording_url,
-        "channels": "dual",
-        "format": "mp3",
-    }
-
-    # Upload to MinIO via RecordingService
-    recording_service = RecordingService()
-    success = await recording_service.upload_twilio_recording(
-        call_record=call_record,
-        audio_data=audio_data,
-        duration_seconds=recording_duration,
-        metadata=metadata,
-    )
-
-    return success

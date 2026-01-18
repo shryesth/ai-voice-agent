@@ -82,9 +82,6 @@ class S3StorageClient:
             ClientError: If upload fails
         """
         try:
-            # Ensure bucket exists before uploading
-            await self.ensure_bucket_exists()
-            
             self.client.upload_fileobj(
                 BytesIO(audio_data),
                 self.bucket,

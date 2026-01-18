@@ -9,7 +9,7 @@ This service provides business logic for campaign management including:
 - Status reporting with progress tracking
 """
 
-from datetime import datetime, time as time_type
+from datetime import datetime, timezone, time as time_type
 from typing import Optional, List
 from beanie import PydanticObjectId
 from beanie.operators import In
@@ -62,8 +62,8 @@ class CampaignService:
             config=data.config.model_dump(),
             state=CampaignState.DRAFT,
             stats=CampaignStats(total_calls=len(unique_patients)),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
 
         # Update config with deduplicated patient list
@@ -204,7 +204,7 @@ class CampaignService:
                 setattr(campaign, field, value)
 
         # Update timestamp
-        campaign.updated_at = datetime.utcnow()
+        campaign.updated_at = datetime.now(timezone.utc)
 
         await campaign.save()
         logger.info("Campaign updated", campaign_id=campaign_id, fields=list(update_data.keys()))
@@ -266,8 +266,8 @@ class CampaignService:
 
         # Update state
         campaign.state = CampaignState.ACTIVE
-        campaign.started_at = datetime.utcnow()
-        campaign.updated_at = datetime.utcnow()
+        campaign.started_at = datetime.now(timezone.utc)
+        campaign.updated_at = datetime.now(timezone.utc)
 
         # Initialize stats
         campaign.stats.queued_count = created_count
@@ -313,7 +313,7 @@ class CampaignService:
 
         # Update state
         campaign.state = CampaignState.PAUSED
-        campaign.updated_at = datetime.utcnow()
+        campaign.updated_at = datetime.now(timezone.utc)
 
         await campaign.save()
         logger.info(
@@ -354,7 +354,7 @@ class CampaignService:
 
         # Update state
         campaign.state = CampaignState.ACTIVE
-        campaign.updated_at = datetime.utcnow()
+        campaign.updated_at = datetime.now(timezone.utc)
 
         await campaign.save()
         logger.info(
@@ -408,15 +408,15 @@ class CampaignService:
             entry.state = QueueState.FAILED
             entry.moved_to_dlq = True
             entry.dlq_reason = "Campaign cancelled by admin"
-            entry.completed_at = datetime.utcnow()
-            entry.updated_at = datetime.utcnow()
+            entry.completed_at = datetime.now(timezone.utc)
+            entry.updated_at = datetime.now(timezone.utc)
             await entry.save()
             removed_count += 1
 
         # Update state
         campaign.state = CampaignState.CANCELLED
-        campaign.completed_at = datetime.utcnow()
-        campaign.updated_at = datetime.utcnow()
+        campaign.completed_at = datetime.now(timezone.utc)
+        campaign.updated_at = datetime.now(timezone.utc)
 
         await campaign.save()
         logger.info(

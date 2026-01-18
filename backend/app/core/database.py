@@ -146,7 +146,6 @@ class Database:
                 logger.warning("Error closing MongoDB client", error=str(e))
             finally:
                 cls._initialized = False
-                logger.info("MongoDB connection closed")
                 cls._client = None
                 logger.info("MongoDB connection closed")
 

@@ -11,8 +11,8 @@ Handles:
 import io
 import logging
 import wave
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Union
 
 from backend.app.core.config import settings
 from backend.app.infrastructure.storage import S3StorageClient
@@ -90,9 +90,9 @@ class RecordingService:
                 file_size_bytes=len(wav_data),
                 sample_rate=sample_rate,
                 num_channels=num_channels,
-                uploaded_at=datetime.utcnow()
+                uploaded_at=datetime.now(timezone.utc)
             )
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
             await call_record.save()
 
             logger.info(
@@ -152,7 +152,7 @@ class RecordingService:
                 file_size_bytes=len(audio_data),
                 sample_rate=8000,  # Twilio uses 8kHz for telephony
                 num_channels=2,    # Dual-channel recording
-                uploaded_at=datetime.utcnow(),
+                uploaded_at=datetime.now(timezone.utc),
                 recording_source="twilio",
                 recording_sid=metadata.get("recording_sid"),
                 recording_format="mp3"
@@ -233,36 +233,44 @@ class RecordingService:
         Returns:
             S3 object key string
         """
-        now = datetime.utcnow()
-        # Extract ID from Beanie Link object
-        campaign_id = str(call_record.campaign_id.ref.id)
+        now = datetime.now(timezone.utc)
+        campaign_id = str(call_record.campaign_id)
         call_id = str(call_record.id)
 
         return f"recordings/{campaign_id}/{now.year}/{now.month:02d}/{call_id}_dual.{format}"
 
     def get_presigned_url(
         self,
-        call_record: "CallRecord",
+        call_record_or_s3_key: Union["CallRecord", str],
         expiration: int = 3600
     ) -> str:
         """
         Generate a presigned URL for downloading a call recording.
 
         Args:
-            call_record: CallRecord with recording metadata
+            call_record_or_s3_key: Either a CallRecord with recording metadata or an S3 object key string
             expiration: URL expiration time in seconds (default: 1 hour)
 
         Returns:
             Presigned URL for downloading the recording
 
         Raises:
-            ValueError: If call has no recording
+            ValueError: If call has no recording or invalid S3 key
         """
-        if not call_record.recording or not call_record.recording.s3_object_key:
-            raise ValueError(f"Call {call_record.id} has no recording")
+        # Handle string S3 key directly
+        if isinstance(call_record_or_s3_key, str):
+            s3_key = call_record_or_s3_key
+            if not s3_key:
+                raise ValueError("S3 key cannot be empty")
+        else:
+            # Handle CallRecord
+            call_record = call_record_or_s3_key
+            if not call_record.recording or not call_record.recording.s3_object_key:
+                raise ValueError(f"Call {call_record.id} has no recording")
+            s3_key = call_record.recording.s3_object_key
 
         return self.storage.get_presigned_url(
-            object_key=call_record.recording.s3_object_key,
+            object_key=s3_key,
             expiration=expiration
         )
 
@@ -288,7 +296,7 @@ class RecordingService:
 
         # Clear recording metadata
         call_record.recording = None
-        call_record.updated_at = datetime.utcnow()
+        call_record.updated_at = datetime.now(timezone.utc)
         await call_record.save()
 
         logger.info(f"Deleted recording for call {call_record.id}")

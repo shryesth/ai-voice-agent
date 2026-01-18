@@ -8,7 +8,7 @@ This service provides business logic for geography management including:
 - Soft delete with active campaign validation
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from beanie import PydanticObjectId
 from beanie.operators import In
@@ -54,8 +54,8 @@ class GeographyService:
             region_code=data.region_code,
             retention_policy=data.retention_policy.model_dump(),
             metadata=data.metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
 
         await geography.insert()
@@ -169,7 +169,7 @@ class GeographyService:
                 setattr(geography, field, value)
 
         # Update timestamp
-        geography.updated_at = datetime.utcnow()
+        geography.updated_at = datetime.now(timezone.utc)
 
         await geography.save()
         logger.info("Geography updated", geography_id=geography_id, fields=list(update_data.keys()))
@@ -212,8 +212,8 @@ class GeographyService:
             )
 
         # Soft delete
-        geography.deleted_at = datetime.utcnow()
-        geography.updated_at = datetime.utcnow()
+        geography.deleted_at = datetime.now(timezone.utc)
+        geography.updated_at = datetime.now(timezone.utc)
         await geography.save()
 
         logger.info("Geography soft deleted", geography_id=geography_id)

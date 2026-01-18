@@ -9,7 +9,7 @@ Handles:
 """
 
 from typing import List, Optional, Tuple, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from beanie import PydanticObjectId
 import logging
 
@@ -273,14 +273,14 @@ class QueueService:
 
         # Set first_attempted_at if not already set
         if not queue_entry.first_attempted_at:
-            queue_entry.first_attempted_at = datetime.utcnow()
+            queue_entry.first_attempted_at = datetime.now(timezone.utc)
 
         # Check if non-retriable failure
         if failure_reason in NON_RETRIABLE_FAILURES:
             queue_entry.state = QueueState.FAILED
             queue_entry.moved_to_dlq = True
             queue_entry.dlq_reason = f"Non-retriable failure: {failure_reason.value}"
-            queue_entry.completed_at = datetime.utcnow()
+            queue_entry.completed_at = datetime.now(timezone.utc)
             logger.warning(
                 f"Queue entry {queue_entry.id} moved to DLQ: {queue_entry.dlq_reason}"
             )
@@ -290,7 +290,7 @@ class QueueService:
             queue_entry.state = QueueState.FAILED
             queue_entry.moved_to_dlq = True
             queue_entry.dlq_reason = f"Max retry attempts (3) exceeded for {failure_reason.value}"
-            queue_entry.completed_at = datetime.utcnow()
+            queue_entry.completed_at = datetime.now(timezone.utc)
             logger.warning(
                 f"Queue entry {queue_entry.id} moved to DLQ: {queue_entry.dlq_reason}"
             )
@@ -299,13 +299,13 @@ class QueueService:
         else:
             queue_entry.state = QueueState.RETRYING
             retry_delay_minutes = RETRY_DELAYS.get(failure_reason, 30)
-            queue_entry.next_retry_at = datetime.utcnow() + timedelta(minutes=retry_delay_minutes)
+            queue_entry.next_retry_at = datetime.now(timezone.utc) + timedelta(minutes=retry_delay_minutes)
             logger.info(
                 f"Queue entry {queue_entry.id} scheduled for retry {queue_entry.retry_count}/3 "
                 f"at {queue_entry.next_retry_at} (delay: {retry_delay_minutes}min)"
             )
 
-        queue_entry.updated_at = datetime.utcnow()
+        queue_entry.updated_at = datetime.now(timezone.utc)
         await queue_entry.save()
 
         return queue_entry
@@ -322,11 +322,11 @@ class QueueService:
             Updated QueueEntry
         """
         queue_entry.state = QueueState.SUCCESS
-        queue_entry.completed_at = datetime.utcnow()
-        queue_entry.updated_at = datetime.utcnow()
+        queue_entry.completed_at = datetime.now(timezone.utc)
+        queue_entry.updated_at = datetime.now(timezone.utc)
 
         if not queue_entry.first_attempted_at:
-            queue_entry.first_attempted_at = datetime.utcnow()
+            queue_entry.first_attempted_at = datetime.now(timezone.utc)
 
         await queue_entry.save()
 
@@ -373,7 +373,7 @@ class QueueService:
             entry.retry_history = []
             entry.last_failure_reason = None
 
-        entry.updated_at = datetime.utcnow()
+        entry.updated_at = datetime.now(timezone.utc)
         await entry.save()
 
         logger.info(f"DLQ entry {entry_id} manually retried (reset_count={reset_retry_count})")
@@ -428,7 +428,7 @@ class QueueService:
         Returns:
             List of QueueEntry ready for processing
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Get pending entries
         pending_entries = await QueueEntry.find(

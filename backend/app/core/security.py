@@ -4,7 +4,7 @@ Security utilities for authentication and authorization.
 Provides JWT token management and password hashing with bcrypt.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -74,11 +74,11 @@ def create_access_token(
 
     # Set expiration time
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(hours=settings.jwt_expiration_hours)
+        expire = datetime.now(timezone.utc) + timedelta(hours=settings.jwt_expiration_hours)
 
-    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
+    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc)})
 
     # Encode JWT
     encoded_jwt = jwt.encode(

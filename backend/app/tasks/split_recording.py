@@ -8,14 +8,13 @@ Handles:
 - Updating CallRecord with split S3 keys (cache)
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from io import BytesIO
-import asyncio
 
 from pydub import AudioSegment
 
-from backend.app.celery_app import celery_app
+from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.models.call_record import CallRecord
 from backend.app.infrastructure.storage.s3_storage import S3StorageClient
 from bson import ObjectId
@@ -51,8 +50,11 @@ def split_recording_task(self, call_id: str):
     logger.info(f"📂 Starting recording split for call: {call_id}")
 
     try:
+        # Get event loop
+        loop = get_worker_event_loop()
+
         # Get call record
-        call_record = asyncio.run(CallRecord.get(ObjectId(call_id)))
+        call_record = loop.run_until_complete(CallRecord.get(ObjectId(call_id)))
 
         if not call_record or not call_record.recording:
             raise Exception(f"Call record or recording not found: {call_id}")
@@ -62,7 +64,7 @@ def split_recording_task(self, call_id: str):
 
         # Download dual-channel MP3 from MinIO
         s3_client = S3StorageClient()
-        dual_audio_bytes = asyncio.run(s3_client.download_recording(dual_s3_key))
+        dual_audio_bytes = loop.run_until_complete(s3_client.download_recording(dual_s3_key))
 
         if not dual_audio_bytes:
             raise Exception(f"Failed to download dual recording: {dual_s3_key}")
@@ -105,19 +107,19 @@ def split_recording_task(self, call_id: str):
         mixed_s3_key = f"{base_key}_mixed.mp3"
 
         # Upload to MinIO
-        success_caller = asyncio.run(s3_client.upload_recording(
+        success_caller = loop.run_until_complete(s3_client.upload_recording(
             object_key=caller_s3_key,
             audio_data=caller_bytes.getvalue(),
             content_type="audio/mpeg"
         ))
 
-        success_callee = asyncio.run(s3_client.upload_recording(
+        success_callee = loop.run_until_complete(s3_client.upload_recording(
             object_key=callee_s3_key,
             audio_data=callee_bytes.getvalue(),
             content_type="audio/mpeg"
         ))
 
-        success_mixed = asyncio.run(s3_client.upload_recording(
+        success_mixed = loop.run_until_complete(s3_client.upload_recording(
             object_key=mixed_s3_key,
             audio_data=mixed_bytes.getvalue(),
             content_type="audio/mpeg"
@@ -132,9 +134,9 @@ def split_recording_task(self, call_id: str):
         call_record.recording.caller_s3_key = caller_s3_key
         call_record.recording.callee_s3_key = callee_s3_key
         call_record.recording.mixed_s3_key = mixed_s3_key
-        call_record.recording.split_created_at = datetime.utcnow()
+        call_record.recording.split_created_at = datetime.now(timezone.utc)
 
-        asyncio.run(call_record.save())
+        loop.run_until_complete(call_record.save())
 
         logger.info(f"✅ Split recording complete for call: {call_id}")
 

@@ -9,7 +9,7 @@ Handles:
 """
 
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import csv
 import io
 from beanie import PydanticObjectId
@@ -205,7 +205,7 @@ class CallService:
             call.error_message = pipeline_state["error"]
             call.call_tracking.outcome = CallOutcome.FAILED
         
-        call.updated_at = datetime.utcnow()
+        call.updated_at = datetime.now(timezone.utc)
         await call.save()
         
         logger.info(f"Updated call {call_id} from pipeline state")

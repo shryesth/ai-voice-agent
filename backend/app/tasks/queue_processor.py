@@ -7,7 +7,7 @@ Respects time windows, concurrency limits, and retry schedules.
 
 from celery import Task
 from backend.app.celery_app import celery_app, get_worker_event_loop
-from datetime import datetime, time
+from datetime import datetime, timezone, time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def is_within_time_window(time_windows: list) -> bool:
         # No time windows = always allowed
         return True
 
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc)
     current_time = now_utc.time()
     current_day = now_utc.strftime("%A").lower()  # e.g., "monday"
 
@@ -180,7 +180,7 @@ def process_campaign_queues(self):
                     try:
                         # Update entry state to CALLING
                         entry.state = QueueState.CALLING
-                        entry.updated_at = datetime.utcnow()
+                        entry.updated_at = datetime.now(timezone.utc)
                         loop.run_until_complete(entry.save())
 
                         # Initiate call via Celery task

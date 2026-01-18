@@ -538,16 +538,16 @@ async def split_recording(
         # Generate presigned URLs
         recording_service = RecordingService()
         return SplitRecordingResponse(
-            caller_url=await recording_service.get_presigned_url(
+            caller_url=recording_service.get_presigned_url(
                 call_record.recording.caller_s3_key
             ),
-            callee_url=await recording_service.get_presigned_url(
+            callee_url=recording_service.get_presigned_url(
                 call_record.recording.callee_s3_key
             ),
-            mixed_url=await recording_service.get_presigned_url(
+            mixed_url=recording_service.get_presigned_url(
                 call_record.recording.mixed_s3_key
             ),
-            dual_url=await recording_service.get_presigned_url(
+            dual_url=recording_service.get_presigned_url(
                 call_record.recording.s3_object_key
             ),
             split_created_at=call_record.recording.split_created_at,

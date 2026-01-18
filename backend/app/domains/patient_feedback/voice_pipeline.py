@@ -12,14 +12,15 @@ Based on architecture from plan.md (Pipecat v0.0.99 patterns).
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import WebSocket
 import logging
 
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask, PipelineParams
-from pipecat.frames.frames import LLMRunFrame, EndFrame, TTSSpeakFrame
+from pipecat.frames.frames import LLMRunFrame, EndFrame, TTSSpeakFrame, TranscriptionFrame, TextFrame
+from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContext,
@@ -49,6 +50,72 @@ from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord
 
 logger = logging.getLogger(__name__)
+
+
+class TranscriptLogger(FrameProcessor):
+    """
+    Custom frame processor for logging conversation transcript in real-time.
+
+    Processes TranscriptionFrame (user speech) and TextFrame (assistant responses)
+    to build conversation history in CallRecord.
+    """
+
+    def __init__(self, call_record: CallRecord, call_data: dict):
+        """
+        Initialize TranscriptLogger.
+
+        Args:
+            call_record: CallRecord document for transcript storage
+            call_data: Dict with language and other call metadata
+        """
+        super().__init__()
+        self.call_record = call_record
+        self.call_data = call_data
+
+    async def process_frame(self, frame, direction: FrameDirection):
+        """
+        Process frames to capture transcript entries.
+
+        Args:
+            frame: Frame to process
+            direction: Frame direction (upstream/downstream)
+
+        Returns:
+            The frame (passed through to next processor)
+        """
+        from backend.app.models.call_record import ConversationTurn
+
+        if isinstance(frame, TranscriptionFrame):
+            # User transcription from OpenAI Realtime API (via user_aggregator)
+            if frame.text and frame.text.strip():
+                transcript_entry = ConversationTurn(
+                    speaker="patient",
+                    text=frame.text.strip(),
+                    timestamp=datetime.now(timezone.utc),
+                    language=self.call_data.get("language")
+                )
+                self.call_record.transcript.append(transcript_entry)
+                self.call_record.updated_at = datetime.now(timezone.utc)
+                await self.call_record.save()
+
+                logger.info(f"📝 [patient]: {frame.text[:50]}...")
+
+        elif isinstance(frame, TextFrame):
+            # Assistant text from LLM (via assistant_aggregator)
+            if frame.text and frame.text.strip():
+                transcript_entry = ConversationTurn(
+                    speaker="ai",
+                    text=frame.text.strip(),
+                    timestamp=datetime.now(timezone.utc)
+                )
+                self.call_record.transcript.append(transcript_entry)
+                self.call_record.updated_at = datetime.now(timezone.utc)
+                await self.call_record.save()
+
+                logger.info(f"📝 [ai]: {frame.text[:50]}...")
+
+        # Pass frame through to next processor (await default handler)
+        await self.push_frame(frame, direction)
 
 
 # Language-specific voice mapping
@@ -120,7 +187,8 @@ async def create_voice_pipeline(
     llm_service = OpenAIRealtimeLLMService(
         api_key=settings.openai_api_key,
         model=settings.openai_model,
-        voice=voice
+        voice=voice,
+        input_audio_transcription={"model": "whisper-1"}  # Enable user speech transcription
     )
 
     # 4. Create LLMContext with initial system message
@@ -154,56 +222,10 @@ async def create_voice_pipeline(
     user_aggregator = context_aggregator.user()
     assistant_aggregator = context_aggregator.assistant()
 
-    # 6. Register aggregator event handlers for transcript capture
-    # Following Pipecat 0.0.99 best practices for turn-based transcript capture
-    @user_aggregator.event_handler("on_user_turn_stopped")
-    async def on_user_turn_stopped(aggregator, context):
-        """Capture user message when they finish speaking"""
-        try:
-            messages = context.get_messages_for_persistent_storage()
-            if messages:
-                last_message = messages[-1]
-                if last_message.get("role") == "user":
-                    content = last_message.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        # Create ConversationTurn
-                        from backend.app.models.call_record import ConversationTurn
-                        turn = ConversationTurn(
-                            speaker="patient",
-                            text=content.strip(),
-                            timestamp=datetime.utcnow(),
-                            language=call_data.get("language")
-                        )
-                        call_record.transcript.append(turn)
-                        call_record.updated_at = datetime.utcnow()
-                        await call_record.save()
-                        logger.info(f"📝 [patient]: {content[:50]}...")
-        except Exception as e:
-            logger.error(f"Error capturing user transcript: {e}", exc_info=True)
-
-    @assistant_aggregator.event_handler("on_assistant_turn_stopped")
-    async def on_assistant_turn_stopped(aggregator, context):
-        """Capture assistant message when it finishes responding"""
-        try:
-            messages = context.get_messages_for_persistent_storage()
-            if messages:
-                last_message = messages[-1]
-                if last_message.get("role") == "assistant":
-                    content = last_message.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        # Create ConversationTurn
-                        from backend.app.models.call_record import ConversationTurn
-                        turn = ConversationTurn(
-                            speaker="ai",
-                            text=content.strip(),
-                            timestamp=datetime.utcnow()
-                        )
-                        call_record.transcript.append(turn)
-                        call_record.updated_at = datetime.utcnow()
-                        await call_record.save()
-                        logger.info(f"📝 [ai]: {content[:50]}...")
-        except Exception as e:
-            logger.error(f"Error capturing assistant transcript: {e}", exc_info=True)
+    # 6. Initialize TranscriptLoggers for real-time transcript capture
+    # Two separate instances: one for user transcriptions, one for assistant text
+    user_transcript_logger = TranscriptLogger(call_record=call_record, call_data=call_data)
+    assistant_transcript_logger = TranscriptLogger(call_record=call_record, call_data=call_data)
 
     # 7. Initialize FlowManager with starting node
     flow_manager = FlowManager(
@@ -220,13 +242,15 @@ async def create_voice_pipeline(
         )
 
     # 9. Build Pipeline (order matters!)
-    # Note: Transcript capture now handled by aggregator event handlers (on_user_turn_stopped, on_assistant_turn_stopped)
+    # Note: Transcript capture handled by separate TranscriptLogger instances
     pipeline = Pipeline([
-        transport.input(),        # 1. Twilio audio input (µ-law 8kHz → PCM 16kHz via serializer)
-        user_aggregator,          # 2. User turn aggregation (VAD + transcription strategies)
-        llm_service,              # 3. OpenAI Realtime processing (with FlowManager functions)
-        transport.output(),       # 4. Twilio audio output (PCM 16kHz → µ-law 8kHz via serializer)
-        assistant_aggregator      # 5. Assistant turn aggregation (fires transcript event handlers)
+        transport.input(),            # 1. Twilio audio input (µ-law 8kHz → PCM 16kHz via serializer)
+        user_aggregator,              # 2. User turn aggregation (VAD + transcription strategies)
+        user_transcript_logger,       # 3. Capture user transcriptions (TranscriptionFrame)
+        llm_service,                  # 4. OpenAI Realtime processing (with FlowManager functions)
+        assistant_aggregator,         # 5. Assistant turn aggregation
+        assistant_transcript_logger,  # 6. Capture assistant text (TextFrame)
+        transport.output()            # 7. Twilio audio output (PCM 16kHz → µ-law 8kHz via serializer)
     ])
 
     # 10. Create Pipeline Task

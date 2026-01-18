@@ -10,18 +10,22 @@ Test Strategy (TDD):
 """
 
 import pytest
+import pytest_asyncio
+import uuid
 from httpx import AsyncClient
 from datetime import datetime
 
 
-@pytest.fixture
-async def geography_id(client: AsyncClient, admin_token: str) -> str:
+@pytest_asyncio.fixture
+async def geography_id(async_client: AsyncClient, auth_token: str) -> str:
     """Create a test geography and return its ID"""
-    response = await client.post(
+    unique_name = f"Test Geography for Campaigns {uuid.uuid4().hex[:8]}"
+    response = await async_client.post(
         "/api/v1/geographies",
-        headers={"Authorization": f"Bearer {admin_token}"},
-        json={"name": "Test Geography for Campaigns"}
+        headers={"Authorization": f"Bearer {auth_token}"},
+        json={"name": unique_name}
     )
+    assert response.status_code == 201, f"Failed to create geography: {response.json()}"
     return response.json()["id"]
 
 
@@ -29,11 +33,11 @@ class TestCampaignCreate:
     """Test POST /api/v1/geographies/{geography_id}/campaigns"""
 
     @pytest.mark.asyncio
-    async def test_create_campaign_success(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_create_campaign_success(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test successful campaign creation with all fields"""
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Post-Vaccination Feedback - January 2026",
                 "config": {
@@ -76,11 +80,11 @@ class TestCampaignCreate:
         assert "updated_at" in data
 
     @pytest.mark.asyncio
-    async def test_create_campaign_minimal(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_create_campaign_minimal(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test campaign creation with minimal config"""
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Minimal Campaign",
                 "config": {
@@ -98,9 +102,9 @@ class TestCampaignCreate:
         assert data["config"]["time_windows"] == []  # Empty = always
 
     @pytest.mark.asyncio
-    async def test_create_campaign_requires_admin(self, client: AsyncClient, user_token: str, geography_id: str):
+    async def test_create_campaign_requires_admin(self, async_client: AsyncClient, user_token: str, geography_id: str):
         """Test that User role cannot create campaign"""
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
             headers={"Authorization": f"Bearer {user_token}"},
             json={
@@ -112,11 +116,11 @@ class TestCampaignCreate:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_create_campaign_invalid_phone_format(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_create_campaign_invalid_phone_format(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test that invalid phone numbers are rejected"""
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Invalid Phone",
                 "config": {
@@ -129,11 +133,11 @@ class TestCampaignCreate:
         assert "E.164" in str(response.json())
 
     @pytest.mark.asyncio
-    async def test_create_campaign_geography_not_found(self, client: AsyncClient, admin_token: str):
+    async def test_create_campaign_geography_not_found(self, async_client: AsyncClient, auth_token: str):
         """Test creating campaign with non-existent geography"""
-        response = await client.post(
+        response = await async_client.post(
             "/api/v1/geographies/507f1f77bcf86cd799439011/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Should Fail",
                 "config": {"patient_list": ["+12025551234"]}
@@ -147,11 +151,11 @@ class TestCampaignList:
     """Test GET /api/v1/campaigns"""
 
     @pytest.mark.asyncio
-    async def test_list_campaigns_empty(self, client: AsyncClient, admin_token: str):
+    async def test_list_campaigns_empty(self, async_client: AsyncClient, auth_token: str):
         """Test listing campaigns when none exist"""
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -161,22 +165,22 @@ class TestCampaignList:
         assert data["items"] == []
 
     @pytest.mark.asyncio
-    async def test_list_campaigns_with_data(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_list_campaigns_with_data(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test listing campaigns"""
         # Create test campaigns
         for i in range(3):
-            await client.post(
+            await async_client.post(
                 f"/api/v1/geographies/{geography_id}/campaigns",
-                headers={"Authorization": f"Bearer {admin_token}"},
+                headers={"Authorization": f"Bearer {auth_token}"},
                 json={
                     "name": f"Test Campaign {i}",
                     "config": {"patient_list": [f"+1202555{i:04d}"]}
                 }
             )
 
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -186,37 +190,37 @@ class TestCampaignList:
         assert len(data["items"]) == 3
 
     @pytest.mark.asyncio
-    async def test_list_campaigns_filter_by_geography(self, client: AsyncClient, admin_token: str):
+    async def test_list_campaigns_filter_by_geography(self, async_client: AsyncClient, auth_token: str):
         """Test filtering campaigns by geography_id"""
         # Create two geographies
-        geo1 = (await client.post(
+        geo1 = (await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Geo 1"}
         )).json()["id"]
 
-        geo2 = (await client.post(
+        geo2 = (await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Geo 2"}
         )).json()["id"]
 
         # Create campaigns in different geographies
-        await client.post(
+        await async_client.post(
             f"/api/v1/geographies/{geo1}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Campaign Geo1", "config": {"patient_list": ["+12025551234"]}}
         )
-        await client.post(
+        await async_client.post(
             f"/api/v1/geographies/{geo2}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Campaign Geo2", "config": {"patient_list": ["+12025555678"]}}
         )
 
         # Filter by geo1
-        response = await client.get(
+        response = await async_client.get(
             f"/api/v1/campaigns?geography_id={geo1}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -225,26 +229,26 @@ class TestCampaignList:
         assert data["items"][0]["geography_id"] == geo1
 
     @pytest.mark.asyncio
-    async def test_list_campaigns_filter_by_state(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_list_campaigns_filter_by_state(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test filtering campaigns by state"""
         # Create draft campaign
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Draft Campaign", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = response.json()["id"]
 
         # Start campaign to change state
-        await client.post(
+        await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/start",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         # Filter by active state
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/campaigns?state=active",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -257,12 +261,12 @@ class TestCampaignGetById:
     """Test GET /api/v1/campaigns/{campaign_id}"""
 
     @pytest.mark.asyncio
-    async def test_get_campaign_by_id_success(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_get_campaign_by_id_success(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test retrieving campaign by ID"""
         # Create campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Test Campaign",
                 "config": {"patient_list": ["+12025551234", "+12025555678"]}
@@ -271,9 +275,9 @@ class TestCampaignGetById:
         campaign_id = create_response.json()["id"]
 
         # Retrieve by ID
-        response = await client.get(
+        response = await async_client.get(
             f"/api/v1/campaigns/{campaign_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -284,11 +288,11 @@ class TestCampaignGetById:
         assert len(data["config"]["patient_list"]) == 2
 
     @pytest.mark.asyncio
-    async def test_get_campaign_not_found(self, client: AsyncClient, admin_token: str):
+    async def test_get_campaign_not_found(self, async_client: AsyncClient, auth_token: str):
         """Test retrieving non-existent campaign"""
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/campaigns/507f1f77bcf86cd799439011",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 404
@@ -298,12 +302,12 @@ class TestCampaignUpdate:
     """Test PATCH /api/v1/campaigns/{campaign_id}"""
 
     @pytest.mark.asyncio
-    async def test_update_campaign_draft_success(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_update_campaign_draft_success(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test updating campaign in draft state"""
         # Create campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Original Name",
                 "config": {"patient_list": ["+12025551234"]}
@@ -312,9 +316,9 @@ class TestCampaignUpdate:
         campaign_id = create_response.json()["id"]
 
         # Update campaign
-        response = await client.patch(
+        response = await async_client.patch(
             f"/api/v1/campaigns/{campaign_id}",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Updated Name",
                 "config": {"max_concurrent_calls": 15}
@@ -327,25 +331,25 @@ class TestCampaignUpdate:
         assert data["config"]["max_concurrent_calls"] == 15
 
     @pytest.mark.asyncio
-    async def test_update_campaign_active_fails(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_update_campaign_active_fails(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test that active campaigns cannot be updated"""
         # Create and start campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Test", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
-        await client.post(
+        await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/start",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         # Attempt update
-        response = await client.patch(
+        response = await async_client.patch(
             f"/api/v1/campaigns/{campaign_id}",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Should Fail"}
         )
 
@@ -357,12 +361,12 @@ class TestCampaignStateTransitions:
     """Test campaign state transition endpoints"""
 
     @pytest.mark.asyncio
-    async def test_start_campaign(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_start_campaign(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test POST /api/v1/campaigns/{campaign_id}/start"""
         # Create campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "To Start",
                 "config": {"patient_list": ["+12025551234", "+12025555678"]}
@@ -371,9 +375,9 @@ class TestCampaignStateTransitions:
         campaign_id = create_response.json()["id"]
 
         # Start campaign
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/start",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -384,25 +388,25 @@ class TestCampaignStateTransitions:
         assert "Queue entries created" in data["message"]
 
     @pytest.mark.asyncio
-    async def test_pause_campaign(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_pause_campaign(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test POST /api/v1/campaigns/{campaign_id}/pause"""
         # Create and start campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "To Pause", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
-        await client.post(
+        await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/start",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         # Pause campaign
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/pause",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -410,23 +414,23 @@ class TestCampaignStateTransitions:
         assert data["state"] == "paused"
 
     @pytest.mark.asyncio
-    async def test_resume_campaign(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_resume_campaign(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test POST /api/v1/campaigns/{campaign_id}/resume"""
         # Create, start, and pause campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "To Resume", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
-        await client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {admin_token}"})
-        await client.post(f"/api/v1/campaigns/{campaign_id}/pause", headers={"Authorization": f"Bearer {admin_token}"})
+        await async_client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {auth_token}"})
+        await async_client.post(f"/api/v1/campaigns/{campaign_id}/pause", headers={"Authorization": f"Bearer {auth_token}"})
 
         # Resume campaign
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/resume",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -434,22 +438,22 @@ class TestCampaignStateTransitions:
         assert data["state"] == "active"
 
     @pytest.mark.asyncio
-    async def test_cancel_campaign(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_cancel_campaign(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test POST /api/v1/campaigns/{campaign_id}/cancel"""
         # Create and start campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "To Cancel", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
-        await client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {admin_token}"})
+        await async_client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {auth_token}"})
 
         # Cancel campaign
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/cancel",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -458,22 +462,22 @@ class TestCampaignStateTransitions:
         assert "completed_at" in data
 
     @pytest.mark.asyncio
-    async def test_start_already_active_fails(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_start_already_active_fails(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test that starting an already active campaign fails"""
         # Create and start campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Test", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
-        await client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {admin_token}"})
+        await async_client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {auth_token}"})
 
         # Attempt to start again
-        response = await client.post(
+        response = await async_client.post(
             f"/api/v1/campaigns/{campaign_id}/start",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 409
@@ -484,22 +488,22 @@ class TestCampaignStatus:
     """Test GET /api/v1/campaigns/{campaign_id}/status"""
 
     @pytest.mark.asyncio
-    async def test_campaign_status(self, client: AsyncClient, admin_token: str, geography_id: str):
+    async def test_campaign_status(self, async_client: AsyncClient, auth_token: str, geography_id: str):
         """Test retrieving campaign execution status"""
         # Create and start campaign
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Status Test", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
-        await client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {admin_token}"})
+        await async_client.post(f"/api/v1/campaigns/{campaign_id}/start", headers={"Authorization": f"Bearer {auth_token}"})
 
         # Get status
-        response = await client.get(
+        response = await async_client.get(
             f"/api/v1/campaigns/{campaign_id}/status",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -512,18 +516,18 @@ class TestCampaignStatus:
         assert "current_concurrency" in data
 
     @pytest.mark.asyncio
-    async def test_campaign_status_user_role(self, client: AsyncClient, user_token: str, admin_token: str, geography_id: str):
+    async def test_campaign_status_user_role(self, async_client: AsyncClient, user_token: str, auth_token: str, geography_id: str):
         """Test that User role can view campaign status"""
         # Create campaign as admin
-        create_response = await client.post(
+        create_response = await async_client.post(
             f"/api/v1/geographies/{geography_id}/campaigns",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Test", "config": {"patient_list": ["+12025551234"]}}
         )
         campaign_id = create_response.json()["id"]
 
         # Get status as user
-        response = await client.get(
+        response = await async_client.get(
             f"/api/v1/campaigns/{campaign_id}/status",
             headers={"Authorization": f"Bearer {user_token}"}
         )

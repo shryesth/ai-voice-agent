@@ -5,18 +5,35 @@ These schemas define the API contract for campaign endpoints.
 """
 
 from pydantic import BaseModel, Field, validator
-from datetime import datetime, time
+from datetime import datetime
 from typing import Optional, List
 from enum import Enum
+import re
 
 from backend.app.models.campaign import CampaignState, DayOfWeek
 
 
+def validate_time_string(v: str) -> str:
+    """Validate time string format (HH:MM:SS or HH:MM)"""
+    if not re.match(r'^\d{2}:\d{2}(:\d{2})?$', v):
+        raise ValueError(f'Invalid time format: {v}. Expected HH:MM:SS or HH:MM')
+    parts = v.split(':')
+    hour, minute = int(parts[0]), int(parts[1])
+    second = int(parts[2]) if len(parts) > 2 else 0
+    if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+        raise ValueError(f'Invalid time value: {v}')
+    return v
+
+
 class TimeWindowCreate(BaseModel):
     """Time window for campaign execution"""
-    start_time: time
-    end_time: time
+    start_time: str
+    end_time: str
     days_of_week: List[DayOfWeek] = Field(default_factory=lambda: list(DayOfWeek))
+
+    @validator('start_time', 'end_time')
+    def validate_time(cls, v):
+        return validate_time_string(v)
 
     class Config:
         json_schema_extra = {
@@ -30,8 +47,8 @@ class TimeWindowCreate(BaseModel):
 
 class TimeWindowResponse(BaseModel):
     """Time window in API responses"""
-    start_time: time
-    end_time: time
+    start_time: str
+    end_time: str
     days_of_week: List[DayOfWeek]
 
     class Config:
@@ -70,6 +87,31 @@ class CampaignConfigCreate(BaseModel):
                 }],
                 "patient_list": ["+12025551234", "+12025555678", "+13105559999"],
                 "language_preference": "en"
+            }
+        }
+
+
+class CampaignConfigUpdate(BaseModel):
+    """Campaign configuration for update (all fields optional)"""
+    max_concurrent_calls: Optional[int] = Field(default=None, ge=1, le=50)
+    time_windows: Optional[List[TimeWindowCreate]] = None
+    patient_list: Optional[List[str]] = None
+    language_preference: Optional[str] = Field(default=None, pattern="^(en|es|fr|ht)$")
+
+    @validator('patient_list', each_item=True, pre=True)
+    def validate_phone_number(cls, v):
+        """Validate E.164 phone number format"""
+        if v is None:
+            return v
+        import re
+        if not re.match(r'^\+[1-9]\d{1,14}$', v):
+            raise ValueError(f'Invalid E.164 phone number format. Expected: +12025551234, got: {v}')
+        return v
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "max_concurrent_calls": 15
             }
         }
 
@@ -139,7 +181,7 @@ class CampaignCreate(BaseModel):
 class CampaignUpdate(BaseModel):
     """Request schema for updating campaign (all fields optional)"""
     name: Optional[str] = None
-    config: Optional[CampaignConfigCreate] = None
+    config: Optional[CampaignConfigUpdate] = None
 
     class Config:
         json_schema_extra = {

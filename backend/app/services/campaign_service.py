@@ -186,14 +186,20 @@ class CampaignService:
 
         for field, value in update_data.items():
             if field == "config" and value is not None:
-                # Convert CampaignConfigCreate to dict for storage
-                config_dict = value.model_dump()
-                # Deduplicate patient list
-                unique_patients = list(set(config_dict.get("patient_list", [])))
-                config_dict["patient_list"] = unique_patients
-                setattr(campaign, field, config_dict)
-                # Update total_calls if patient list changed
-                campaign.stats.total_calls = len(unique_patients)
+                # value is already a dict from model_dump(exclude_unset=True)
+                config_dict = value if isinstance(value, dict) else value.model_dump()
+                # Merge with existing config, only updating provided fields
+                existing_config = campaign.config.model_dump() if hasattr(campaign.config, 'model_dump') else dict(campaign.config)
+                for config_key, config_value in config_dict.items():
+                    if config_value is not None:
+                        existing_config[config_key] = config_value
+                # Deduplicate patient list if provided
+                if "patient_list" in existing_config and existing_config["patient_list"]:
+                    unique_patients = list(set(existing_config.get("patient_list", [])))
+                    existing_config["patient_list"] = unique_patients
+                    # Update total_calls if patient list changed
+                    campaign.stats.total_calls = len(unique_patients)
+                setattr(campaign, field, existing_config)
             else:
                 setattr(campaign, field, value)
 
@@ -394,7 +400,7 @@ class CampaignService:
 
         pending_entries = await QueueEntry.find(
             QueueEntry.campaign_id == str(campaign.id),
-            QueueEntry.state.in_([QueueState.PENDING, QueueState.RETRYING])
+            In(QueueEntry.state, [QueueState.PENDING, QueueState.RETRYING])
         ).to_list()
 
         removed_count = 0

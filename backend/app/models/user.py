@@ -27,7 +27,7 @@ class User(Document):
     """
 
     email: Indexed(EmailStr, unique=True)
-    hashed_password: str = Field(..., exclude=True)  # Never returned in API responses
+    hashed_password: str = Field(...)  # Excluded from API responses via schemas
     role: UserRole = Field(default=UserRole.USER)
 
     # Metadata

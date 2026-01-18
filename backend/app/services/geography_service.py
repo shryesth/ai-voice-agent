@@ -163,8 +163,8 @@ class GeographyService:
 
         for field, value in update_data.items():
             if field == "retention_policy" and value is not None:
-                # Convert RetentionPolicyCreate to dict for storage
-                setattr(geography, field, value.model_dump())
+                # value is already a dict from model_dump(), just use it directly
+                setattr(geography, field, value if isinstance(value, dict) else value.model_dump())
             else:
                 setattr(geography, field, value)
 

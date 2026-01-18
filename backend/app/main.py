@@ -245,14 +245,32 @@ All endpoints except webhooks require JWT authentication.
         exc: RequestValidationError
     ) -> JSONResponse:
         """Handle Pydantic validation errors."""
+        # Sanitize errors for JSON serialization (Pydantic v2 may include non-serializable objects)
+        errors = []
+        for error in exc.errors():
+            sanitized = {
+                "loc": error.get("loc", []),
+                "msg": str(error.get("msg", "")),
+                "type": error.get("type", "unknown"),
+            }
+            # Include input if it's serializable
+            if "input" in error:
+                try:
+                    import json
+                    json.dumps(error["input"])
+                    sanitized["input"] = error["input"]
+                except (TypeError, ValueError):
+                    sanitized["input"] = str(error["input"])
+            errors.append(sanitized)
+
         logger.warning(
             "Validation error",
             path=request.url.path,
-            errors=exc.errors(),
+            errors=errors,
         )
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"detail": exc.errors()},
+            content={"detail": errors},
         )
 
     @app.exception_handler(Exception)
@@ -278,6 +296,7 @@ All endpoints except webhooks require JWT authentication.
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(health.router, prefix="/api/v1", tags=["Health & Metrics"])
     app.include_router(geographies.router, prefix="/api/v1/geographies", tags=["Geographies"])
+    app.include_router(campaigns.campaign_create_router, prefix="/api/v1", tags=["Campaigns"])
     app.include_router(campaigns.router, prefix="/api/v1/campaigns", tags=["Campaigns"])
     app.include_router(calls.router, prefix="/api/v1", tags=["Calls & Webhooks"])
     app.include_router(queue.router, prefix="/api/v1", tags=["Queue & DLQ"])

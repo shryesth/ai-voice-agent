@@ -81,6 +81,11 @@ class Database:
             PermissionError: If database access or privileges are insufficient
             Exception: If connection fails for other reasons
         """
+        # Skip if already initialized (e.g., by tests)
+        if cls._initialized:
+            logger.info("Database already initialized, skipping connect")
+            return
+
         try:
             logger.info(
                 "Connecting to MongoDB",

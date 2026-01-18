@@ -18,11 +18,11 @@ class TestGeographyCreate:
     """Test POST /api/v1/geographies"""
 
     @pytest.mark.asyncio
-    async def test_create_geography_success(self, client: AsyncClient, admin_token: str):
+    async def test_create_geography_success(self, async_client: AsyncClient, auth_token: str):
         """Test successful geography creation with all fields"""
-        response = await client.post(
+        response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "North America - East Coast",
                 "description": "US East Coast operations covering NY, NJ, PA, MD",
@@ -65,11 +65,11 @@ class TestGeographyCreate:
         assert "updated_at" in data
 
     @pytest.mark.asyncio
-    async def test_create_geography_minimal(self, client: AsyncClient, admin_token: str):
+    async def test_create_geography_minimal(self, async_client: AsyncClient, auth_token: str):
         """Test geography creation with only required fields"""
-        response = await client.post(
+        response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Test Geography Minimal"
             }
@@ -88,31 +88,31 @@ class TestGeographyCreate:
         assert data["retention_policy"]["auto_purge_enabled"] is False
 
     @pytest.mark.asyncio
-    async def test_create_geography_requires_admin(self, client: AsyncClient, user_token: str):
+    async def test_create_geography_requires_admin(self, async_client: AsyncClient, user_token: str):
         """Test that User role cannot create geography"""
-        response = await client.post(
+        response = await async_client.post(
             "/api/v1/geographies",
             headers={"Authorization": f"Bearer {user_token}"},
             json={"name": "Should Fail"}
         )
 
         assert response.status_code == 403
-        assert "Admin role required" in response.json()["detail"]
+        assert "Admin" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_create_geography_duplicate_name(self, client: AsyncClient, admin_token: str):
+    async def test_create_geography_duplicate_name(self, async_client: AsyncClient, auth_token: str):
         """Test that duplicate geography names are rejected"""
         # Create first geography
-        await client.post(
+        await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Duplicate Test"}
         )
 
         # Attempt to create duplicate
-        response = await client.post(
+        response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Duplicate Test"}
         )
 
@@ -120,9 +120,9 @@ class TestGeographyCreate:
         assert "already exists" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_create_geography_unauthenticated(self, client: AsyncClient):
+    async def test_create_geography_unauthenticated(self, async_client: AsyncClient):
         """Test that unauthenticated requests are rejected"""
-        response = await client.post(
+        response = await async_client.post(
             "/api/v1/geographies",
             json={"name": "Should Fail"}
         )
@@ -134,11 +134,11 @@ class TestGeographyList:
     """Test GET /api/v1/geographies"""
 
     @pytest.mark.asyncio
-    async def test_list_geographies_empty(self, client: AsyncClient, admin_token: str):
+    async def test_list_geographies_empty(self, async_client: AsyncClient, auth_token: str):
         """Test listing geographies when none exist"""
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -150,22 +150,22 @@ class TestGeographyList:
         assert data["items"] == []
 
     @pytest.mark.asyncio
-    async def test_list_geographies_with_data(self, client: AsyncClient, admin_token: str):
+    async def test_list_geographies_with_data(self, async_client: AsyncClient, auth_token: str):
         """Test listing geographies with multiple items"""
         # Create test geographies
         for i in range(3):
-            await client.post(
+            await async_client.post(
                 "/api/v1/geographies",
-                headers={"Authorization": f"Bearer {admin_token}"},
+                headers={"Authorization": f"Bearer {auth_token}"},
                 json={
                     "name": f"Test Geography {i}",
                     "region_code": f"TEST-{i}"
                 }
             )
 
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -177,23 +177,23 @@ class TestGeographyList:
         assert all("name" in item for item in data["items"])
 
     @pytest.mark.asyncio
-    async def test_list_geographies_filter_by_region(self, client: AsyncClient, admin_token: str):
+    async def test_list_geographies_filter_by_region(self, async_client: AsyncClient, auth_token: str):
         """Test filtering geographies by region_code"""
         # Create geographies with different regions
-        await client.post(
+        await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "US East", "region_code": "US-EAST"}
         )
-        await client.post(
+        await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "US West", "region_code": "US-WEST"}
         )
 
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/geographies?region_code=US-EAST",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -203,19 +203,19 @@ class TestGeographyList:
         assert data["items"][0]["region_code"] == "US-EAST"
 
     @pytest.mark.asyncio
-    async def test_list_geographies_pagination(self, client: AsyncClient, admin_token: str):
+    async def test_list_geographies_pagination(self, async_client: AsyncClient, auth_token: str):
         """Test pagination parameters"""
         # Create 10 geographies
         for i in range(10):
-            await client.post(
+            await async_client.post(
                 "/api/v1/geographies",
-                headers={"Authorization": f"Bearer {admin_token}"},
+                headers={"Authorization": f"Bearer {auth_token}"},
                 json={"name": f"Geography {i:02d}"}
             )
 
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/geographies?skip=2&limit=3",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -227,9 +227,9 @@ class TestGeographyList:
         assert len(data["items"]) == 3
 
     @pytest.mark.asyncio
-    async def test_list_geographies_user_role(self, client: AsyncClient, user_token: str):
+    async def test_list_geographies_user_role(self, async_client: AsyncClient, user_token: str):
         """Test that User role can list geographies (read-only)"""
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/geographies",
             headers={"Authorization": f"Bearer {user_token}"}
         )
@@ -241,12 +241,12 @@ class TestGeographyGetById:
     """Test GET /api/v1/geographies/{geography_id}"""
 
     @pytest.mark.asyncio
-    async def test_get_geography_by_id_success(self, client: AsyncClient, admin_token: str):
+    async def test_get_geography_by_id_success(self, async_client: AsyncClient, auth_token: str):
         """Test retrieving geography by ID"""
         # Create geography
-        create_response = await client.post(
+        create_response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "name": "Test Geography",
                 "description": "Test Description",
@@ -256,9 +256,9 @@ class TestGeographyGetById:
         geography_id = create_response.json()["id"]
 
         # Retrieve by ID
-        response = await client.get(
+        response = await async_client.get(
             f"/api/v1/geographies/{geography_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 200
@@ -270,11 +270,11 @@ class TestGeographyGetById:
         assert data["region_code"] == "TEST"
 
     @pytest.mark.asyncio
-    async def test_get_geography_not_found(self, client: AsyncClient, admin_token: str):
+    async def test_get_geography_not_found(self, async_client: AsyncClient, auth_token: str):
         """Test retrieving non-existent geography"""
-        response = await client.get(
+        response = await async_client.get(
             "/api/v1/geographies/507f1f77bcf86cd799439011",  # Valid ObjectId format
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 404
@@ -285,20 +285,20 @@ class TestGeographyUpdate:
     """Test PATCH /api/v1/geographies/{geography_id}"""
 
     @pytest.mark.asyncio
-    async def test_update_geography_success(self, client: AsyncClient, admin_token: str):
+    async def test_update_geography_success(self, async_client: AsyncClient, auth_token: str):
         """Test updating geography fields"""
         # Create geography
-        create_response = await client.post(
+        create_response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Original Name"}
         )
         geography_id = create_response.json()["id"]
 
         # Update geography
-        response = await client.patch(
+        response = await async_client.patch(
             f"/api/v1/geographies/{geography_id}",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={
                 "description": "Updated description",
                 "retention_policy": {
@@ -317,18 +317,18 @@ class TestGeographyUpdate:
         assert data["retention_policy"]["retention_days"] == 3650
 
     @pytest.mark.asyncio
-    async def test_update_geography_requires_admin(self, client: AsyncClient, user_token: str, admin_token: str):
+    async def test_update_geography_requires_admin(self, async_client: AsyncClient, user_token: str, auth_token: str):
         """Test that User role cannot update geography"""
         # Create geography as admin
-        create_response = await client.post(
+        create_response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Test"}
         )
         geography_id = create_response.json()["id"]
 
         # Attempt update as user
-        response = await client.patch(
+        response = await async_client.patch(
             f"/api/v1/geographies/{geography_id}",
             headers={"Authorization": f"Bearer {user_token}"},
             json={"description": "Should fail"}
@@ -337,11 +337,11 @@ class TestGeographyUpdate:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_update_geography_not_found(self, client: AsyncClient, admin_token: str):
+    async def test_update_geography_not_found(self, async_client: AsyncClient, auth_token: str):
         """Test updating non-existent geography"""
-        response = await client.patch(
+        response = await async_client.patch(
             "/api/v1/geographies/507f1f77bcf86cd799439011",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"description": "Should fail"}
         )
 
@@ -352,45 +352,45 @@ class TestGeographyDelete:
     """Test DELETE /api/v1/geographies/{geography_id}"""
 
     @pytest.mark.asyncio
-    async def test_delete_geography_success(self, client: AsyncClient, admin_token: str):
+    async def test_delete_geography_success(self, async_client: AsyncClient, auth_token: str):
         """Test soft deleting geography"""
         # Create geography
-        create_response = await client.post(
+        create_response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "To Delete"}
         )
         geography_id = create_response.json()["id"]
 
         # Delete geography
-        response = await client.delete(
+        response = await async_client.delete(
             f"/api/v1/geographies/{geography_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 204
 
         # Verify geography is soft-deleted (not visible in normal list)
-        list_response = await client.get(
+        list_response = await async_client.get(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
         geographies = list_response.json()["items"]
         assert not any(g["id"] == geography_id for g in geographies)
 
     @pytest.mark.asyncio
-    async def test_delete_geography_requires_admin(self, client: AsyncClient, user_token: str, admin_token: str):
+    async def test_delete_geography_requires_admin(self, async_client: AsyncClient, user_token: str, auth_token: str):
         """Test that User role cannot delete geography"""
         # Create geography
-        create_response = await client.post(
+        create_response = await async_client.post(
             "/api/v1/geographies",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {auth_token}"},
             json={"name": "Test"}
         )
         geography_id = create_response.json()["id"]
 
         # Attempt delete as user
-        response = await client.delete(
+        response = await async_client.delete(
             f"/api/v1/geographies/{geography_id}",
             headers={"Authorization": f"Bearer {user_token}"}
         )
@@ -398,11 +398,11 @@ class TestGeographyDelete:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_delete_geography_not_found(self, client: AsyncClient, admin_token: str):
+    async def test_delete_geography_not_found(self, async_client: AsyncClient, auth_token: str):
         """Test deleting non-existent geography"""
-        response = await client.delete(
+        response = await async_client.delete(
             "/api/v1/geographies/507f1f77bcf86cd799439011",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"}
         )
 
         assert response.status_code == 404

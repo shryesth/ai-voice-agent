@@ -19,7 +19,7 @@ from backend.app.main import app
 class TestAuthLogin:
     """Test POST /api/v1/auth/login endpoint contract."""
 
-    async def test_login_success(self, async_client: AsyncClient, test_admin_user):
+    async def test_login_success(self, async_client: AsyncClient, test_admin_user, seeded_admin_user):
         """
         Test successful login with valid credentials.
 
@@ -187,7 +187,7 @@ class TestAuthMe:
 
         Expected:
         - Status: 401 Unauthorized
-        - Response detail: "Could not validate credentials"
+        - Response detail: "Not authenticated"
         """
         response = await async_client.get("/api/v1/auth/me")
 
@@ -195,7 +195,7 @@ class TestAuthMe:
 
         data = response.json()
         assert "detail" in data
-        assert "credentials" in data["detail"].lower()
+        assert "authenticated" in data["detail"].lower()
 
     async def test_get_current_user_invalid_token(self, async_client: AsyncClient):
         """
@@ -244,7 +244,8 @@ class TestAuthWorkflow:
     async def test_login_then_access_protected_endpoint(
         self,
         async_client: AsyncClient,
-        test_admin_user
+        test_admin_user,
+        seeded_admin_user
     ):
         """
         Test complete flow: login -> receive token -> access protected endpoint.

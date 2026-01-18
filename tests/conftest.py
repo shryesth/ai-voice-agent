@@ -8,6 +8,11 @@ Provides:
 - test_db: Database connection for test isolation
 """
 
+import os
+
+# Skip startup validation so tests control the database connection
+os.environ["SKIP_STARTUP_VALIDATION"] = "true"
+
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator, Dict
@@ -34,9 +39,15 @@ async def test_db() -> AsyncGenerator:
     Uses Beanie's native connection handling. Creates a test database,
     yields connection, then cleans up.
     """
+    from pymongo import AsyncMongoClient
+    from backend.app.core.database import Database
+
     # Use a separate test database
     test_db_name = f"{settings.mongodb_database}_test"
-    connection_string = f"{settings.mongodb_uri}/{test_db_name}"
+
+    # Create MongoDB client and database
+    client = AsyncMongoClient(settings.mongodb_uri)
+    db = client[test_db_name]
 
     # Import models for registration
     from backend.app.models.user import User
@@ -45,31 +56,34 @@ async def test_db() -> AsyncGenerator:
     from backend.app.models.call_record import CallRecord
     from backend.app.models.queue_entry import QueueEntry
 
-    # Initialize Beanie with test database using native connection
+    # Initialize Beanie with test database
     await init_beanie(
-        connection_string=connection_string,
+        database=db,
         document_models=[User, Geography, Campaign, CallRecord, QueueEntry]
     )
 
-    # Access the database through Beanie's internal state
-    from beanie.odm.utils.state import current_state
-    db = current_state.database
+    # Mark database as initialized so app's lifespan skips db.connect()
+    Database._initialized = True
+    Database._client = client
 
     yield db
 
     # Cleanup: Drop test database after tests
-    if db is not None:
-        await db.client.drop_database(test_db_name)
-        db.client.close()
+    Database._initialized = False
+    Database._client = None
+    await client.drop_database(test_db_name)
+    client.close()
 
 
 @pytest_asyncio.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
+async def async_client(test_db) -> AsyncGenerator[AsyncClient, None]:
     """
     Provide async HTTP client for testing FastAPI endpoints.
 
     Uses HTTPX AsyncClient with ASGI transport for direct app testing
     without running a server.
+
+    Depends on test_db to ensure Beanie is initialized before any requests.
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(
@@ -136,15 +150,18 @@ async def seeded_admin_user(test_db, test_admin_user) -> User:
     return user
 
 
-@pytest.fixture
-def auth_token(test_admin_user) -> str:
+@pytest_asyncio.fixture
+async def auth_token(test_admin_user, seeded_admin_user) -> str:
     """
     Generate a valid JWT token for testing authenticated endpoints.
+
+    Depends on seeded_admin_user to ensure user exists and include user_id.
 
     Returns:
         JWT access token string
     """
     token_data = {
+        "user_id": str(seeded_admin_user.id),
         "sub": test_admin_user["email"],
         "email": test_admin_user["email"],
         "role": test_admin_user["role"]
@@ -152,8 +169,8 @@ def auth_token(test_admin_user) -> str:
     return create_access_token(token_data)
 
 
-@pytest.fixture
-def auth_headers(auth_token: str) -> Dict[str, str]:
+@pytest_asyncio.fixture
+async def auth_headers(auth_token: str) -> Dict[str, str]:
     """
     Provide authorization headers with valid JWT token.
 
@@ -163,21 +180,61 @@ def auth_headers(auth_token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {auth_token}"}
 
 
-@pytest.fixture
-def user_auth_headers(test_regular_user) -> Dict[str, str]:
+@pytest_asyncio.fixture
+async def seeded_regular_user(test_db, test_regular_user) -> User:
+    """
+    Create and return a seeded regular user in the database.
+
+    Returns:
+        Created User document
+    """
+    from backend.app.models.user import User, UserRole
+
+    # Check if user already exists
+    existing_user = await User.find_one(User.email == test_regular_user["email"])
+    if existing_user:
+        await existing_user.delete()
+
+    # Create new user
+    user = User(
+        email=test_regular_user["email"],
+        hashed_password=hash_password(test_regular_user["password"]),
+        role=UserRole.USER,
+        is_active=True
+    )
+    await user.insert()
+
+    return user
+
+
+@pytest_asyncio.fixture
+async def user_token(test_regular_user, seeded_regular_user) -> str:
+    """
+    Generate a valid JWT token for regular (non-admin) user.
+
+    Depends on seeded_regular_user to ensure user exists and include user_id.
+
+    Returns:
+        JWT access token string
+    """
+    token_data = {
+        "user_id": str(seeded_regular_user.id),
+        "sub": test_regular_user["email"],
+        "email": test_regular_user["email"],
+        "role": test_regular_user["role"]
+    }
+    return create_access_token(token_data)
+
+
+@pytest_asyncio.fixture
+async def user_auth_headers(user_token: str) -> Dict[str, str]:
     """
     Provide authorization headers for regular (non-admin) user.
 
     Returns:
         Dict with Authorization header for non-admin user
     """
-    token_data = {
-        "sub": test_regular_user["email"],
-        "email": test_regular_user["email"],
-        "role": test_regular_user["role"]
-    }
-    token = create_access_token(token_data)
-    return {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {user_token}"}
 
 
 # Test data factories

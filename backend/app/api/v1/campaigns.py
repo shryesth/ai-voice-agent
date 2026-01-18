@@ -26,6 +26,7 @@ from backend.app.schemas.campaign import (
     CampaignStateChangeResponse,
     CampaignStatusResponse,
     CampaignConfigResponse,
+    CampaignStatsResponse,
 )
 from backend.app.services.campaign_service import CampaignService
 from backend.app.api.v1.auth import get_current_user, require_admin
@@ -33,6 +34,10 @@ from backend.app.core.logging import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# Separate router for geography-nested campaign creation
+# This gets mounted at /api/v1 to achieve /api/v1/geographies/{geography_id}/campaigns
+campaign_create_router = APIRouter()
 
 
 def campaign_to_response(campaign, user: User) -> CampaignResponse:
@@ -56,13 +61,28 @@ def campaign_to_response(campaign, user: User) -> CampaignResponse:
     if user.role == UserRole.USER:
         config_dict["patient_list"] = []
 
+    # Extract geography_id from Link, Document, or ObjectId
+    geo_id = campaign.geography_id
+    if hasattr(geo_id, 'ref'):
+        # It's a Link reference
+        geo_id_str = str(geo_id.ref.id)
+    elif hasattr(geo_id, 'id'):
+        # It's a Geography document
+        geo_id_str = str(geo_id.id)
+    else:
+        # It's already an ObjectId or string
+        geo_id_str = str(geo_id)
+
+    # Convert stats to response schema
+    stats_dict = campaign.stats.model_dump() if hasattr(campaign.stats, 'model_dump') else dict(campaign.stats)
+
     return CampaignResponse(
         id=str(campaign.id),
-        geography_id=str(campaign.geography_id.ref.id),
+        geography_id=geo_id_str,
         name=campaign.name,
         state=campaign.state,
         config=CampaignConfigResponse(**config_dict),
-        stats=campaign.stats,
+        stats=CampaignStatsResponse(**stats_dict),
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
         started_at=campaign.started_at,
@@ -70,10 +90,11 @@ def campaign_to_response(campaign, user: User) -> CampaignResponse:
     )
 
 
-@router.post(
+@campaign_create_router.post(
     "/geographies/{geography_id}/campaigns",
     response_model=CampaignResponse,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    tags=["Campaigns"]
 )
 async def create_campaign(
     geography_id: str = Path(..., description="Geography MongoDB ObjectId"),
@@ -464,5 +485,12 @@ async def get_campaign_status(
         campaign_id=campaign_id,
         user_email=current_user.email
     )
+
+    # Convert stats from CampaignStats model to CampaignStatsResponse
+    stats = status_data.get("stats")
+    if stats and hasattr(stats, 'model_dump'):
+        status_data["stats"] = CampaignStatsResponse(**stats.model_dump())
+    elif stats and isinstance(stats, dict):
+        status_data["stats"] = CampaignStatsResponse(**stats)
 
     return CampaignStatusResponse(**status_data)

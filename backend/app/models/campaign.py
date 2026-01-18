@@ -36,17 +36,28 @@ class DayOfWeek(str, Enum):
 
 class TimeWindow(BaseModel):
     """UTC-based time window for campaign execution"""
-    start_time: time = Field(..., description="UTC start time (HH:MM)")
-    end_time: time = Field(..., description="UTC end time (HH:MM)")
+    start_time: str = Field(..., description="UTC start time (HH:MM:SS)")
+    end_time: str = Field(..., description="UTC end time (HH:MM:SS)")
     days_of_week: List[DayOfWeek] = Field(
         default_factory=lambda: list(DayOfWeek),
         description="Days when campaign can run"
     )
 
-    @validator('end_time')
-    def validate_time_window(cls, v, values):
-        """Allow midnight-crossing time windows (e.g., 22:00-02:00)"""
-        # Validation happens in service layer to handle day boundary logic
+    @validator('start_time', 'end_time')
+    def validate_time_format(cls, v):
+        """Validate time string format (HH:MM:SS or HH:MM)"""
+        import re
+        if not re.match(r'^\d{2}:\d{2}(:\d{2})?$', v):
+            raise ValueError(f'Invalid time format: {v}. Expected HH:MM:SS or HH:MM')
+        # Parse and validate the time value
+        try:
+            parts = v.split(':')
+            hour, minute = int(parts[0]), int(parts[1])
+            second = int(parts[2]) if len(parts) > 2 else 0
+            if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+                raise ValueError(f'Invalid time value: {v}')
+        except (ValueError, IndexError):
+            raise ValueError(f'Invalid time format: {v}')
         return v
 
     class Config:

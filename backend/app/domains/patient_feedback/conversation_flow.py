@@ -18,6 +18,7 @@ from backend.app.domains.patient_feedback.flow_manager import (
 )
 from pydantic import BaseModel
 from typing import List
+from pipecat.frames.frames import EndFrame, TTSSpeakFrame
 
 
 # FlowResult base classes for typed returns
@@ -131,7 +132,18 @@ def create_verification_node() -> NodeConfig:
 
         if not is_patient:
             flow_manager.state["wrong_person"] = True
-            return VerificationResult(verified=False, is_patient=False), create_completion_node("wrong_person")
+            flow_manager.state["completed"] = True
+            flow_manager.state["completion_reason"] = "wrong_person"
+            
+            # End call immediately for wrong person
+            if flow_manager.task:
+                goodbye_message = "Thank you for your time. Since you're not the patient or authorized representative, we'll contact the patient directly. Goodbye!"
+                await flow_manager.task.queue_frames([
+                    TTSSpeakFrame(goodbye_message),
+                    EndFrame()
+                ])
+            
+            return VerificationResult(verified=False, is_patient=False), None  # No next node
 
         flow_manager.state["verified"] = True
         return VerificationResult(verified=True, is_patient=True), create_feedback_node()
@@ -230,7 +242,20 @@ def create_urgency_detection_node() -> NodeConfig:
             flow_manager.state["urgency_flagged"] = True
             flow_manager.state["urgency_keywords"] = urgency_keywords_found
 
-        return UrgencyResult(flagged=bool(urgency_keywords_found), keywords=urgency_keywords_found), create_completion_node("success")
+        # Mark conversation as completed
+        flow_manager.state["completed"] = True
+        flow_manager.state["completion_reason"] = "success"
+        
+        # Queue goodbye message and EndFrame to terminate call
+        # Following Pipecat v0.0.99 best practice pattern
+        if flow_manager.task:
+            goodbye_message = "Thank you for your time and valuable feedback. We've recorded your responses and will follow up if needed. Goodbye!"
+            await flow_manager.task.queue_frames([
+                TTSSpeakFrame(goodbye_message),
+                EndFrame()
+            ])
+        
+        return UrgencyResult(flagged=bool(urgency_keywords_found), keywords=urgency_keywords_found), None  # No next node
 
     return NodeConfig(
         name="urgency_detection",
@@ -253,46 +278,6 @@ def create_urgency_detection_node() -> NodeConfig:
                 },
                 required=["urgent_keywords"],
                 handler=urgency_handler
-            )
-        ]
-    )
-
-
-# Stage 6: Call Completion Node
-def create_completion_node(reason: str) -> NodeConfig:
-    """Create call completion node"""
-    async def completion_handler(args: FlowArgs, flow_manager: FlowManager):
-        flow_manager.state["completed"] = True
-        flow_manager.state["completion_reason"] = reason
-        return CompletionResult(reason=reason), None  # No next node - conversation ends
-
-    # Customize goodbye message based on reason
-    goodbye_messages = {
-        "success": "Thank you for your time and valuable feedback. We've recorded your responses and will follow up if needed. Goodbye!",
-        "wrong_person": "Thank you for your time. Since you're not the patient or authorized representative, we'll contact the patient directly. Goodbye!",
-        "error": "We've encountered a technical issue. We'll try calling again later. Thank you for your patience. Goodbye!"
-    }
-
-    return NodeConfig(
-        name="call_completion",
-        role_messages=[
-            {"role": "system", "content": "You are a polite healthcare assistant concluding a patient feedback call."}
-        ],
-        task_messages=[
-            {"role": "system", "content": f"{goodbye_messages.get(reason, goodbye_messages['success'])} Say goodbye warmly and end the call."}
-        ],
-        functions=[
-            FlowsFunctionSchema(
-                name="end_call",
-                description="Call has been concluded and goodbye message delivered",
-                properties={
-                    "acknowledged": {
-                        "type": "boolean",
-                        "description": "Always true when call is ending"
-                    }
-                },
-                required=["acknowledged"],
-                handler=completion_handler
             )
         ]
     )

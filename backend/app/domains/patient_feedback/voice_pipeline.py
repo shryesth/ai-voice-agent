@@ -19,7 +19,7 @@ import logging
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask, PipelineParams
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import LLMRunFrame, EndFrame, TTSSpeakFrame
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContext,
@@ -183,13 +183,16 @@ async def create_voice_pipeline(
         # Interruption handling now managed by user_mute_strategies
     )
 
-    # 10. Initialize FlowManager state
+    # 10. Link task to FlowManager so handlers can queue EndFrame
+    flow_manager.task = task
+
+    # 11. Initialize FlowManager state
     await flow_manager.initialize()
 
-    # 11. Queue initial LLMRunFrame to start conversation
+    # 12. Queue initial LLMRunFrame to start conversation
     await task.queue_frame(LLMRunFrame())
 
-    # 12. Run Pipeline (blocks until call completes or error)
+    # 13. Run Pipeline (blocks until EndFrame received or error)
     runner = PipelineRunner()
     try:
         logger.info(f"Starting pipeline for call {call_record_id}")

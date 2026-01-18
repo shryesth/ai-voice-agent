@@ -95,6 +95,7 @@ class FlowManager:
         self.context = context
         self.state: Dict[str, Any] = {}
         self._initialized: bool = False
+        self.task: Any = None  # PipelineTask reference for queuing frames
 
     async def initialize(self) -> None:
         """Initialize the flow manager and prepare for conversation."""

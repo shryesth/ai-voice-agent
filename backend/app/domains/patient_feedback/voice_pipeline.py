@@ -23,8 +23,11 @@ from pipecat.frames.frames import LLMRunFrame
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContext,
-    LLMContextAggregatorPair
+    LLMContextAggregatorPair,
+    LLMUserAggregatorParams,
+    LLMAssistantAggregatorParams
 )
+from pipecat.processors.aggregators.llm_context import NOT_GIVEN
 from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketTransport,
     FastAPIWebsocketParams
@@ -32,6 +35,7 @@ from pipecat.transports.websocket.fastapi import (
 from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.turns.user_start import VADUserTurnStartStrategy
 from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
 from pipecat.turns.mute import (
@@ -41,6 +45,7 @@ from pipecat.turns.mute import (
 
 from backend.app.domains.patient_feedback.flow_manager import FlowManager
 from backend.app.domains.patient_feedback.conversation_flow import create_greeting_node
+from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +89,8 @@ async def create_voice_pipeline(
     serializer = TwilioFrameSerializer(
         stream_sid=call_data["stream_sid"],
         call_sid=call_data["call_sid"],
-        account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
-        auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
+        account_sid=settings.twilio_account_sid,
+        auth_token=settings.twilio_auth_token,
         params=TwilioFrameSerializer.InputParams(
             twilio_sample_rate=8000,  # Twilio µ-law sample rate
             sample_rate=16000,         # OpenAI Realtime API sample rate
@@ -100,9 +105,7 @@ async def create_voice_pipeline(
             audio_in_enabled=True,
             audio_out_enabled=True,
             add_wav_header=False,
-            vad_enabled=True,
             vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
-            vad_audio_passthrough=True,
             serializer=serializer  # TwilioFrameSerializer handles µ-law ↔ PCM
         )
     )
@@ -110,8 +113,8 @@ async def create_voice_pipeline(
     # 3. Initialize OpenAI Realtime LLM Service with language-specific voice
     voice = LANGUAGE_VOICE_MAP.get(call_data.get("language", "en"), "alloy")
     llm_service = OpenAIRealtimeLLMService(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        model="gpt-4o-realtime-preview-2024-12-17",
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
         voice=voice
     )
 
@@ -124,20 +127,23 @@ async def create_voice_pipeline(
                 "content": f"You are a healthcare assistant conducting a patient feedback call in {language} language."
             }
         ],
-        tools=[]  # Tools populated dynamically by FlowManager
+        tools=NOT_GIVEN  # Tools populated dynamically by FlowManager
     )
 
     # 5. Create Context Aggregators with user turn/mute strategies
     context_aggregator = LLMContextAggregatorPair(
         context=context,
-        user_turn_strategies=[
-            VADUserTurnStartStrategy(),           # Detect speech start via VAD
-            TranscriptionUserTurnStopStrategy()   # Detect speech end via transcription
-        ],
-        user_mute_strategies=[
-            MuteUntilFirstBotCompleteUserMuteStrategy(),  # Wait for bot's first response
-            FunctionCallUserMuteStrategy()                # Mute during function execution
-        ]
+        user_params=LLMUserAggregatorParams(
+            user_turn_strategies=UserTurnStrategies(
+                start=[VADUserTurnStartStrategy()],           # Detect speech start via VAD
+                stop=[TranscriptionUserTurnStopStrategy()]     # Detect speech end via transcription
+            ),
+            user_mute_strategies=[
+                MuteUntilFirstBotCompleteUserMuteStrategy(),  # Wait for bot's first response
+                FunctionCallUserMuteStrategy()                # Mute during function execution
+            ]
+        ),
+        assistant_params=LLMAssistantAggregatorParams()
     )
 
     user_aggregator = context_aggregator.user()
@@ -152,7 +158,10 @@ async def create_voice_pipeline(
     # 7. Register FlowManager functions with LLM service
     # FlowManager dynamically provides functions based on current conversation stage
     for function_schema in flow_manager.get_current_function_schemas():
-        llm_service.register_function(function_schema)
+        llm_service.register_function(
+            function_schema.name,
+            function_schema.handler
+        )
 
     # 8. Build Pipeline (order matters!)
     pipeline = Pipeline([

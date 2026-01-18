@@ -309,13 +309,25 @@ async def twilio_media_stream(websocket: WebSocket):
     await websocket.accept()
 
     try:
-        # 1. Receive Twilio "start" event with call metadata
-        start_message = await websocket.receive_json()
-
-        if start_message.get("event") != "start":
-            logger.error("Expected 'start' event from Twilio")
-            await websocket.close()
-            return
+        # 1. Wait for Twilio events (connected, then start)
+        start_message = None
+        
+        while start_message is None:
+            message = await websocket.receive_json()
+            event_type = message.get("event")
+            
+            logger.info(f"Received Twilio event: {event_type}")
+            
+            if event_type == "connected":
+                logger.info("Twilio WebSocket connected")
+                continue
+            elif event_type == "start":
+                start_message = message
+                break
+            else:
+                logger.error(f"Unexpected event from Twilio: {event_type}, message: {message}")
+                await websocket.close()
+                return
 
         # Extract call metadata
         twilio = TwilioIntegration()

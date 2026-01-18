@@ -404,17 +404,35 @@ async def twilio_media_stream(websocket: WebSocket):
         campaign_id = call_data.get("campaign_id")
         patient_phone = call_data.get("patient_phone")
         language = call_data.get("language", "en")
+        call_record_id = call_data.get("call_record_id")  # Get from Twilio parameters
 
         logger.info(f"Twilio media stream started: {call_sid}")
 
-        # 2. Create CallRecord in database
-        call_record = await CallService.create_call_record(
-            campaign_id=campaign_id,
-            patient_phone=patient_phone,
-            language=language
-        )
+        # 2. Get existing CallRecord by ID (passed through Twilio parameters)
+        call_record = None
+        if call_record_id:
+            try:
+                call_record = await CallRecord.get(call_record_id)
+            except Exception as e:
+                logger.warning(f"Could not find CallRecord with ID {call_record_id}: {e}")
         
+        if not call_record:
+            # Fallback: try to find by call_sid or create new
+            call_record = await CallService.get_call_by_twilio_sid(call_sid)
+            
+        if not call_record:
+            # Last resort: create new CallRecord if not found
+            logger.warning(f"CallRecord not found for call_sid {call_sid}, creating new one")
+            call_record = await CallService.create_call_record(
+                campaign_id=campaign_id,
+                patient_phone=patient_phone,
+                language=language
+            )
+        
+        # Update with Twilio metadata
         call_record.call_tracking.call_sid = call_sid
+        
+        # Update with stream metadata
         call_record.call_tracking.stream_sid = stream_sid
         call_record.call_tracking.status = "in-progress"
         await call_record.save()

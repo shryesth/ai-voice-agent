@@ -60,7 +60,8 @@ class TwilioIntegration:
         patient_phone: str,
         language: str = "en",
         status_callback_url: Optional[str] = None,
-        recording_status_callback_url: Optional[str] = None
+        recording_status_callback_url: Optional[str] = None,
+        call_record_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Initiate outbound call to patient.
@@ -72,6 +73,7 @@ class TwilioIntegration:
             language: Preferred language (en, es, fr, ht)
             status_callback_url: URL for status callbacks
             recording_status_callback_url: URL for recording completion callbacks
+            call_record_id: CallRecord ID to associate with this call
 
         Returns:
             Dict with call_sid, status, and metadata
@@ -84,6 +86,7 @@ class TwilioIntegration:
             <Parameter name="campaign_id" value="{campaign_id}" />
             <Parameter name="patient_phone" value="{patient_phone}" />
             <Parameter name="language" value="{language}" />
+            {f'<Parameter name="call_record_id" value="{call_record_id}" />' if call_record_id else ''}
         </Stream>
     </Connect>
 </Response>'''

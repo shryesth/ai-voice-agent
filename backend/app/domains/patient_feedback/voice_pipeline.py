@@ -157,51 +157,41 @@ async def create_voice_pipeline(
     # 6. Register aggregator event handlers for transcript capture
     # Following Pipecat 0.0.99 best practices for turn-based transcript capture
     @user_aggregator.event_handler("on_user_turn_stopped")
-    async def on_user_turn_stopped(aggregator, context):
+    async def on_user_turn_stopped(aggregator, strategy, message):
         """Capture user message when they finish speaking"""
         try:
-            messages = context.get_messages_for_persistent_storage()
-            if messages:
-                last_message = messages[-1]
-                if last_message.get("role") == "user":
-                    content = last_message.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        # Create ConversationTurn
-                        from backend.app.models.call_record import ConversationTurn
-                        turn = ConversationTurn(
-                            speaker="patient",
-                            text=content.strip(),
-                            timestamp=datetime.utcnow(),
-                            language=call_data.get("language")
-                        )
-                        call_record.transcript.append(turn)
-                        call_record.updated_at = datetime.utcnow()
-                        await call_record.save()
-                        logger.info(f"📝 [patient]: {content[:50]}...")
+            # message is a UserTurnStoppedMessage with .content and .timestamp
+            if message.content and message.content.strip():
+                from backend.app.models.call_record import ConversationTurn
+                turn = ConversationTurn(
+                    speaker="patient",
+                    text=message.content.strip(),
+                    timestamp=datetime.utcnow(),
+                    language=call_data.get("language")
+                )
+                call_record.transcript.append(turn)
+                call_record.updated_at = datetime.utcnow()
+                await call_record.save()
+                logger.info(f"📝 [patient]: {message.content[:50]}...")
         except Exception as e:
             logger.error(f"Error capturing user transcript: {e}", exc_info=True)
 
     @assistant_aggregator.event_handler("on_assistant_turn_stopped")
-    async def on_assistant_turn_stopped(aggregator, context):
+    async def on_assistant_turn_stopped(aggregator, message):
         """Capture assistant message when it finishes responding"""
         try:
-            messages = context.get_messages_for_persistent_storage()
-            if messages:
-                last_message = messages[-1]
-                if last_message.get("role") == "assistant":
-                    content = last_message.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        # Create ConversationTurn
-                        from backend.app.models.call_record import ConversationTurn
-                        turn = ConversationTurn(
-                            speaker="ai",
-                            text=content.strip(),
-                            timestamp=datetime.utcnow()
-                        )
-                        call_record.transcript.append(turn)
-                        call_record.updated_at = datetime.utcnow()
-                        await call_record.save()
-                        logger.info(f"📝 [ai]: {content[:50]}...")
+            # message is an AssistantTurnStoppedMessage with .content and .timestamp
+            if message.content and message.content.strip():
+                from backend.app.models.call_record import ConversationTurn
+                turn = ConversationTurn(
+                    speaker="ai",
+                    text=message.content.strip(),
+                    timestamp=datetime.utcnow()
+                )
+                call_record.transcript.append(turn)
+                call_record.updated_at = datetime.utcnow()
+                await call_record.save()
+                logger.info(f"📝 [ai]: {message.content[:50]}...")
         except Exception as e:
             logger.error(f"Error capturing assistant transcript: {e}", exc_info=True)
 

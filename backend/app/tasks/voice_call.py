@@ -102,7 +102,8 @@ def initiate_patient_call(
             patient_phone=patient_phone,
             language=language,
             status_callback_url=status_callback_url,
-            recording_status_callback_url=recording_callback_url
+            recording_status_callback_url=recording_callback_url,
+            call_record_id=str(call_record.id)
         )
 
         # 5. Update CallRecord with Twilio metadata

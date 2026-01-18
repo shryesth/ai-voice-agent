@@ -46,10 +46,8 @@ from pipecat.turns.mute import (
 from backend.app.domains.patient_feedback.flow_manager import FlowManager
 from backend.app.domains.patient_feedback.conversation_flow import create_greeting_node
 from backend.app.domains.patient_feedback.transcript_processor import TranscriptProcessor
-from backend.app.domains.patient_feedback.audio_capture_processor import AudioCaptureProcessor
 from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord
-from backend.app.services.recording_service import RecordingService
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +77,6 @@ async def create_voice_pipeline(
     4. OpenAIRealtimeLLMService: gpt-4o-realtime for conversational AI
     5. FlowManager: 6-stage conversation state machine
     6. TranscriptProcessor: Real-time transcript capture to MongoDB
-    7. AudioCaptureProcessor: Audio recording capture and S3/MinIO upload
 
     Args:
         websocket: FastAPI WebSocket connection from Twilio
@@ -160,32 +157,13 @@ async def create_voice_pipeline(
     # 6. Initialize TranscriptProcessor for real-time transcript capture
     transcript_processor = TranscriptProcessor(call_record=call_record)
 
-    # 7. Initialize AudioCaptureProcessor for recording (if enabled)
-    recording_service = RecordingService()
-
-    async def on_recording_complete(call_record, audio_data, sample_rate, num_channels):
-        """Callback to upload recording when call ends."""
-        await recording_service.upload_call_recording(
-            call_record=call_record,
-            audio_data=audio_data,
-            sample_rate=sample_rate,
-            num_channels=num_channels
-        )
-
-    audio_capture_processor = AudioCaptureProcessor(
-        call_record=call_record,
-        sample_rate=settings.recording_sample_rate,
-        num_channels=1,  # Mono audio
-        on_recording_complete=on_recording_complete
-    )
-
-    # 8. Initialize FlowManager with starting node
+    # 7. Initialize FlowManager with starting node
     flow_manager = FlowManager(
         initial_node=create_greeting_node(),
         context=context
     )
 
-    # 9. Register FlowManager functions with LLM service
+    # 8. Register FlowManager functions with LLM service
     # FlowManager dynamically provides functions based on current conversation stage
     for function_schema in flow_manager.get_current_function_schemas():
         llm_service.register_function(
@@ -193,18 +171,17 @@ async def create_voice_pipeline(
             function_schema.handler
         )
 
-    # 10. Build Pipeline (order matters!)
+    # 9. Build Pipeline (order matters!)
     pipeline = Pipeline([
         transport.input(),        # 1. Twilio audio input (µ-law 8kHz → PCM 16kHz via serializer)
-        audio_capture_processor,  # 2. Capture audio for recording (before any processing)
-        user_aggregator,          # 3. User turn aggregation (VAD + transcription strategies)
-        transcript_processor,     # 4. Capture transcripts (user & AI) in real-time
-        llm_service,              # 5. OpenAI Realtime processing (with FlowManager functions)
-        transport.output(),       # 6. Twilio audio output (PCM 16kHz → µ-law 8kHz via serializer)
-        assistant_aggregator      # 7. Assistant turn aggregation (after output for logging)
+        user_aggregator,          # 2. User turn aggregation (VAD + transcription strategies)
+        transcript_processor,     # 3. Capture transcripts (user & AI) in real-time
+        llm_service,              # 4. OpenAI Realtime processing (with FlowManager functions)
+        transport.output(),       # 5. Twilio audio output (PCM 16kHz → µ-law 8kHz via serializer)
+        assistant_aggregator      # 6. Assistant turn aggregation (after output for logging)
     ])
 
-    # 11. Create Pipeline Task
+    # 10. Create Pipeline Task
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
@@ -215,21 +192,16 @@ async def create_voice_pipeline(
         # Interruption handling now managed by user_mute_strategies
     )
 
-    # 12. Link task to FlowManager so handlers can queue EndFrame
+    # 11. Link task to FlowManager so handlers can queue EndFrame
     flow_manager.task = task
 
-    # 13. Initialize FlowManager state
+    # 12. Initialize FlowManager state
     await flow_manager.initialize()
 
-    # 14. Start audio recording (if enabled)
-    if settings.recording_enabled:
-        audio_capture_processor.start_recording()
-        logger.info(f"Audio recording started for call {call_record_id}")
-
-    # 15. Queue initial LLMRunFrame to start conversation
+    # 13. Queue initial LLMRunFrame to start conversation
     await task.queue_frame(LLMRunFrame())
 
-    # 16. Run Pipeline (blocks until EndFrame received or error)
+    # 14. Run Pipeline (blocks until EndFrame received or error)
     runner = PipelineRunner()
     try:
         logger.info(f"Starting pipeline for call {call_record_id}")

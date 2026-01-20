@@ -68,6 +68,44 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # MinIO Object Storage (UAT/Staging)
+  minio:
+    image: minio/minio:latest
+    container_name: voice-ai-minio-uat
+    restart: always
+    ports:
+      - "9000:9000"      # S3 API endpoint
+      - "9001:9001"      # MinIO Console (Web UI)
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
   # FastAPI Application Server (UAT/Staging)
   api:
     build:
@@ -88,12 +126,15 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
       - LOG_FORMAT=json
       - SKIP_STARTUP_VALIDATION=false
     depends_on:
       mongodb:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - backend-network
@@ -143,6 +184,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
       - LOG_FORMAT=json
     depends_on:
       mongodb:
@@ -233,6 +275,8 @@ volumes:
   mongodb_config:
     driver: local
   redis_data:
+    driver: local
+  minio_data:
     driver: local
 
 # UAT/Staging deployment notes:

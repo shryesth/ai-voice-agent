@@ -9,10 +9,22 @@ Patient Feedback Collection API - an AI-powered voice call system for collecting
 ## Development Commands
 
 ```bash
-# Start all services (MongoDB, Redis, API, Celery worker, Celery beat)
+# Start all services (MongoDB, Redis, MinIO, API, Celery worker, Celery beat)
 docker compose -f docker-compose.dev.yml up
 
-# Run API server locally (requires MongoDB and Redis running)
+# Access MinIO Console (Web UI for managing object storage)
+# URL: http://localhost:9001
+# Username: minioadmin
+# Password: minioadmin
+
+# Create bucket via MinIO Console (required on first setup):
+# 1. Open http://localhost:9001
+# 2. Login with minioadmin/minioadmin
+# 3. Click "Buckets" → "Create Bucket"
+# 4. Name: voice-recordings (for dev) or voice-recordings-uat (for UAT)
+# 5. Click "Create Bucket"
+
+# Run API server locally (requires MongoDB, Redis, and MinIO running)
 # The app automatically loads config/.env.local based on ENVIRONMENT variable
 # Default is "development" which loads config/.env.local
 .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
@@ -142,9 +154,9 @@ Docker Compose files override the `ENVIRONMENT` variable and load config via `en
 - **Production**: `docker compose -f docker-compose.production.yml up` uses `config/.env.prod`
 
 ### Storage Configuration by Environment
-- **Local**: MinIO at `http://localhost:9000` (bucket: `voice-recordings`)
-- **UAT**: MinIO UAT or Hetzner Object Storage (bucket: `shifo-supervisor-uat`)
-- **Production**: Hetzner Object Storage at `https://nbg1.your-objectstorage.com` (bucket: `shifo-supervisor`)
+- **Local**: MinIO (Docker) at `http://minio:9000` in container or `http://localhost:9000` from host (bucket: `voice-recordings`)
+- **UAT**: MinIO (Docker, default) at `http://minio:9000` (bucket: `voice-recordings-uat`) or Hetzner Object Storage (optional)
+- **Production**: Hetzner Object Storage (external) at `https://nbg1.your-objectstorage.com` (bucket: `shifo-supervisor`)
 
 ### Key Settings
 - `MONGODB_URI` - MongoDB connection string (e.g., `mongodb://localhost:27017`)

@@ -89,7 +89,7 @@ async def initiate_test_call(
         from backend.app.tasks.voice_call import initiate_patient_call
 
         # Build status callback URL
-        status_callback_url = f"{settings.PUBLIC_URL}/api/v1/webhooks/twilio/status"
+        status_callback_url = f"{settings.public_url}/api/v1/webhooks/twilio/status"
 
         # Queue the call task
         task = initiate_patient_call.delay(
@@ -336,7 +336,7 @@ async def force_process_queue(
             await recipient_service.mark_calling(str(recipient.id), str(call_record.id))
 
             # Queue the call
-            status_callback_url = f"{settings.PUBLIC_URL}/api/v1/webhooks/twilio/status"
+            status_callback_url = f"{settings.public_url}/api/v1/webhooks/twilio/status"
             initiate_patient_call.delay(
                 campaign_id=str(queue.id),
                 patient_phone=recipient.contact_phone,
@@ -488,7 +488,7 @@ async def trigger_recipient_call(
     try:
         from backend.app.tasks.voice_call import initiate_patient_call
 
-        status_callback_url = f"{settings.PUBLIC_URL}/api/v1/webhooks/twilio/status"
+        status_callback_url = f"{settings.public_url}/api/v1/webhooks/twilio/status"
         initiate_patient_call.delay(
             campaign_id=str(queue.id),
             patient_phone=recipient.contact_phone,

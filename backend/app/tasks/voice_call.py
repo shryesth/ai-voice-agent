@@ -54,36 +54,49 @@ def initiate_patient_call(
     campaign_id: str,
     patient_phone: str,
     language: str = "en",
-    status_callback_url: str = None
+    status_callback_url: str = None,
+    call_record_id: str = None,
+    is_test_call: bool = False
 ):
     """
     Initiate outbound call to patient.
 
     This task:
-    1. Creates CallRecord in database
+    1. Creates CallRecord in database (or uses existing if call_record_id provided)
     2. Initiates Twilio outbound call
     3. Call connects to WebSocket endpoint for voice pipeline
     4. Updates CallRecord with Twilio metadata
 
     Args:
-        campaign_id: Campaign ID
+        campaign_id: Campaign ID (can be None for test calls)
         patient_phone: Patient phone number (E.164 format)
         language: Language preference (en, es, fr, ht)
         status_callback_url: URL for Twilio status callbacks
+        call_record_id: Optional existing call record ID (for test calls)
+        is_test_call: Whether this is a test call
 
     Returns:
         Dict with call_record_id and call_sid
     """
-    logger.info(f"Initiating call to {patient_phone} for campaign {campaign_id}")
+    logger.info(f"Initiating call to {patient_phone} for campaign {campaign_id} (test={is_test_call})")
 
     try:
-        # 1. Create CallRecord
         loop = get_worker_event_loop()
-        call_record = loop.run_until_complete(CallService.create_call_record(
-            campaign_id=campaign_id,
-            patient_phone=patient_phone,
-            language=language
-        ))
+
+        # 1. Get existing CallRecord or create new one
+        if call_record_id:
+            from backend.app.models.call_record import CallRecord
+            from bson import ObjectId
+            call_record = loop.run_until_complete(CallRecord.get(ObjectId(call_record_id)))
+            if not call_record:
+                raise ValueError(f"Call record not found: {call_record_id}")
+            logger.info(f"Using existing call record {call_record_id}")
+        else:
+            call_record = loop.run_until_complete(CallService.create_call_record(
+                campaign_id=campaign_id,
+                patient_phone=patient_phone,
+                language=language
+            ))
 
         # 2. Initialize Twilio integration
         twilio = TwilioIntegration()

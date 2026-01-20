@@ -10,11 +10,8 @@ from __future__ import annotations
 from beanie import Document, Link
 from pydantic import BaseModel, Field, validator
 from datetime import datetime, time
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 from enum import Enum
-
-if TYPE_CHECKING:
-    from backend.app.models.geography import Geography
 
 
 class CampaignState(str, Enum):
@@ -200,3 +197,9 @@ class Campaign(Document):
                 }
             }
         }
+
+
+# Import Geography after Campaign class definition for model_rebuild() to work
+# This import must happen at runtime (not just type checking) so that Geography
+# is in the module's globals when Pydantic resolves the forward reference
+from backend.app.models.geography import Geography  # noqa: F401, E402

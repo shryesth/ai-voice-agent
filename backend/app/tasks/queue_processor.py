@@ -228,7 +228,7 @@ def process_campaign_queues(self):
                             )
 
                             # Build callback URL
-                            status_callback_url = f"{settings.PUBLIC_URL}/api/v1/webhooks/twilio/status"
+                            status_callback_url = f"{settings.public_url}/api/v1/webhooks/twilio/status"
 
                             # Initiate call via Celery task
                             initiate_patient_call.delay(

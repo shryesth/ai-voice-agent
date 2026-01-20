@@ -5,16 +5,66 @@ Loads configuration from environment variables with validation.
 All configuration variables defined in research.md with secure defaults.
 """
 
+import os
+from pathlib import Path
 from typing import Optional
-from pydantic import Field, field_validator
+from pydantic import EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def get_env_file() -> str:
+    """
+    Determine which environment file to load based on ENVIRONMENT variable.
+
+    Environment mapping:
+    - development → config/.env.local
+    - staging → config/.env.uat
+    - production → config/.env.prod
+
+    Fallback order:
+    1. Check ENVIRONMENT variable
+    2. Default to "development" (config/.env.local)
+    3. If file doesn't exist, try root .env (backward compatibility)
+    4. If none exist, return empty string (will use defaults)
+
+    Returns:
+        Path to environment file to load
+    """
+    # Get environment from ENV variable (default to development)
+    env = os.getenv("ENVIRONMENT", "development").lower()
+
+    # Map environment to config file
+    env_file_map = {
+        "development": "config/.env.local",
+        "staging": "config/.env.uat",
+        "production": "config/.env.prod",
+    }
+
+    # Get the project root (4 levels up from this file: backend/app/core/config.py -> root)
+    project_root = Path(__file__).parent.parent.parent.parent
+
+    # Get the environment-specific file path
+    env_file = env_file_map.get(env, "config/.env.local")
+    env_file_path = project_root / env_file
+
+    # Check if environment-specific file exists
+    if env_file_path.exists():
+        return str(env_file_path)
+
+    # Fallback to root .env for backward compatibility
+    root_env_path = project_root / ".env"
+    if root_env_path.exists():
+        return str(root_env_path)
+
+    # No env file found - will use defaults from Field(default=...)
+    return ""
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=get_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
@@ -47,6 +97,20 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(..., description="Secret key for JWT token signing")
     jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")
     jwt_expiration_hours: int = Field(default=24, description="JWT token expiration in hours")
+
+    # Bootstrap Admin Configuration
+    enable_bootstrap_admin: bool = Field(
+        default=True,
+        description="Enable automatic creation of default admin user on startup if no admins exist"
+    )
+    bootstrap_admin_email: Optional[EmailStr] = Field(
+        default=None,
+        description="Email address for the default admin user (required if enable_bootstrap_admin=true)"
+    )
+    bootstrap_admin_password: Optional[str] = Field(
+        default=None,
+        description="Password for the default admin user (required if enable_bootstrap_admin=true, min 8 chars)"
+    )
 
     # Application Settings
     log_level: str = Field(default="info", description="Logging level")
@@ -265,6 +329,36 @@ class Settings(BaseSettings):
         # Parse comma-separated string from environment variable
         return [origin.strip() for origin in v.split(",") if origin.strip()]
 
+    @field_validator("bootstrap_admin_email")
+    @classmethod
+    def validate_bootstrap_admin_email(cls, v: Optional[EmailStr], info) -> Optional[EmailStr]:
+        """Validate that bootstrap_admin_email is set when bootstrap is enabled."""
+        enable_bootstrap = info.data.get("enable_bootstrap_admin", True)
+        if enable_bootstrap and v is None:
+            raise ValueError(
+                "bootstrap_admin_email is required when enable_bootstrap_admin=true. "
+                "Set BOOTSTRAP_ADMIN_EMAIL in your environment configuration."
+            )
+        return v
+
+    @field_validator("bootstrap_admin_password")
+    @classmethod
+    def validate_bootstrap_admin_password(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate that bootstrap_admin_password is set and meets minimum requirements when bootstrap is enabled."""
+        enable_bootstrap = info.data.get("enable_bootstrap_admin", True)
+        if enable_bootstrap:
+            if v is None:
+                raise ValueError(
+                    "bootstrap_admin_password is required when enable_bootstrap_admin=true. "
+                    "Set BOOTSTRAP_ADMIN_PASSWORD in your environment configuration."
+                )
+            if len(v) < 8:
+                raise ValueError(
+                    "bootstrap_admin_password must be at least 8 characters long. "
+                    "Please set a stronger BOOTSTRAP_ADMIN_PASSWORD."
+                )
+        return v
+
     @property
     def supported_languages_list(self) -> list[str]:
         """Get supported languages as a list."""
@@ -279,6 +373,11 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Check if running in development environment."""
         return self.environment.lower() == "development"
+
+    @property
+    def is_staging(self) -> bool:
+        """Check if running in staging/UAT environment."""
+        return self.environment.lower() == "staging"
 
     @property
     def twilio_websocket_url_derived(self) -> str:

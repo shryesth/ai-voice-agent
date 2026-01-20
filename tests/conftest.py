@@ -13,6 +13,9 @@ import os
 # Skip startup validation so tests control the database connection
 os.environ["SKIP_STARTUP_VALIDATION"] = "true"
 
+# Disable bootstrap admin creation during tests (tests manage users explicitly)
+os.environ["ENABLE_BOOTSTRAP_ADMIN"] = "false"
+
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator, Dict

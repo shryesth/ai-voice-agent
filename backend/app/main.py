@@ -62,6 +62,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         if not settings.skip_startup_validation:
             raise
 
+    # Run bootstrap operations
+    if not settings.skip_startup_validation and settings.enable_bootstrap_admin:
+        logger.info("Running bootstrap operations")
+        try:
+            from backend.app.core.bootstrap import bootstrap_default_admin
+            await bootstrap_default_admin()
+            logger.info("Bootstrap operations complete")
+        except Exception as e:
+            logger.error("Bootstrap failed", error=str(e))
+            raise
+
     # Initialize Redis connection
     logger.info("Initializing Redis connection")
     try:
@@ -214,8 +225,8 @@ All endpoints except webhooks require JWT authentication.
     )
 
     # CORS middleware
-    if settings.is_development:
-        # Development: Allow all origins for convenience
+    if settings.is_development or settings.is_staging:
+        # Development & UAT: Allow all origins for easier testing
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -224,7 +235,7 @@ All endpoints except webhooks require JWT authentication.
             allow_headers=["*"],
         )
     else:
-        # Production: Use configured origins (set via CORS_ORIGINS env var)
+        # Production: Use configured origins (strict - set via CORS_ORIGINS env var)
         # Example: CORS_ORIGINS="https://app.example.com,https://admin.example.com"
         origins = settings.cors_origins if settings.cors_origins else [
             "https://localhost:3001",  # Default fallback for production testing

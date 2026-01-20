@@ -1,8 +1,8 @@
 services:
-  # MongoDB Database (Production)
+  # MongoDB Database (UAT/Staging)
   mongodb:
     image: mongo:8.0.17
-    container_name: voice-ai-mongodb-prod
+    container_name: voice-ai-mongodb-uat
     restart: always
     ports:
       - "27017:27017"
@@ -11,13 +11,13 @@ services:
       - mongodb_config:/data/configdb
       - ./backups:/backups:rw  # For backup scripts
     environment:
-      MONGO_INITDB_DATABASE: voice_agent
+      MONGO_INITDB_DATABASE: voice_agent_uat
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
     networks:
       - backend-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/voice_agent --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/voice_agent_uat --quiet
       interval: 30s
       timeout: 10s
       retries: 3
@@ -25,8 +25,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: '1.5'
+          memory: 1536M
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -36,16 +36,16 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Redis Cache & Message Broker (Production)
+  # Redis Cache & Message Broker (UAT/Staging)
   redis:
     image: redis:7-alpine
-    container_name: voice-ai-redis-prod
+    container_name: voice-ai-redis-uat
     restart: always
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       - backend-network
     healthcheck:
@@ -57,8 +57,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1G
+          cpus: '0.5'
+          memory: 512M
         reservations:
           cpus: '0.25'
           memory: 256M
@@ -68,26 +68,65 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # FastAPI Application Server (Production)
+  # MinIO Object Storage (UAT/Staging)
+  minio:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    container_name: voice-ai-minio-uat
+    restart: always
+    ports:
+      - "9000:9000"      # S3 API endpoint
+      - "9001:9001"      # MinIO Console (Web UI)
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+  # FastAPI Application Server (UAT/Staging)
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
       args:
-        - BUILD_ENV=production
-    image: voice-ai-api:${VERSION:-latest}
-    container_name: voice-ai-api-prod
+        - BUILD_ENV=staging
+    image: voice-ai-api:${VERSION:-uat-latest}
+    container_name: voice-ai-api-uat
     restart: always
     ports:
       - "3000:3000"
     env_file:
-      - config/.env.prod
+      - config/.env.uat
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=staging
       - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
       - LOG_FORMAT=json
       - SKIP_STARTUP_VALIDATION=false
     depends_on:
@@ -95,10 +134,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - backend-network
       - frontend-network
-    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --workers 4 --no-access-log
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --workers 2 --no-access-log
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health/live"]
       interval: 30s
@@ -108,8 +149,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: '1.5'
+          memory: 1536M
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -121,28 +162,29 @@ services:
         max-file: "5"
     security_opt:
       - no-new-privileges:true
-    read_only: false  # Set to true if app doesn't need to write to filesystem
+    read_only: false
     tmpfs:
       - /tmp
 
-  # Celery Worker (Production)
+  # Celery Worker (UAT/Staging)
   celery-worker:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
       args:
-        - BUILD_ENV=production
-    image: voice-ai-worker:${VERSION:-latest}
-    container_name: voice-ai-celery-worker-prod
+        - BUILD_ENV=staging
+    image: voice-ai-worker:${VERSION:-uat-latest}
+    container_name: voice-ai-celery-worker-uat
     restart: always
     env_file:
-      - config/.env.prod
+      - config/.env.uat
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=staging
       - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
       - LOG_FORMAT=json
     depends_on:
       mongodb:
@@ -160,12 +202,12 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: '1.0'
+          memory: 1G
         reservations:
           cpus: '0.5'
           memory: 512M
-      replicas: 2  # Scale workers based on load
+      replicas: 1  # Lower than production
     logging:
       driver: "json-file"
       options:
@@ -174,20 +216,20 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # Celery Beat Scheduler (Production)
+  # Celery Beat Scheduler (UAT/Staging)
   celery-beat:
     build:
       context: .
       dockerfile: docker/Dockerfile.beat
       args:
-        - BUILD_ENV=production
-    image: voice-ai-beat:${VERSION:-latest}
-    container_name: voice-ai-celery-beat-prod
+        - BUILD_ENV=staging
+    image: voice-ai-beat:${VERSION:-uat-latest}
+    container_name: voice-ai-celery-beat-uat
     restart: always
     env_file:
-      - config/.env.prod
+      - config/.env.uat
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=staging
       - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -234,15 +276,17 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  minio_data:
+    driver: local
 
-# Production deployment notes:
-# 1. Set VERSION env var for image tagging: export VERSION=1.0.0
+# UAT/Staging deployment notes:
+# 1. Set VERSION env var for image tagging: export VERSION=uat-1.0.0
 # 2. Set MONGODB_ROOT_PASSWORD securely (never commit to git)
-# 3. Use secrets management for sensitive env vars
+# 3. Create config/.env.uat from config/.env.uat.example
 # 4. Configure nginx/traefik reverse proxy for HTTPS
 # 5. Enable firewall rules to restrict access
 # 6. Set up monitoring with Prometheus/Grafana
 # 7. Configure automated backups via cron + backup_db.sh
-# 8. Review and adjust resource limits based on actual usage
-# 9. Scale celery-worker replicas based on call volume
-# 10. Use docker-compose --compatibility for deploy constraints
+# 8. Resource limits are lower than production (suitable for testing)
+# 9. Use docker-compose --compatibility for deploy constraints
+# 10. Test all features before promoting to production

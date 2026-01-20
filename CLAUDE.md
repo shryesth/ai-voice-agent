@@ -9,11 +9,29 @@ Patient Feedback Collection API - an AI-powered voice call system for collecting
 ## Development Commands
 
 ```bash
-# Start all services (MongoDB, Redis, API, Celery worker, Celery beat)
+# Start all services (MongoDB, Redis, MinIO, API, Celery worker, Celery beat)
 docker compose -f docker-compose.dev.yml up
 
-# Run API server locally (requires MongoDB and Redis running)
+# Access MinIO Console (Web UI for managing object storage)
+# URL: http://localhost:9001
+# Username: minioadmin
+# Password: minioadmin
+
+# Create bucket via MinIO Console (required on first setup):
+# 1. Open http://localhost:9001
+# 2. Login with minioadmin/minioadmin
+# 3. Click "Buckets" → "Create Bucket"
+# 4. Name: voice-recordings (for dev) or voice-recordings-uat (for UAT)
+# 5. Click "Create Bucket"
+
+# Run API server locally (requires MongoDB, Redis, and MinIO running)
+# The app automatically loads config/.env.local based on ENVIRONMENT variable
+# Default is "development" which loads config/.env.local
 .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
+
+# Run with explicit environment (loads config/.env.uat or config/.env.prod)
+ENVIRONMENT=staging .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
+ENVIRONMENT=production .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
 
 # Install dependencies with uv
 uv pip install -r requirements.txt
@@ -96,13 +114,116 @@ If any precheck fails, the application exits immediately with a clear error mess
 
 ## Configuration
 
-Settings loaded via Pydantic Settings from `.env` file (see `.env.example`). Key settings:
+Settings loaded via Pydantic Settings from environment-specific files in `config/` directory. The application automatically selects the correct config file based on the `ENVIRONMENT` variable.
+
+### Automatic Config Loading (`backend/app/core/config.py`)
+The `Settings` class automatically loads the appropriate config file:
+
+**Environment Detection:**
+- Reads `ENVIRONMENT` variable (defaults to "development" if not set)
+- Maps environment to config file:
+  - `development` → `config/.env.local`
+  - `staging` → `config/.env.uat`
+  - `production` → `config/.env.prod`
+- Fallback to root `.env` for backward compatibility
+- Uses Field defaults if no config file found
+
+**Usage:**
+```bash
+# Local development (loads config/.env.local)
+python -m uvicorn backend.app.main:app --reload
+
+# Staging (loads config/.env.uat)
+ENVIRONMENT=staging python -m uvicorn backend.app.main:app --reload
+
+# Production (loads config/.env.prod)
+ENVIRONMENT=production python -m uvicorn backend.app.main:app --reload
+```
+
+### Environment Files
+- **`config/.env.local`** - Local development with MinIO at localhost:9000 (gitignored, contains real credentials)
+- **`config/.env.uat`** - UAT/staging environment (gitignored, create from `config/.env.uat.example`)
+- **`config/.env.prod`** - Production environment (gitignored, create from `config/.env.prod.example`)
+- **`config/.env.base`** - Base configuration template with all variables (tracked in git)
+- **`config/.env.*.example`** - Environment templates with placeholders (tracked in git)
+
+### Docker Compose Integration
+Docker Compose files override the `ENVIRONMENT` variable and load config via `env_file`:
+- **Development**: `docker compose -f docker-compose.dev.yml up` uses `config/.env.local`
+- **UAT/Staging**: `docker compose -f docker-compose.uat.yml up` uses `config/.env.uat`
+- **Production**: `docker compose -f docker-compose.production.yml up` uses `config/.env.prod`
+
+### Storage Configuration by Environment
+- **Local**: MinIO (Docker) at `http://minio:9000` in container or `http://localhost:9000` from host (bucket: `voice-recordings`)
+- **UAT**: MinIO (Docker, default) at `http://minio:9000` (bucket: `voice-recordings-uat`) or Hetzner Object Storage (optional)
+- **Production**: Hetzner Object Storage (external) at `https://nbg1.your-objectstorage.com` (bucket: `shifo-supervisor`)
+
+### Key Settings
 - `MONGODB_URI` - MongoDB connection string (e.g., `mongodb://localhost:27017`)
 - `MONGODB_DATABASE` - Database name (e.g., `voice_agent`)
-- `SKIP_STARTUP_VALIDATION=true` - Skip config validation for tests
-- `S3_ENDPOINT_URL` - MinIO endpoint (e.g., `http://localhost:9000`); leave empty for AWS S3
+- `ENVIRONMENT` - Environment name (development, staging, production)
+- `PUBLIC_URL` - Public URL for Twilio webhooks (e.g., ngrok URL for local dev)
+- `S3_ENDPOINT_URL` - Storage endpoint (MinIO or Hetzner)
 - `S3_BUCKET_NAME` - Bucket for call recordings
 - Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
+
+### MinIO Configuration
+
+**Default Setup (Development)**
+- Credentials: minioadmin / minioadmin (can be customized via environment variables)
+- Version: Pinned to specific release (RELEASE.2025-01-20T14-49-07Z) for reproducibility
+
+**Custom Credentials (Optional)**
+To use custom MinIO credentials in development:
+
+1. Edit `config/.env.local`:
+   ```bash
+   MINIO_ROOT_USER=your-custom-user
+   MINIO_ROOT_PASSWORD=your-strong-password
+   S3_ACCESS_KEY_ID=your-custom-user
+   S3_SECRET_ACCESS_KEY=your-strong-password
+   ```
+
+2. Restart services:
+   ```bash
+   docker compose -f docker-compose.dev.yml down
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+**Updating MinIO Version**
+The MinIO version is pinned in docker-compose files for reproducibility.
+To update to a newer version:
+1. Check latest releases: https://github.com/minio/minio/releases
+2. Update `image:` tag in docker-compose.dev.yml and docker-compose.uat.yml
+3. Rebuild: `docker compose -f docker-compose.dev.yml up -d --build`
+
+### MongoDB Configuration
+
+**Authentication**
+
+**Development Environment**:
+- Authentication: **Disabled** (by design)
+- Rationale: Ease of development, faster iteration, no sensitive data
+- Warning: "Access control is not enabled" is expected and safe for local development
+
+**UAT/Production Environments**:
+- Authentication: **Enabled**
+- Credentials managed via environment variables
+- Root username: `${MONGODB_ROOT_USERNAME:-admin}`
+- Root password: Required (no default)
+
+**Suppressing MongoDB Startup Warnings (Optional)**
+
+If you want to suppress MongoDB's startup warnings in development logs, add to docker-compose.dev.yml:
+
+```yaml
+mongodb:
+  command: ["mongod", "--quiet"]  # Suppress startup warnings
+```
+
+**Note**: This hides informational warnings but doesn't address underlying OS optimizations. See `config/README.md` for OS-level MongoDB performance tuning options.
+
+For detailed configuration documentation, see `config/README.md`.
 
 ## Testing
 

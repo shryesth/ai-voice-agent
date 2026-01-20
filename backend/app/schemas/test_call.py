@@ -2,7 +2,7 @@
 Pydantic schemas for Test Call API endpoints.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
@@ -13,30 +13,73 @@ from backend.app.models.enums import (
 )
 
 
-class MockEventInfo(BaseModel):
-    """Mock event info for test calls."""
+class EventInfo(BaseModel):
+    """
+    Event information for patient feedback calls.
 
-    event_type: str = Field(default="Suivi des Enfants")
-    event_category: str = Field(default="child_vaccination")
-    confirmation_message_key: str = Field(default="child_vaccination_generic")
-    event_date: Optional[str] = None
-    facility_name: str = Field(default="Test Clinic")
-    vaccines: List[Dict[str, Any]] = Field(default_factory=list)
-    requires_side_effects: bool = Field(default=False)
+    This data is REQUIRED for calls - it provides context for the AI conversation
+    including what service was provided, when, and where.
+    """
+    # Event classification
+    event_type: str = Field(..., description="Event type (e.g., 'Child Vaccination Follow-up', 'Prenatal Care')")
+    event_category: str = Field(..., description="Category (e.g., 'child_vaccination', 'prenatal', 'maternity')")
+    confirmation_message_key: str = Field(
+        ...,
+        description="Key for confirmation message template (e.g., 'child_vaccination_penta1')"
+    )
+
+    # Visit details
+    event_date: str = Field(..., description="Date of visit in human-readable format (e.g., 'January 18th, 2026')")
+    facility_name: str = Field(..., description="Name of the health facility/dispensary")
+
+    # Service/vaccine details
+    vaccine_name: Optional[str] = Field(None, description="Vaccine name for vaccination events")
+    service_name: Optional[str] = Field(None, description="Service name for non-vaccination events")
+    vaccines: List[Dict[str, Any]] = Field(default_factory=list, description="List of vaccines administered")
+
+    # Flow configuration
+    requires_side_effects: bool = Field(default=True, description="Whether to ask about side effects (vaccines only)")
+    requires_satisfaction: bool = Field(default=True, description="Whether to ask for satisfaction rating")
+    is_child_event: bool = Field(default=False, description="Whether this is a child health event")
+
+    # Child-specific fields
+    child_name: Optional[str] = Field(None, description="Child's name for child health events")
 
 
 class TestCallRequest(BaseModel):
-    """Request schema for initiating a test call."""
+    """
+    Request schema for initiating a test call.
 
+    IMPORTANT: event_info is REQUIRED - calls cannot be initiated without
+    proper event context for the AI conversation.
+    """
+    # Required fields
     phone_number: str = Field(..., description="Phone number in E.164 format")
     geography_id: str = Field(..., description="Geography ID")
+    event_info: EventInfo = Field(..., description="Event data - REQUIRED for AI conversation context")
+
+    # Patient/contact information
+    patient_name: str = Field(..., description="Patient's full name")
+    contact_name: str = Field(..., description="Contact/guardian name (person being called)")
+    contact_type: ContactType = Field(default=ContactType.PATIENT, description="Type of contact")
+    guardian_relation: Optional[str] = Field(None, description="Guardian's relation to patient (for child events)")
+
+    # Call configuration
     call_type: CallType = Field(default=CallType.PATIENT_FEEDBACK)
-    flow_template_id: Optional[str] = Field(default=None)
     language: str = Field(default="en", description="Language code (en, ht, fr, es)")
-    contact_name: str = Field(default="Test User")
-    contact_type: ContactType = Field(default=ContactType.PATIENT)
-    patient_name: Optional[str] = Field(default=None, description="Patient name for guardian/caregiver calls")
-    event_info: Optional[MockEventInfo] = Field(default=None, description="Mock event data")
+    greeting_template: str = Field(default="default", description="Greeting template key")
+
+    # Optional overrides
+    flow_template_id: Optional[str] = Field(default=None)
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        if not v.startswith("+"):
+            raise ValueError("Phone must be in E.164 format (starting with +)")
+        if len(v) < 10:
+            raise ValueError("Phone number too short")
+        return v
 
 
 class TestCallResponse(BaseModel):

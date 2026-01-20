@@ -60,6 +60,9 @@ async def initiate_test_call(
     Creates a CallRecord marked as test call and initiates the call
     through Twilio. Does not create a queue or recipient.
 
+    IMPORTANT: event_info is REQUIRED - it provides context for the AI conversation
+    including what service was provided, when, and where.
+
     Admin only.
     """
     # Verify geography exists
@@ -67,7 +70,10 @@ async def initiate_test_call(
     if not geography:
         raise HTTPException(status_code=404, detail="Geography not found")
 
-    # Create CallRecord for test call
+    # Convert event_info to dict for storage
+    event_info_dict = data.event_info.model_dump()
+
+    # Create CallRecord for test call with full event context
     call_record = CallRecord(
         geography_id=str(geography.id),
         call_type=data.call_type,
@@ -76,6 +82,9 @@ async def initiate_test_call(
         contact_type=data.contact_type,
         language=data.language,
         patient_name=data.patient_name,
+        guardian_relation=data.guardian_relation,
+        event_info=event_info_dict,
+        greeting_template=data.greeting_template,
         is_test_call=True,
         conversation_state=ConversationState(),
         call_tracking=CallTracking(status="initiated"),

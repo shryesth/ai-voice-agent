@@ -317,6 +317,21 @@ class CallRecord(Document):
         max_length=200,
         description="Patient's name (for child/dependent calls)",
     )
+    guardian_relation: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Guardian's relation to patient (Father, Mother, etc.)",
+    )
+
+    # Event context (REQUIRED for proper AI conversation)
+    event_info: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Event data: event_type, facility_name, visit_date, vaccine_name, etc.",
+    )
+    greeting_template: str = Field(
+        default="default",
+        description="Greeting template key (default, facility)",
+    )
 
     # Legacy field alias (backward compatibility)
     @property

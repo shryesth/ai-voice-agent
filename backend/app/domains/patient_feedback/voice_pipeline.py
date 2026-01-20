@@ -53,6 +53,7 @@ from pipecat.turns.mute import (
 
 from backend.app.domains.patient_feedback.flow_manager import FlowManager
 from backend.app.domains.patient_feedback.conversation_flow import create_greeting_node
+from backend.app.domains.patient_feedback.prompts.prompt_builder import build_prompt_from_call_record
 from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord
 
@@ -145,13 +146,16 @@ async def create_voice_pipeline(
         session_properties=session_properties  # REQUIRED for user transcription!
     )
 
-    # 4. Create LLMContext with initial system message
-    language = call_data.get("language", "en")
+    # 4. Create LLMContext with system prompt built from call_record event_info
+    # This uses the greeting templates, confirmation messages, and comprehensive prompt
+    system_prompt = build_prompt_from_call_record(call_record)
+    logger.info(f"Built system prompt for call {call_record_id} with event_info: {call_record.event_info is not None}")
+
     context = LLMContext(
         messages=[
             {
                 "role": "system",
-                "content": f"You are a healthcare assistant conducting a patient feedback call in {language} language."
+                "content": system_prompt
             }
         ],
         tools=NOT_GIVEN  # Tools populated dynamically by FlowManager

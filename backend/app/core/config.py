@@ -5,16 +5,66 @@ Loads configuration from environment variables with validation.
 All configuration variables defined in research.md with secure defaults.
 """
 
+import os
+from pathlib import Path
 from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def get_env_file() -> str:
+    """
+    Determine which environment file to load based on ENVIRONMENT variable.
+
+    Environment mapping:
+    - development → config/.env.local
+    - staging → config/.env.uat
+    - production → config/.env.prod
+
+    Fallback order:
+    1. Check ENVIRONMENT variable
+    2. Default to "development" (config/.env.local)
+    3. If file doesn't exist, try root .env (backward compatibility)
+    4. If none exist, return empty string (will use defaults)
+
+    Returns:
+        Path to environment file to load
+    """
+    # Get environment from ENV variable (default to development)
+    env = os.getenv("ENVIRONMENT", "development").lower()
+
+    # Map environment to config file
+    env_file_map = {
+        "development": "config/.env.local",
+        "staging": "config/.env.uat",
+        "production": "config/.env.prod",
+    }
+
+    # Get the project root (4 levels up from this file: backend/app/core/config.py -> root)
+    project_root = Path(__file__).parent.parent.parent.parent
+
+    # Get the environment-specific file path
+    env_file = env_file_map.get(env, "config/.env.local")
+    env_file_path = project_root / env_file
+
+    # Check if environment-specific file exists
+    if env_file_path.exists():
+        return str(env_file_path)
+
+    # Fallback to root .env for backward compatibility
+    root_env_path = project_root / ".env"
+    if root_env_path.exists():
+        return str(root_env_path)
+
+    # No env file found - will use defaults from Field(default=...)
+    return ""
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=get_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"

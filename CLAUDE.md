@@ -13,7 +13,13 @@ Patient Feedback Collection API - an AI-powered voice call system for collecting
 docker compose -f docker-compose.dev.yml up
 
 # Run API server locally (requires MongoDB and Redis running)
+# The app automatically loads config/.env.local based on ENVIRONMENT variable
+# Default is "development" which loads config/.env.local
 .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
+
+# Run with explicit environment (loads config/.env.uat or config/.env.prod)
+ENVIRONMENT=staging .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
+ENVIRONMENT=production .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
 
 # Install dependencies with uv
 uv pip install -r requirements.txt
@@ -96,7 +102,31 @@ If any precheck fails, the application exits immediately with a clear error mess
 
 ## Configuration
 
-Settings loaded via Pydantic Settings from environment-specific files in `config/` directory:
+Settings loaded via Pydantic Settings from environment-specific files in `config/` directory. The application automatically selects the correct config file based on the `ENVIRONMENT` variable.
+
+### Automatic Config Loading (`backend/app/core/config.py`)
+The `Settings` class automatically loads the appropriate config file:
+
+**Environment Detection:**
+- Reads `ENVIRONMENT` variable (defaults to "development" if not set)
+- Maps environment to config file:
+  - `development` → `config/.env.local`
+  - `staging` → `config/.env.uat`
+  - `production` → `config/.env.prod`
+- Fallback to root `.env` for backward compatibility
+- Uses Field defaults if no config file found
+
+**Usage:**
+```bash
+# Local development (loads config/.env.local)
+python -m uvicorn backend.app.main:app --reload
+
+# Staging (loads config/.env.uat)
+ENVIRONMENT=staging python -m uvicorn backend.app.main:app --reload
+
+# Production (loads config/.env.prod)
+ENVIRONMENT=production python -m uvicorn backend.app.main:app --reload
+```
 
 ### Environment Files
 - **`config/.env.local`** - Local development with MinIO at localhost:9000 (gitignored, contains real credentials)
@@ -106,6 +136,7 @@ Settings loaded via Pydantic Settings from environment-specific files in `config
 - **`config/.env.*.example`** - Environment templates with placeholders (tracked in git)
 
 ### Docker Compose Integration
+Docker Compose files override the `ENVIRONMENT` variable and load config via `env_file`:
 - **Development**: `docker compose -f docker-compose.dev.yml up` uses `config/.env.local`
 - **UAT/Staging**: `docker compose -f docker-compose.uat.yml up` uses `config/.env.uat`
 - **Production**: `docker compose -f docker-compose.production.yml up` uses `config/.env.prod`

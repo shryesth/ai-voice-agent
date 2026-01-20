@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB Database
   mongodb:
@@ -11,11 +9,11 @@ services:
     volumes:
       - mongodb_data:/data/db
     environment:
-      MONGO_INITDB_DATABASE: voice_ai
+      MONGO_INITDB_DATABASE: voice_agent
     networks:
       - voice-ai-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/voice_ai --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/voice_agent --quiet
       interval: 10s
       timeout: 5s
       retries: 5

@@ -281,6 +281,11 @@ class Settings(BaseSettings):
         return self.environment.lower() == "development"
 
     @property
+    def is_staging(self) -> bool:
+        """Check if running in staging/UAT environment."""
+        return self.environment.lower() == "staging"
+
+    @property
     def twilio_websocket_url_derived(self) -> str:
         """
         Get Twilio WebSocket URL, deriving from public_url if not explicitly set.

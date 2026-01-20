@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB Database (UAT/Staging)
   mongodb:
@@ -224,9 +222,6 @@ networks:
   backend-network:
     driver: bridge
     internal: true  # No external access
-    ipam:
-      config:
-        - subnet: 172.21.0.0/16
 
   # Frontend network (API exposed to internet)
   frontend-network:

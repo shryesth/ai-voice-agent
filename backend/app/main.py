@@ -214,8 +214,8 @@ All endpoints except webhooks require JWT authentication.
     )
 
     # CORS middleware
-    if settings.is_development:
-        # Development: Allow all origins for convenience
+    if settings.is_development or settings.is_staging:
+        # Development & UAT: Allow all origins for easier testing
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -224,7 +224,7 @@ All endpoints except webhooks require JWT authentication.
             allow_headers=["*"],
         )
     else:
-        # Production: Use configured origins (set via CORS_ORIGINS env var)
+        # Production: Use configured origins (strict - set via CORS_ORIGINS env var)
         # Example: CORS_ORIGINS="https://app.example.com,https://admin.example.com"
         origins = settings.cors_origins if settings.cors_origins else [
             "https://localhost:3001",  # Default fallback for production testing

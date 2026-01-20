@@ -96,6 +96,10 @@ class ClarityConfig(BaseModel):
         default=True,
         description="Include recording URL in Clarity push",
     )
+    default_country_code: str = Field(
+        default="509",
+        description="Default country code for phone number normalization (e.g., '509' for Haiti)",
+    )
 
     class Config:
         json_schema_extra = {
@@ -110,6 +114,7 @@ class ClarityConfig(BaseModel):
                 "skip_event_types": ["Cas de Tuberculose", "HIV/ARV"],
                 "auto_push_results": True,
                 "include_recording_url": True,
+                "default_country_code": "509",
             }
         }
 

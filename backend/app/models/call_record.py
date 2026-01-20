@@ -283,7 +283,7 @@ class CallRecord(Document):
     )
 
     # Legacy reference (backward compatibility)
-    campaign_id: Optional[Link[Campaign]] = Field(
+    campaign_id: Optional[Link["Campaign"]] = Field(
         default=None,
         description="[Deprecated] Use queue_id instead",
     )
@@ -435,9 +435,7 @@ class CallRecord(Document):
         }
 
 
-# Import Campaign after CallRecord class definition to resolve Link[Campaign]
-# This works with `from __future__ import annotations` which makes annotations lazy
-from backend.app.models.campaign import Campaign
-
-# Rebuild model to resolve forward references
-CallRecord.model_rebuild()
+# Import Campaign after CallRecord class definition for model_rebuild() to work
+# This import must happen at runtime (not just type checking) so that Campaign
+# is in the module's globals when Pydantic resolves the forward reference
+from backend.app.models.campaign import Campaign  # noqa: F401, E402

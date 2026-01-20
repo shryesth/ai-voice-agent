@@ -5,19 +5,18 @@ Replaces the Campaign model with a more flexible queue-based approach.
 Supports multiple queue modes: FOREVER (continuous), BATCH (one-time), MANUAL.
 """
 
+from __future__ import annotations
+
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 
 from backend.app.models.enums import (
     CallType,
     QueueMode,
     QueueState,
 )
-
-if TYPE_CHECKING:
-    from backend.app.models.geography import Geography
 
 
 class TimeWindow(BaseModel):
@@ -281,3 +280,9 @@ def can_transition_to(current_state: QueueState, new_state: QueueState) -> bool:
         QueueState.CANCELLED: set(),  # Terminal
     }
     return new_state in valid_transitions.get(current_state, set())
+
+
+# Import Geography after CallQueue class definition for model_rebuild() to work
+# This import must happen at runtime (not just type checking) so that Geography
+# is in the module's globals when Pydantic resolves the forward reference
+from backend.app.models.geography import Geography  # noqa: F401, E402

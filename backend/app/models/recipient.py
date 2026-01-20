@@ -8,6 +8,8 @@ Replaces QueueEntry with richer context including:
 - Clarity sync status
 """
 
+from __future__ import annotations
+
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -23,7 +25,6 @@ from backend.app.models.enums import (
     EventCategory,
     SyncStatus,
 )
-from backend.app.models.call_queue import CallQueue
 
 
 class ClarityEventInfo(BaseModel):
@@ -191,7 +192,7 @@ class Recipient(Document):
     Supports multiple call attempts with detailed tracking.
     """
 
-    queue_id: Link[CallQueue]
+    queue_id: Link["CallQueue"]
 
     # Source tracking
     external_source: ExternalSource = Field(default=ExternalSource.MANUAL)
@@ -389,3 +390,9 @@ def determine_contact_type(
             return ContactType.CAREGIVER
 
     return ContactType.PATIENT
+
+
+# Import CallQueue after Recipient class definition for model_rebuild() to work
+# This import must happen at runtime (not just type checking) so that CallQueue
+# is in the module's globals when Pydantic resolves the forward reference
+from backend.app.models.call_queue import CallQueue  # noqa: F401, E402

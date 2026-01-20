@@ -8,6 +8,7 @@ This service handles:
 
 import httpx
 import logging
+from asyncio import Semaphore
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -59,6 +60,8 @@ class ClarityService:
         self.base_url = clarity_config.api_url.rstrip("/")
         self.api_key = clarity_config.api_key
         self.timeout = httpx.Timeout(30.0, connect=10.0)
+        self._client: Optional[httpx.AsyncClient] = None
+        self._semaphore = Semaphore(10)  # Max 10 concurrent requests to Clarity API
 
     @property
     def headers(self) -> Dict[str, str]:
@@ -70,6 +73,25 @@ class ClarityService:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """
+        Get or create the HTTP client for connection pooling.
+
+        Reuses an existing client if available, creates new one if closed.
+
+        Returns:
+            Reusable AsyncClient instance
+        """
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
+
+    async def close(self):
+        """Close the HTTP client and release resources."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def pull_verification_subjects(
         self,
@@ -100,7 +122,8 @@ class ClarityService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with self._semaphore:
+                client = await self._get_client()
                 response = await client.get(url, headers=self.headers, params=params)
                 response.raise_for_status()
                 data = response.json()
@@ -252,7 +275,11 @@ class ClarityService:
         return recipient
 
     def _extract_phone(self, subject: Dict[str, Any]) -> Optional[str]:
-        """Extract and normalize phone number from subject."""
+        """
+        Extract and normalize phone number from subject.
+
+        Normalizes to E.164 format using the geography's default country code.
+        """
         # Try various phone fields
         phone = (
             subject.get("contact_phone")
@@ -267,11 +294,12 @@ class ClarityService:
         # Normalize to E.164 format
         phone = str(phone).strip()
         if not phone.startswith("+"):
-            # Assume Haiti country code if not specified
-            if phone.startswith("509"):
+            # Use configured country code if not specified
+            country_code = self.config.default_country_code
+            if phone.startswith(country_code):
                 phone = f"+{phone}"
             else:
-                phone = f"+509{phone}"
+                phone = f"+{country_code}{phone}"
 
         return phone
 
@@ -324,7 +352,8 @@ class ClarityService:
         url = f"{self.base_url}/client-visits/verification/{recipient.external_id}"
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with self._semaphore:
+                client = await self._get_client()
                 response = await client.put(url, headers=self.headers, json=payload)
                 response.raise_for_status()
 
@@ -362,7 +391,8 @@ class ClarityService:
 
         url = f"{self.base_url}/health"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with self._semaphore:
+                client = await self._get_client()
                 response = await client.get(url, headers=self.headers)
                 return response.status_code < 500
         except httpx.HTTPError:
@@ -384,6 +414,11 @@ async def get_clarity_service(geography_id: str) -> Optional[ClarityService]:
 
     Returns:
         ClarityService if Clarity is configured, None otherwise
+
+    Note:
+        The returned service maintains a reusable HTTP client for connection pooling.
+        Callers should call await service.close() to clean up resources when done,
+        or rely on async context manager usage for automatic cleanup.
     """
     from bson import ObjectId
 

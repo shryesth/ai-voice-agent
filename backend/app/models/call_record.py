@@ -1,12 +1,13 @@
 """
-CallRecord model for individual patient feedback calls.
+CallRecord model for individual call records.
 
 Tracks:
-- Patient contact information
+- Contact information (patient, guardian, caregiver)
 - Conversation state and transcript
-- Feedback responses
+- Conversation data (feedback, verification responses)
 - Urgency flags and keywords
 - Call tracking metadata (Twilio integration)
+- Human callback requests
 """
 
 from __future__ import annotations
@@ -14,26 +15,37 @@ from __future__ import annotations
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, Dict
-from enum import Enum
+from typing import Optional, List, Dict, Any
+
+from backend.app.models.enums import (
+    CallType,
+    CallOutcome,
+    ContactType,
+)
 
 
-class CallOutcome(str, Enum):
-    """Final call disposition."""
-    SUCCESS = "success"  # Completed full conversation
-    PARTIAL_SUCCESS = "partial_success"  # Partial feedback collected
-    NO_ANSWER = "no_answer"  # Did not pick up
-    BUSY = "busy"  # Line busy
-    FAILED = "failed"  # Technical failure
-    INVALID_NUMBER = "invalid_number"  # Not a valid phone number
-    REJECTED = "rejected"  # Call rejected by carrier
-    WRONG_PERSON = "wrong_person"  # Not patient/guardian/helper
-    TIMEOUT = "timeout"  # Exceeded 10-minute max duration
-    NETWORK_FAILURE = "network_failure"  # Dropped mid-call
+class ConversationData(BaseModel):
+    """
+    Flexible data extracted from conversation.
 
+    Supports both legacy FeedbackData fields and new flexible extraction.
+    """
 
-class FeedbackData(BaseModel):
-    """Structured patient feedback responses."""
+    # Verification fields
+    is_visit_confirmed: Optional[bool] = Field(
+        default=None,
+        description="Whether the visit was confirmed",
+    )
+    is_service_confirmed: Optional[bool] = Field(
+        default=None,
+        description="Whether the specific service was confirmed",
+    )
+    verification_responses: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Stage-by-stage verification responses",
+    )
+
+    # Legacy fields (backward compatible with FeedbackData)
     overall_satisfaction: Optional[int] = Field(
         None,
         ge=1,
@@ -48,23 +60,58 @@ class FeedbackData(BaseModel):
         None,
         description="Reported side effects (if applicable)"
     )
+    has_side_effects: Optional[bool] = Field(
+        default=None,
+        description="Whether side effects were reported",
+    )
     experience_quality: Optional[str] = Field(
         None,
         description="Overall experience description"
     )
 
+    # Flexible extraction
+    extracted_data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="All extracted data from conversation (per flow schema)",
+    )
+
+
+# Backward compatibility alias
+FeedbackData = ConversationData
+
 
 class ConversationTurn(BaseModel):
     """Single speaker turn in conversation."""
-    speaker: str = Field(..., description="'patient' or 'ai'")
+
+    speaker: str = Field(..., description="'patient', 'ai', 'contact', or 'system'")
     text: str = Field(..., description="Transcribed text")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     language: Optional[str] = Field(None, description="Language code for this turn")
 
 
-class ConversationStage(str, Enum):
-    """6-stage conversation flow."""
+class ConversationStage(str):
+    """
+    Conversation flow stages.
+
+    Common stages for Patient Feedback Collection:
+    - GREETING: Greet and identify as Ministry of Health AI
+    - CONFIRM_IDENTITY: Confirm speaking with correct person
+    - CONFIRM_VISIT: Confirm visited facility on date
+    - CONFIRM_SERVICE: Event-specific confirmation (varies by event_type)
+    - SIDE_EFFECTS: [Optional] Check for side effects (vaccination)
+    - SATISFACTION: [Optional] Collect rating
+    - COMPLETION: Thank and end call
+    """
+
     GREETING = "greeting"
+    CONFIRM_IDENTITY = "confirm_identity"
+    CONFIRM_VISIT = "confirm_visit"
+    CONFIRM_SERVICE = "confirm_service"
+    SIDE_EFFECTS = "side_effects"
+    SATISFACTION = "satisfaction"
+    COMPLETION = "completion"
+
+    # Legacy stages (backward compatibility)
     LANGUAGE_SELECTION = "language_selection"
     PATIENT_VERIFICATION = "patient_verification"
     FEEDBACK_COLLECTION = "feedback_collection"
@@ -74,21 +121,51 @@ class ConversationStage(str, Enum):
 
 class ConversationState(BaseModel):
     """Tracks progress through conversation stages."""
-    current_stage: Optional[ConversationStage] = None
-    completed_stages: List[ConversationStage] = Field(default_factory=list)
-    failed_stages: List[ConversationStage] = Field(default_factory=list)
+
+    current_stage: Optional[str] = Field(
+        default=None,
+        description="Current conversation stage",
+    )
+    completed_stages: List[str] = Field(
+        default_factory=list,
+        description="Stages that have been completed",
+    )
+    failed_stages: List[str] = Field(
+        default_factory=list,
+        description="Stages that failed",
+    )
     stage_retry_counts: Dict[str, int] = Field(
         default_factory=dict,
         description="Retry attempts per stage (max 2 per stage)"
+    )
+    stage_data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Data collected at each stage",
     )
 
 
 class CallTracking(BaseModel):
     """Twilio call metadata and timing."""
+
     call_sid: Optional[str] = Field(None, description="Twilio Call SID")
     stream_sid: Optional[str] = Field(None, description="Twilio Stream SID")
     status: str = Field(default="queued")
-    outcome: Optional[CallOutcome] = None
+    outcome: Optional[CallOutcome] = Field(
+        default=None,
+        description="Detailed call outcome",
+    )
+
+    # Twilio status (from webhook)
+    twilio_status: Optional[str] = Field(
+        default=None,
+        description="Raw Twilio call status",
+    )
+
+    # Answering machine detection
+    answered_by: Optional[str] = Field(
+        default=None,
+        description="'human', 'machine_start', 'machine_end_beep', 'fax', 'unknown'",
+    )
 
     # Timing
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -102,6 +179,7 @@ class CallTracking(BaseModel):
 
 class RecordingMetadata(BaseModel):
     """Metadata for call recording stored in S3/MinIO."""
+
     # Original dual-channel recording (always stored)
     recording_url: Optional[str] = Field(
         None,
@@ -167,21 +245,80 @@ class RecordingMetadata(BaseModel):
 
 class CallRecord(Document):
     """
-    Individual patient feedback call with full conversation history.
+    Individual call record with full conversation history.
+
+    Supports both:
+    - Legacy campaign-based calls (campaign_id)
+    - New queue-based calls (queue_id, recipient_id)
 
     Indexes:
-    - campaign_id: Query all calls for a campaign
+    - geography_id: Query all calls for a geography
+    - queue_id: Query all calls for a queue
+    - recipient_id: Query all calls for a recipient
+    - campaign_id: Legacy campaign queries
     - call_tracking.call_sid: Twilio webhook lookups
     - call_tracking.outcome: Filter by call result
+    - call_outcome: Filter by detailed outcome
     - urgency_flagged: Query urgent cases for clinical review
+    - is_test_call: Filter test calls
     - created_at: Sort by recency
     """
 
-    campaign_id: Link[Campaign]
+    # Parent references (new model)
+    geography_id: Optional[str] = Field(
+        default=None,
+        description="Geography this call belongs to",
+    )
+    queue_id: Optional[str] = Field(
+        default=None,
+        description="CallQueue this call belongs to",
+    )
+    recipient_id: Optional[str] = Field(
+        default=None,
+        description="Recipient this call is for",
+    )
 
-    # Patient contact (phone number ownership = authentication)
-    patient_phone: str = Field(..., description="E.164 format")
+    # Legacy reference (backward compatibility)
+    campaign_id: Optional[Link[Campaign]] = Field(
+        default=None,
+        description="[Deprecated] Use queue_id instead",
+    )
+
+    # Call configuration
+    call_type: CallType = Field(
+        default=CallType.PATIENT_FEEDBACK,
+        description="Type of call (patient_feedback, survey, etc.)",
+    )
+    flow_template_id: Optional[str] = Field(
+        default=None,
+        description="Flow template used for this call",
+    )
+
+    # Contact info (copied for record integrity)
+    contact_phone: str = Field(..., description="E.164 format")
+    contact_name: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Contact's name",
+    )
+    contact_type: ContactType = Field(
+        default=ContactType.UNKNOWN,
+        description="Type of contact (patient, guardian, caregiver)",
+    )
     language: str = Field(default="en", description="en, es, fr, ht")
+
+    # Patient context (for guardian/caregiver calls)
+    patient_name: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Patient's name (for child/dependent calls)",
+    )
+
+    # Legacy field alias (backward compatibility)
+    @property
+    def patient_phone(self) -> str:
+        """Backward compatibility alias for contact_phone."""
+        return self.contact_phone
 
     # Conversation data
     conversation_state: ConversationState = Field(default_factory=ConversationState)
@@ -189,7 +326,22 @@ class CallRecord(Document):
         default_factory=list,
         description="Full conversation history with timestamps"
     )
-    feedback: FeedbackData = Field(default_factory=FeedbackData)
+    conversation_data: ConversationData = Field(
+        default_factory=ConversationData,
+        description="Extracted data from conversation",
+    )
+
+    # Legacy field alias (backward compatibility)
+    @property
+    def feedback(self) -> ConversationData:
+        """Backward compatibility alias for conversation_data."""
+        return self.conversation_data
+
+    # Call outcome (new detailed enum)
+    call_outcome: Optional[CallOutcome] = Field(
+        default=None,
+        description="Detailed call outcome",
+    )
 
     # Urgency detection
     urgency_flagged: bool = Field(
@@ -198,6 +350,17 @@ class CallRecord(Document):
     )
     urgency_keywords_detected: List[str] = Field(default_factory=list)
 
+    # Human callback request
+    human_callback_requested: bool = Field(
+        default=False,
+        description="True if person requested human callback",
+    )
+    human_callback_reason: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Reason for callback request",
+    )
+
     # Call tracking
     call_tracking: CallTracking = Field(default_factory=CallTracking)
 
@@ -205,6 +368,12 @@ class CallRecord(Document):
     recording: Optional[RecordingMetadata] = Field(
         default=None,
         description="Call recording metadata (when recording_enabled=true)"
+    )
+
+    # Test call flag
+    is_test_call: bool = Field(
+        default=False,
+        description="True if this is a test call (not counted in stats)",
     )
 
     # Error context
@@ -220,23 +389,43 @@ class CallRecord(Document):
     class Settings:
         name = "call_records"
         indexes = [
+            "geography_id",
+            "queue_id",
+            "recipient_id",
             "campaign_id",
+            "call_type",
+            "call_outcome",
             "call_tracking.call_sid",
             "call_tracking.outcome",
             "urgency_flagged",
+            "is_test_call",
             "created_at",
         ]
 
     class Config:
         json_schema_extra = {
             "example": {
-                "patient_phone": "+12025551234",
-                "language": "en",
+                "geography_id": "507f1f77bcf86cd799439011",
+                "queue_id": "507f1f77bcf86cd799439012",
+                "recipient_id": "507f1f77bcf86cd799439013",
+                "call_type": "patient_feedback",
+                "contact_phone": "+50912345678",
+                "contact_name": "Marie Joseph",
+                "contact_type": "guardian",
+                "language": "ht",
+                "patient_name": "Jean Joseph",
+                "call_outcome": "completed_full",
                 "urgency_flagged": False,
+                "is_test_call": False,
                 "call_tracking": {
                     "call_sid": "CA1234567890abcdef",
-                    "outcome": "success",
+                    "outcome": "completed_full",
                     "duration_seconds": 180
+                },
+                "conversation_data": {
+                    "is_visit_confirmed": True,
+                    "is_service_confirmed": True,
+                    "overall_satisfaction": 8,
                 }
             }
         }

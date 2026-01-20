@@ -3,43 +3,145 @@ Models package for Beanie documents.
 
 Exports all model classes for easy imports.
 IMPORTANT: Import order matters for Link resolution (parent models before child models)
+
+NEW Supervisor models:
+- CallQueue (replaces Campaign)
+- Recipient (replaces QueueEntry)
+- Updated Geography with ClarityConfig
+- Updated CallRecord with new fields
+
+Legacy models (Campaign, QueueEntry) are kept for backward compatibility but deprecated.
 """
 
-# Import in dependency order: Geography -> Campaign -> CallRecord
-from backend.app.models.user import User, UserRole
-from backend.app.models.geography import Geography, RetentionPolicy
-from backend.app.models.campaign import Campaign, CampaignState, CampaignConfig, CampaignStats, TimeWindow, DayOfWeek
+# Import shared enums first
+from backend.app.models.enums import (
+    CallType,
+    EventCategory,
+    ContactType,
+    QueueMode,
+    QueueState,
+    RecipientStatus,
+    CallOutcome,
+    FailureReason,
+    ExternalSource,
+    SyncStatus,
+    UserRole,
+    RETRY_DELAYS_SECONDS,
+    NON_RETRIABLE_FAILURES,
+    DEFAULT_MAX_RETRIES,
+    LANGUAGE_VOICE_MAP,
+    SUPPORTED_LANGUAGES,
+)
+
+# Import in dependency order: Geography -> CallQueue/Campaign -> Recipient/QueueEntry -> CallRecord
+from backend.app.models.user import User
+from backend.app.models.geography import Geography, RetentionPolicy, ClarityConfig
+
+# NEW: CallQueue model (replaces Campaign)
+from backend.app.models.call_queue import (
+    CallQueue,
+    TimeWindow,
+    RetryStrategy,
+    ClaritySyncConfig,
+    QueueStats,
+    can_transition_to,
+)
+
+# NEW: Recipient model (replaces QueueEntry)
+from backend.app.models.recipient import (
+    Recipient,
+    ClarityEventInfo,
+    CallAttempt,
+    ConversationResult,
+    determine_contact_type,
+)
+
+# LEGACY: Campaign model (deprecated, use CallQueue)
+from backend.app.models.campaign import (
+    Campaign,
+    CampaignState,
+    CampaignConfig,
+    CampaignStats as LegacyCampaignStats,
+    TimeWindow as LegacyTimeWindow,
+    DayOfWeek,
+)
+
+# LEGACY: QueueEntry model (deprecated, use Recipient)
+from backend.app.models.queue_entry import (
+    QueueEntry,
+    QueueState as LegacyQueueState,
+    FailureReason as LegacyFailureReason,
+    RetryHistory,
+)
+
+# CallRecord with new fields
 from backend.app.models.call_record import (
     CallRecord,
-    CallOutcome,
-    FeedbackData,
+    ConversationData,
+    FeedbackData,  # Alias for ConversationData
     ConversationTurn,
     ConversationStage,
     ConversationState,
     CallTracking,
+    RecordingMetadata,
 )
-from backend.app.models.queue_entry import QueueEntry, QueueState, FailureReason, RetryHistory
 
 __all__ = [
-    "User",
+    # Enums
+    "CallType",
+    "EventCategory",
+    "ContactType",
+    "QueueMode",
+    "QueueState",
+    "RecipientStatus",
+    "CallOutcome",
+    "FailureReason",
+    "ExternalSource",
+    "SyncStatus",
     "UserRole",
+    # Constants
+    "RETRY_DELAYS_SECONDS",
+    "NON_RETRIABLE_FAILURES",
+    "DEFAULT_MAX_RETRIES",
+    "LANGUAGE_VOICE_MAP",
+    "SUPPORTED_LANGUAGES",
+    # User
+    "User",
+    # Geography
     "Geography",
     "RetentionPolicy",
-    "Campaign",
-    "CampaignState",
-    "CampaignConfig",
-    "CampaignStats",
+    "ClarityConfig",
+    # NEW: CallQueue
+    "CallQueue",
     "TimeWindow",
-    "DayOfWeek",
+    "RetryStrategy",
+    "ClaritySyncConfig",
+    "QueueStats",
+    "can_transition_to",
+    # NEW: Recipient
+    "Recipient",
+    "ClarityEventInfo",
+    "CallAttempt",
+    "ConversationResult",
+    "determine_contact_type",
+    # CallRecord
     "CallRecord",
-    "CallOutcome",
+    "ConversationData",
     "FeedbackData",
     "ConversationTurn",
     "ConversationStage",
     "ConversationState",
     "CallTracking",
+    "RecordingMetadata",
+    # LEGACY (deprecated)
+    "Campaign",
+    "CampaignState",
+    "CampaignConfig",
+    "LegacyCampaignStats",
+    "LegacyTimeWindow",
+    "DayOfWeek",
     "QueueEntry",
-    "QueueState",
-    "FailureReason",
+    "LegacyQueueState",
+    "LegacyFailureReason",
     "RetryHistory",
 ]

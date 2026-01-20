@@ -50,12 +50,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         # Import models for all user stories
         from backend.app.models.user import User
         from backend.app.models.geography import Geography
-        from backend.app.models.campaign import Campaign
         from backend.app.models.call_record import CallRecord
+        # NEW: Supervisor models
+        from backend.app.models.call_queue import CallQueue
+        from backend.app.models.recipient import Recipient
+        # LEGACY: Keep for backward compatibility
+        from backend.app.models.campaign import Campaign
         from backend.app.models.queue_entry import QueueEntry
 
-        # Initialize database with models
-        await db.connect(document_models=[User, Geography, Campaign, CallRecord, QueueEntry])
+        # Initialize database with all models (new and legacy)
+        await db.connect(document_models=[
+            User,
+            Geography,
+            CallQueue,  # NEW: Replaces Campaign
+            Recipient,  # NEW: Replaces QueueEntry
+            CallRecord,
+            Campaign,   # LEGACY: Keep for backward compatibility
+            QueueEntry, # LEGACY: Keep for backward compatibility
+        ])
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error("Database initialization failed", error=str(e))
@@ -145,26 +157,46 @@ def create_app() -> FastAPI:
     """
     # OpenAPI metadata
     description = """
-## Patient Feedback Collection API
+## Supervisor - AI Calling Agent Platform
 
-AI-powered voice call system for collecting patient feedback after medical appointments.
+Flexible AI-powered voice call system for patient feedback collection and other calling use cases.
 
 ### Features
 
-* **🤖 AI Voice Calls**: Automated patient outreach via Twilio + OpenAI Realtime API
+* **🤖 AI Voice Calls**: Automated outreach via Twilio + OpenAI Realtime API
 * **🌍 Multilingual**: English, Spanish, French, Haitian Creole support
+* **📞 Multiple Queue Modes**: Forever (continuous), Batch (one-time), Manual
+* **🔗 Clarity Integration**: Bidirectional sync for verification subjects
 * **⚠️ Urgency Detection**: Automatic flagging of emergency keywords
 * **🔄 Smart Retry Logic**: Intelligent retry with failure-specific delays
-* **📊 Campaign Management**: Bulk call execution with queue automation
+* **📊 Call Queue Management**: Multiple queues per geography
 * **🔒 RBAC**: Admin and User roles with privacy controls
 * **📈 Monitoring**: Prometheus metrics and DLQ management
+* **🧪 Test Endpoints**: Debug and test call functionality
 
 ### Architecture
+
+```
+Supervisor (Server)
+└── Geography (Haiti, Honduras, etc.)
+    └── CallQueue (multiple per geo)
+        └── Recipients
+            └── CallRecords
+```
 
 - **Voice Pipeline**: Pipecat v0.0.99 + OpenAI gpt-4o-realtime-preview
 - **Queue System**: Celery Beat (30s scheduler) + Redis broker
 - **Database**: MongoDB 8.0.17 with Beanie ODM
 - **Telephony**: Twilio Media Streams (WebSocket)
+- **Storage**: S3/MinIO for call recordings
+
+### Patient Feedback Collection
+
+One unified flow for all health event types:
+1. Greeting → 2. Confirm Identity → 3. Confirm Visit → 4. Confirm Service →
+5. [Side Effects] → 6. [Satisfaction] → 7. Completion
+
+Event type from Clarity determines which confirmation message to use.
 
 ### Authentication
 
@@ -176,8 +208,8 @@ All endpoints except webhooks require JWT authentication.
 
 ### User Roles
 
-- **Admin**: Full access (create campaigns, manage queue, access DLQ)
-- **User**: Read-only access (view campaigns/calls, phone numbers redacted)
+- **Admin**: Full access (create queues, manage recipients, access DLQ, test calls)
+- **User**: Read-only access (view queues/calls, phone numbers redacted)
 """
 
     tags_metadata = [
@@ -191,24 +223,36 @@ All endpoints except webhooks require JWT authentication.
         },
         {
             "name": "Geographies",
-            "description": "Regional organization with configurable retention policies",
+            "description": "Regional organization with Clarity integration and retention policies",
         },
         {
-            "name": "Campaigns",
-            "description": "Patient feedback campaigns with time windows and concurrency controls",
+            "name": "Call Queues",
+            "description": "Call queue management (Forever, Batch, Manual modes)",
+        },
+        {
+            "name": "Recipients",
+            "description": "Queue recipient management and DLQ operations",
+        },
+        {
+            "name": "Test Calls",
+            "description": "Test call endpoints, queue debugging, and Clarity sync",
         },
         {
             "name": "Calls & Webhooks",
             "description": "Voice call records, transcripts, and Twilio webhook integration",
         },
         {
-            "name": "Queue & DLQ",
-            "description": "Campaign queue management and Dead Letter Queue (DLQ) operations (Admin only)",
+            "name": "Campaigns (Legacy)",
+            "description": "[Deprecated] Use Call Queues instead",
+        },
+        {
+            "name": "Queue & DLQ (Legacy)",
+            "description": "[Deprecated] Use Recipients instead",
         },
     ]
 
     app = FastAPI(
-        title="Patient Feedback Collection API",
+        title="Supervisor - AI Calling Agent Platform",
         description=description,
         version="1.0.0",
         lifespan=lifespan,
@@ -303,14 +347,31 @@ All endpoints except webhooks require JWT authentication.
 
     # Register routers
     from backend.app.api.v1 import auth, health, geographies, campaigns, calls, queue
+    # NEW: Supervisor routers
+    from backend.app.api.v1 import queues, recipients, test_calls
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(health.router, prefix="/api/v1", tags=["Health & Metrics"])
     app.include_router(geographies.router, prefix="/api/v1/geographies", tags=["Geographies"])
-    app.include_router(campaigns.campaign_create_router, prefix="/api/v1", tags=["Campaigns"])
-    app.include_router(campaigns.router, prefix="/api/v1/campaigns", tags=["Campaigns"])
+
+    # NEW: CallQueue endpoints (replaces campaigns)
+    app.include_router(queues.router, prefix="/api/v1", tags=["Call Queues"])
+
+    # NEW: Recipient endpoints (replaces queue entries)
+    app.include_router(recipients.router, prefix="/api/v1", tags=["Recipients"])
+
+    # NEW: Test call endpoints
+    app.include_router(test_calls.router, prefix="/api/v1", tags=["Test Calls"])
+
+    # LEGACY: Campaign endpoints (deprecated, use queues)
+    app.include_router(campaigns.campaign_create_router, prefix="/api/v1", tags=["Campaigns (Legacy)"])
+    app.include_router(campaigns.router, prefix="/api/v1/campaigns", tags=["Campaigns (Legacy)"])
+
+    # Calls & Webhooks
     app.include_router(calls.router, prefix="/api/v1", tags=["Calls & Webhooks"])
-    app.include_router(queue.router, prefix="/api/v1", tags=["Queue & DLQ"])
+
+    # LEGACY: Queue endpoints (deprecated, use recipients)
+    app.include_router(queue.router, prefix="/api/v1", tags=["Queue & DLQ (Legacy)"])
 
     logger.info("FastAPI application created")
 

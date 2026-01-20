@@ -167,6 +167,62 @@ Docker Compose files override the `ENVIRONMENT` variable and load config via `en
 - `S3_BUCKET_NAME` - Bucket for call recordings
 - Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
 
+### MinIO Configuration
+
+**Default Setup (Development)**
+- Credentials: minioadmin / minioadmin (can be customized via environment variables)
+- Version: Pinned to specific release (RELEASE.2025-01-20T14-49-07Z) for reproducibility
+
+**Custom Credentials (Optional)**
+To use custom MinIO credentials in development:
+
+1. Edit `config/.env.local`:
+   ```bash
+   MINIO_ROOT_USER=your-custom-user
+   MINIO_ROOT_PASSWORD=your-strong-password
+   S3_ACCESS_KEY_ID=your-custom-user
+   S3_SECRET_ACCESS_KEY=your-strong-password
+   ```
+
+2. Restart services:
+   ```bash
+   docker compose -f docker-compose.dev.yml down
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+**Updating MinIO Version**
+The MinIO version is pinned in docker-compose files for reproducibility.
+To update to a newer version:
+1. Check latest releases: https://github.com/minio/minio/releases
+2. Update `image:` tag in docker-compose.dev.yml and docker-compose.uat.yml
+3. Rebuild: `docker compose -f docker-compose.dev.yml up -d --build`
+
+### MongoDB Configuration
+
+**Authentication**
+
+**Development Environment**:
+- Authentication: **Disabled** (by design)
+- Rationale: Ease of development, faster iteration, no sensitive data
+- Warning: "Access control is not enabled" is expected and safe for local development
+
+**UAT/Production Environments**:
+- Authentication: **Enabled**
+- Credentials managed via environment variables
+- Root username: `${MONGODB_ROOT_USERNAME:-admin}`
+- Root password: Required (no default)
+
+**Suppressing MongoDB Startup Warnings (Optional)**
+
+If you want to suppress MongoDB's startup warnings in development logs, add to docker-compose.dev.yml:
+
+```yaml
+mongodb:
+  command: ["mongod", "--quiet"]  # Suppress startup warnings
+```
+
+**Note**: This hides informational warnings but doesn't address underlying OS optimizations. See `config/README.md` for OS-level MongoDB performance tuning options.
+
 For detailed configuration documentation, see `config/README.md`.
 
 ## Testing

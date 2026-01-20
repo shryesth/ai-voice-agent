@@ -70,7 +70,7 @@ services:
 
   # MinIO Object Storage (UAT/Staging)
   minio:
-    image: minio/minio:RELEASE.2025-01-16T23-10-44Z
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
     container_name: voice-ai-minio-uat
     restart: always
     ports:

@@ -15,7 +15,6 @@ from __future__ import annotations
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
-from enum import Enum
 from typing import Optional, List, Dict, Any
 
 from backend.app.models.enums import (
@@ -90,7 +89,7 @@ class ConversationTurn(BaseModel):
     language: Optional[str] = Field(None, description="Language code for this turn")
 
 
-class ConversationStage(str, Enum):
+class ConversationStage(str):
     """
     Conversation flow stages.
 
@@ -102,6 +101,10 @@ class ConversationStage(str, Enum):
     - SIDE_EFFECTS: [Optional] Check for side effects (vaccination)
     - SATISFACTION: [Optional] Collect rating
     - COMPLETION: Thank and end call
+
+    Note: This class inherits from str to allow string operations while providing
+    enum-like constants. Pydantic v2 compatibility requires this approach rather
+    than inheriting from both str and Enum.
     """
 
     GREETING = "greeting"

@@ -50,7 +50,7 @@ services:
       - ./backend:/app/backend:ro
       - ./scripts:/app/scripts:ro
     env_file:
-      - .env
+      - config/.env.local
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - REDIS_URL=redis://redis:6379/0
@@ -75,7 +75,7 @@ services:
     volumes:
       - ./backend:/app/backend:ro
     env_file:
-      - .env
+      - config/.env.local
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - REDIS_URL=redis://redis:6379/0
@@ -99,7 +99,7 @@ services:
     volumes:
       - ./backend:/app/backend:ro
     env_file:
-      - .env
+      - config/.env.local
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - REDIS_URL=redis://redis:6379/0

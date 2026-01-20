@@ -170,5 +170,19 @@ Thumbs.db
 # Application specific
 backups/
 logs/
+
+# Environment configuration (new structure)
+# Actual config files with secrets (gitignored)
+config/.env.local
+config/.env.uat
+config/.env.prod
+
+# Keep these tracked (templates without secrets):
+# config/.env.base
+# config/.env.uat.example
+# config/.env.prod.example
+# config/README.md
+
+# Legacy env file patterns (safeguard against accidental commits)
 .env.local
 .env.*.local

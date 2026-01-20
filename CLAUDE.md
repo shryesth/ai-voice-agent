@@ -96,13 +96,35 @@ If any precheck fails, the application exits immediately with a clear error mess
 
 ## Configuration
 
-Settings loaded via Pydantic Settings from `.env` file (see `.env.example`). Key settings:
+Settings loaded via Pydantic Settings from environment-specific files in `config/` directory:
+
+### Environment Files
+- **`config/.env.local`** - Local development with MinIO at localhost:9000 (gitignored, contains real credentials)
+- **`config/.env.uat`** - UAT/staging environment (gitignored, create from `config/.env.uat.example`)
+- **`config/.env.prod`** - Production environment (gitignored, create from `config/.env.prod.example`)
+- **`config/.env.base`** - Base configuration template with all variables (tracked in git)
+- **`config/.env.*.example`** - Environment templates with placeholders (tracked in git)
+
+### Docker Compose Integration
+- **Development**: `docker compose -f docker-compose.dev.yml up` uses `config/.env.local`
+- **UAT/Staging**: `docker compose -f docker-compose.uat.yml up` uses `config/.env.uat`
+- **Production**: `docker compose -f docker-compose.production.yml up` uses `config/.env.prod`
+
+### Storage Configuration by Environment
+- **Local**: MinIO at `http://localhost:9000` (bucket: `voice-recordings`)
+- **UAT**: MinIO UAT or Hetzner Object Storage (bucket: `shifo-supervisor-uat`)
+- **Production**: Hetzner Object Storage at `https://nbg1.your-objectstorage.com` (bucket: `shifo-supervisor`)
+
+### Key Settings
 - `MONGODB_URI` - MongoDB connection string (e.g., `mongodb://localhost:27017`)
 - `MONGODB_DATABASE` - Database name (e.g., `voice_agent`)
-- `SKIP_STARTUP_VALIDATION=true` - Skip config validation for tests
-- `S3_ENDPOINT_URL` - MinIO endpoint (e.g., `http://localhost:9000`); leave empty for AWS S3
+- `ENVIRONMENT` - Environment name (development, staging, production)
+- `PUBLIC_URL` - Public URL for Twilio webhooks (e.g., ngrok URL for local dev)
+- `S3_ENDPOINT_URL` - Storage endpoint (MinIO or Hetzner)
 - `S3_BUCKET_NAME` - Bucket for call recordings
 - Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
+
+For detailed configuration documentation, see `config/README.md`.
 
 ## Testing
 

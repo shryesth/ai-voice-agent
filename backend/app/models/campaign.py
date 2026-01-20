@@ -10,8 +10,11 @@ from __future__ import annotations
 from beanie import Document, Link
 from pydantic import BaseModel, Field, validator
 from datetime import datetime, time
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from backend.app.models.geography import Geography
 
 
 class CampaignState(str, Enum):
@@ -154,7 +157,7 @@ class Campaign(Document):
     """
 
     name: str = Field(..., min_length=1, max_length=200)
-    geography_id: Link[Geography]  # Reference to parent geography
+    geography_id: Link["Geography"]  # Reference to parent geography
 
     # Campaign configuration
     config: CampaignConfig = Field(default_factory=CampaignConfig)
@@ -197,11 +200,3 @@ class Campaign(Document):
                 }
             }
         }
-
-
-# Import Geography after Campaign class definition to resolve Link[Geography]
-# This works with `from __future__ import annotations` which makes annotations lazy
-from backend.app.models.geography import Geography
-
-# Rebuild model to resolve forward references
-Campaign.model_rebuild()

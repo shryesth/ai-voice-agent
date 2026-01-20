@@ -62,6 +62,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         if not settings.skip_startup_validation:
             raise
 
+    # Run bootstrap operations
+    if not settings.skip_startup_validation and settings.enable_bootstrap_admin:
+        logger.info("Running bootstrap operations")
+        try:
+            from backend.app.core.bootstrap import bootstrap_default_admin
+            await bootstrap_default_admin()
+            logger.info("Bootstrap operations complete")
+        except Exception as e:
+            logger.error("Bootstrap failed", error=str(e))
+            raise
+
     # Initialize Redis connection
     logger.info("Initializing Redis connection")
     try:

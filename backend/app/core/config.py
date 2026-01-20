@@ -8,7 +8,7 @@ All configuration variables defined in research.md with secure defaults.
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import Field, field_validator
+from pydantic import EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -97,6 +97,20 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(..., description="Secret key for JWT token signing")
     jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")
     jwt_expiration_hours: int = Field(default=24, description="JWT token expiration in hours")
+
+    # Bootstrap Admin Configuration
+    enable_bootstrap_admin: bool = Field(
+        default=True,
+        description="Enable automatic creation of default admin user on startup if no admins exist"
+    )
+    bootstrap_admin_email: Optional[EmailStr] = Field(
+        default=None,
+        description="Email address for the default admin user (required if enable_bootstrap_admin=true)"
+    )
+    bootstrap_admin_password: Optional[str] = Field(
+        default=None,
+        description="Password for the default admin user (required if enable_bootstrap_admin=true, min 8 chars)"
+    )
 
     # Application Settings
     log_level: str = Field(default="info", description="Logging level")
@@ -314,6 +328,36 @@ class Settings(BaseSettings):
             return v
         # Parse comma-separated string from environment variable
         return [origin.strip() for origin in v.split(",") if origin.strip()]
+
+    @field_validator("bootstrap_admin_email")
+    @classmethod
+    def validate_bootstrap_admin_email(cls, v: Optional[EmailStr], info) -> Optional[EmailStr]:
+        """Validate that bootstrap_admin_email is set when bootstrap is enabled."""
+        enable_bootstrap = info.data.get("enable_bootstrap_admin", True)
+        if enable_bootstrap and v is None:
+            raise ValueError(
+                "bootstrap_admin_email is required when enable_bootstrap_admin=true. "
+                "Set BOOTSTRAP_ADMIN_EMAIL in your environment configuration."
+            )
+        return v
+
+    @field_validator("bootstrap_admin_password")
+    @classmethod
+    def validate_bootstrap_admin_password(cls, v: Optional[str], info) -> Optional[str]:
+        """Validate that bootstrap_admin_password is set and meets minimum requirements when bootstrap is enabled."""
+        enable_bootstrap = info.data.get("enable_bootstrap_admin", True)
+        if enable_bootstrap:
+            if v is None:
+                raise ValueError(
+                    "bootstrap_admin_password is required when enable_bootstrap_admin=true. "
+                    "Set BOOTSTRAP_ADMIN_PASSWORD in your environment configuration."
+                )
+            if len(v) < 8:
+                raise ValueError(
+                    "bootstrap_admin_password must be at least 8 characters long. "
+                    "Please set a stronger BOOTSTRAP_ADMIN_PASSWORD."
+                )
+        return v
 
     @property
     def supported_languages_list(self) -> list[str]:

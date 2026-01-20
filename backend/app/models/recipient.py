@@ -329,6 +329,7 @@ class Recipient(Document):
         indexes = [
             "queue_id",
             "status",
+            "contact_phone",
             "external_source",
             "external_id",
             "next_retry_at",

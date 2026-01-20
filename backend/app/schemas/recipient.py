@@ -2,7 +2,8 @@
 Pydantic schemas for Recipient API endpoints.
 """
 
-from pydantic import BaseModel, Field
+import re
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -73,6 +74,14 @@ class RecipientCreate(BaseModel):
     patient_age: Optional[int] = Field(default=None, ge=0, le=150)
     priority: int = Field(default=0)
     event_info: Optional[ClarityEventInfoSchema] = None
+
+    @field_validator("contact_phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        """Validate phone number is in E.164 format."""
+        if not re.match(r"^\+[1-9]\d{6,14}$", v):
+            raise ValueError("Phone must be in E.164 format (+[country][number])")
+        return v
 
 
 class RecipientUpdate(BaseModel):

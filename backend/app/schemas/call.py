@@ -99,12 +99,13 @@ class ConversationTurnResponse(BaseModel):
 
 class ConversationStateResponse(BaseModel):
     """Conversation state in API responses"""
-    current_stage: Optional[ConversationStage]
-    completed_stages: List[ConversationStage]
-    failed_stages: List[ConversationStage]
+    current_stage: Optional[str]
+    completed_stages: List[str]
+    failed_stages: List[str]
     stage_retry_counts: Dict[str, int]
 
     class Config:
+        arbitrary_types_allowed = True
         json_schema_extra = {
             "example": {
                 "current_stage": "call_completion",

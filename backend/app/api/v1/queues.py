@@ -29,13 +29,14 @@ from backend.app.api.v1.auth import get_current_user, require_admin
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/queues", tags=["queues"])
+router = APIRouter(tags=["queues"])
 
 
 @router.post(
     "/geographies/{geography_id}/queues",
     response_model=CallQueueResponse,
     status_code=status.HTTP_201_CREATED,
+    name="create_queue"
 )
 async def create_queue(
     geography_id: str,
@@ -66,7 +67,7 @@ async def create_queue(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("", response_model=CallQueueListResponse)
+@router.get("/queues", response_model=CallQueueListResponse)
 async def list_queues(
     geography_id: Optional[str] = Query(default=None),
     state: Optional[QueueState] = Query(default=None),
@@ -97,7 +98,7 @@ async def list_queues(
     )
 
 
-@router.get("/{queue_id}", response_model=CallQueueResponse)
+@router.get("/queues/{queue_id}", response_model=CallQueueResponse)
 async def get_queue(
     queue_id: str,
     current_user=Depends(get_current_user),

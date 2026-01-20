@@ -15,6 +15,7 @@ from __future__ import annotations
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
+from enum import Enum
 from typing import Optional, List, Dict, Any
 
 from backend.app.models.enums import (
@@ -89,7 +90,7 @@ class ConversationTurn(BaseModel):
     language: Optional[str] = Field(None, description="Language code for this turn")
 
 
-class ConversationStage(str):
+class ConversationStage(str, Enum):
     """
     Conversation flow stages.
 

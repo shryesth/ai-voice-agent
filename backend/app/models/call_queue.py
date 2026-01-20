@@ -8,13 +8,16 @@ Supports multiple queue modes: FOREVER (continuous), BATCH (one-time), MANUAL.
 from beanie import Document, Link
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 from backend.app.models.enums import (
     CallType,
     QueueMode,
     QueueState,
 )
+
+if TYPE_CHECKING:
+    from backend.app.models.geography import Geography
 
 
 class TimeWindow(BaseModel):
@@ -153,10 +156,6 @@ class QueueStats(BaseModel):
     last_call_at: Optional[datetime] = None
 
 
-# Forward reference for Geography (will be imported in __init__.py)
-from backend.app.models.geography import Geography
-
-
 class CallQueue(Document):
     """
     Queue of calls to process.
@@ -172,7 +171,7 @@ class CallQueue(Document):
     # Identity
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
-    geography_id: Link[Geography]
+    geography_id: Link["Geography"]
 
     # Queue configuration
     mode: QueueMode = Field(default=QueueMode.BATCH)

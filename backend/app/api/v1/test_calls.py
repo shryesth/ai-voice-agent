@@ -42,13 +42,11 @@ from backend.app.schemas.test_call import (
     TriggerCallResponse,
 )
 from backend.app.api.v1.auth import get_current_user, require_admin
-from backend.app.core.config import get_settings
+from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/test-calls", tags=["test-calls"])
-
-settings = get_settings()
 
 
 @router.post("/initiate", response_model=TestCallResponse)
@@ -143,13 +141,13 @@ async def list_active_test_calls(
     for call in active_calls:
         items.append(ActiveTestCallResponse(
             call_id=str(call.id),
-            call_sid=call.call_tracking.call_sid,
+            call_sid=call.call_tracking.call_sid if call.call_tracking else None,
             phone_number=call.contact_phone,
-            status=call.call_tracking.status,
+            status=call.call_tracking.status if call.call_tracking else None,
             call_type=call.call_type.value,
             language=call.language,
-            duration_seconds=call.call_tracking.duration_seconds,
-            started_at=call.call_tracking.started_at,
+            duration_seconds=call.call_tracking.duration_seconds if call.call_tracking else None,
+            started_at=call.call_tracking.started_at if call.call_tracking else None,
             current_stage=call.conversation_state.current_stage,
         ))
 
@@ -176,11 +174,11 @@ async def cancel_test_call(
     if not call_record.is_test_call:
         raise HTTPException(status_code=400, detail="Not a test call")
 
-    if call_record.call_tracking.status in ("completed", "failed", "canceled"):
+    if call_record.call_tracking and call_record.call_tracking.status in ("completed", "failed", "canceled"):
         raise HTTPException(status_code=400, detail="Call already ended")
 
     # Cancel via Twilio if we have a call_sid
-    if call_record.call_tracking.call_sid:
+    if call_record.call_tracking and call_record.call_tracking.call_sid:
         try:
             from twilio.rest import Client
 
@@ -195,8 +193,9 @@ async def cancel_test_call(
             logger.warning(f"Failed to cancel Twilio call: {e}")
 
     # Update call record
-    call_record.call_tracking.status = "canceled"
-    call_record.call_tracking.ended_at = datetime.utcnow()
+    if call_record.call_tracking:
+        call_record.call_tracking.status = "canceled"
+        call_record.call_tracking.ended_at = datetime.utcnow()
     call_record.updated_at = datetime.utcnow()
     await call_record.save()
 

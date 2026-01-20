@@ -58,11 +58,13 @@ async def test_db() -> AsyncGenerator:
     from backend.app.models.campaign import Campaign
     from backend.app.models.call_record import CallRecord
     from backend.app.models.queue_entry import QueueEntry
+    from backend.app.models.call_queue import CallQueue
+    from backend.app.models.recipient import Recipient
 
     # Initialize Beanie with test database
     await init_beanie(
         database=db,
-        document_models=[User, Geography, Campaign, CallRecord, QueueEntry]
+        document_models=[User, Geography, Campaign, CallRecord, QueueEntry, CallQueue, Recipient]
     )
 
     # Mark database as initialized so app's lifespan skips db.connect()
@@ -285,3 +287,124 @@ def test_geography_data() -> Dict:
             "compliance_notes": "Test data retention policy"
         }
     }
+
+
+@pytest_asyncio.fixture
+async def seeded_geography(test_db, test_geography_data) -> "Geography":
+    """
+    Create and return a seeded geography in the database.
+
+    Returns:
+        Created Geography document
+    """
+    from backend.app.models.geography import Geography
+
+    # Check if geography already exists
+    existing_geo = await Geography.find_one(Geography.region_code == test_geography_data["region_code"])
+    if existing_geo:
+        await existing_geo.delete()
+
+    # Create new geography
+    geography = Geography(
+        name=test_geography_data["name"],
+        region_code=test_geography_data["region_code"],
+        retention_policy=test_geography_data["retention_policy"]
+    )
+    await geography.insert()
+
+    return geography
+
+
+@pytest.fixture
+def test_call_queue_data() -> Dict:
+    """Provide valid CallQueue creation payload."""
+    return {
+        "name": "Test Queue",
+        "description": "Test queue for automated tests",
+        "mode": "batch",
+        "call_type": "patient_feedback",
+        "default_language": "en",
+        "max_concurrent_calls": 5,
+        "time_windows": [
+            {
+                "start_time_utc": "09:00",
+                "end_time_utc": "17:00",
+                "days_of_week": [0, 1, 2, 3, 4]
+            }
+        ],
+        "retry_strategy": {
+            "max_retries": 3,
+            "exponential_backoff": True
+        },
+        "clarity_sync_config": {
+            "enabled": False
+        }
+    }
+
+
+@pytest_asyncio.fixture
+async def seeded_call_queue(test_db, seeded_geography) -> "CallQueue":
+    """
+    Create and return a seeded CallQueue in the database.
+
+    Returns:
+        Created CallQueue document
+    """
+    from backend.app.models.call_queue import CallQueue, QueueMode, QueueState
+
+    queue = CallQueue(
+        name="Seeded Test Queue",
+        geography_id=seeded_geography.id,
+        mode=QueueMode.BATCH,
+        state=QueueState.DRAFT,
+        call_type="patient_feedback",
+        default_language="en",
+        max_concurrent_calls=5
+    )
+    await queue.insert()
+
+    return queue
+
+
+@pytest.fixture
+def test_recipient_data() -> Dict:
+    """Provide valid Recipient creation payload."""
+    return {
+        "contact_phone": "+12025551234",
+        "contact_name": "John Doe",
+        "contact_type": "patient",
+        "language": "en",
+        "priority": 0,
+        "event_info": {
+            "clarity_verification_id": "test-123",
+            "event_type": "Suivi des Enfants",
+            "event_category": "child_vaccination",
+            "confirmation_message_key": "child_vaccination_rr1",
+            "event_date": "2026-01-15T10:00:00Z",
+            "facility_name": "Test Clinic",
+            "requires_side_effects": True
+        }
+    }
+
+
+@pytest_asyncio.fixture
+async def seeded_recipient(test_db, seeded_call_queue) -> "Recipient":
+    """
+    Create and return a seeded Recipient in the database.
+
+    Returns:
+        Created Recipient document
+    """
+    from backend.app.models.recipient import Recipient, RecipientStatus
+
+    recipient = Recipient(
+        queue_id=seeded_call_queue.id,
+        contact_phone="+12025551234",
+        contact_name="Test User",
+        contact_type="patient",
+        language="en",
+        status=RecipientStatus.PENDING
+    )
+    await recipient.insert()
+
+    return recipient

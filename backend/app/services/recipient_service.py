@@ -9,6 +9,7 @@ This service handles:
 """
 
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -38,6 +39,20 @@ logger = logging.getLogger(__name__)
 class RecipientService:
     """Service for managing call queue recipients."""
 
+    def _validate_phone_number(self, phone: str) -> bool:
+        """
+        Validate phone number is in E.164 format.
+
+        E.164 format: +[1-9][0-9]{6,14}
+
+        Args:
+            phone: Phone number to validate
+
+        Returns:
+            True if valid, False otherwise
+        """
+        return bool(re.match(r"^\+[1-9]\d{6,14}$", phone))
+
     async def create_recipient(
         self,
         queue_id: str,
@@ -62,8 +77,12 @@ class RecipientService:
             Created Recipient document
 
         Raises:
-            ValueError: If queue not found or duplicate phone
+            ValueError: If queue not found, duplicate phone, or invalid phone format
         """
+        # Validate phone format
+        if not self._validate_phone_number(contact_phone):
+            raise ValueError(f"Phone must be in E.164 format (+[country][number]): {contact_phone}")
+
         # Verify queue exists
         queue = await CallQueue.get(ObjectId(queue_id))
         if not queue:
@@ -141,7 +160,7 @@ class RecipientService:
             Recipient.find(query)
             .skip(skip)
             .limit(limit)
-            .sort([("-priority", -1), ("created_at", 1)])
+            .sort([("priority", -1), ("created_at", 1)])
             .to_list()
         )
         return recipients
@@ -246,6 +265,12 @@ class RecipientService:
 
         Returns:
             Updated Recipient document
+
+        Note:
+            Multiple database updates are performed (call attempts, status, timestamps).
+            Beanie does not support transactions for single-document updates with nested arrays.
+            If atomicity becomes critical, consider using MongoDB transactions with a
+            higher-level coordinator or retrying at the task level.
         """
         recipient = await self.get_recipient_by_id(recipient_id)
         if not recipient:

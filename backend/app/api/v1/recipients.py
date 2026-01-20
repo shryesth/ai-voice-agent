@@ -5,6 +5,7 @@ Provides CRUD operations and management for queue recipients.
 """
 
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -363,7 +364,3 @@ async def get_recipient_summary(
         urgent_count=urgent_count,
         callback_requested_count=callback_count,
     )
-
-
-# Import datetime for update_recipient
-from datetime import datetime

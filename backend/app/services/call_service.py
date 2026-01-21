@@ -241,6 +241,16 @@ class CallService:
             except Exception as e:
                 logger.warning(f"Failed to queue translation task: {e}")
 
+        # Trigger recipient sync task to transfer CallRecord data to Recipient
+        # This enables bidirectional Clarity sync
+        if call.recipient_id:
+            try:
+                from backend.app.tasks.recipient_sync import sync_recipient_from_call
+                sync_recipient_from_call.delay(str(call.id))
+                logger.info(f"Queued recipient sync for CallRecord {call.id}")
+            except Exception as e:
+                logger.warning(f"Failed to queue recipient sync task: {e}")
+
         return call
 
     @staticmethod

@@ -329,22 +329,19 @@ class ClarityService:
         # Map recipient status to Clarity status
         clarity_status = self._map_status_to_clarity(recipient.status)
 
-        # Build payload
+        # Build minimal payload - ONLY what Clarity API accepts
+        # Clarity API spec (verified from /Workspace/SHIFO/clarity) only accepts:
+        #   - status (int): 2=VALID, 3=NOT_VALID, 4=NOT_REACHABLE
+        #   - is_visit_confirmed (bool): whether visit was confirmed
+        #   - recording_url (str): presigned S3 URL
+        # All other fields (satisfaction_rating, side_effects, etc.) are stored
+        # in Recipient for internal use but NOT sent to Clarity
         payload = {
             "status": clarity_status,
             "is_visit_confirmed": recipient.conversation_result.is_visit_confirmed,
-            "is_service_confirmed": recipient.conversation_result.is_service_confirmed,
-            "satisfaction_rating": recipient.conversation_result.satisfaction_rating,
-            "side_effects_reported": recipient.conversation_result.side_effects_reported,
-            "has_side_effects": recipient.conversation_result.has_side_effects,
-            "specific_concerns": recipient.conversation_result.specific_concerns,
-            "urgency_flagged": recipient.urgency_flagged,
-            "human_callback_requested": recipient.human_callback_requested,
-            "call_attempts": len(recipient.call_attempts),
-            "completed_at": recipient.completed_at.isoformat() if recipient.completed_at else None,
         }
 
-        # Add recording URL if configured
+        # Add recording URL if configured and available
         if self.config.include_recording_url and recording_url:
             payload["recording_url"] = recording_url
 

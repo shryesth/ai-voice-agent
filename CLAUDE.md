@@ -4,265 +4,230 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Patient Feedback Collection API - an AI-powered voice call system for collecting patient feedback after medical appointments. Uses Twilio for telephony, OpenAI Realtime API for conversational AI, and Pipecat for voice pipeline orchestration.
+AI-powered voice agent system for collecting patient feedback via automated phone calls. Built with FastAPI, Pipecat v0.0.99 (voice pipeline framework), OpenAI Realtime API (gpt-realtime-mini-2025-10-06), Twilio, MongoDB, Redis, and Celery. Supports 4 languages (English, Spanish, French, Haitian Creole) with multi-geography deployment.
 
-## Development Commands
+## Common Commands
 
+### Development
 ```bash
-# Start all services (MongoDB, Redis, MinIO, API, Celery worker, Celery beat)
+# Start all services (MongoDB, Redis, MinIO, API, Celery)
 docker compose -f docker-compose.dev.yml up
 
-# Access MinIO Console (Web UI for managing object storage)
-# URL: http://localhost:9001
-# Username: minioadmin
-# Password: minioadmin
+# View API logs
+docker compose -f docker-compose.dev.yml logs -f api
 
-# Create bucket via MinIO Console (required on first setup):
-# 1. Open http://localhost:9001
-# 2. Login with minioadmin/minioadmin
-# 3. Click "Buckets" → "Create Bucket"
-# 4. Name: voice-recordings (for dev) or voice-recordings-uat (for UAT)
-# 5. Click "Create Bucket"
+# Access MinIO Console (for S3 storage)
+# URL: http://localhost:9001  Credentials: minioadmin/minioadmin
+```
 
-# Run API server locally (requires MongoDB, Redis, and MinIO running)
-# The app automatically loads config/.env.local based on ENVIRONMENT variable
-# Default is "development" which loads config/.env.local
-.venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
-
-# Run with explicit environment (loads config/.env.uat or config/.env.prod)
-ENVIRONMENT=staging .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
-ENVIRONMENT=production .venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
-
-# Install dependencies with uv
-uv pip install -r requirements.txt
-
-# Run tests with coverage
+### Testing
+```bash
+# Run all tests with coverage
 pytest
 
-# Run specific test markers
-pytest -m contract      # API contract tests
-pytest -m integration   # Integration tests (voice pipeline)
-pytest -m unit          # Unit tests
-pytest -m voice         # Voice pipeline tests
-pytest -m queue         # Queue processing tests
+# Run specific test categories
+pytest tests/unit -m unit
+pytest tests/integration -m integration
+pytest tests/contract -m contract
 
 # Run single test file
-pytest tests/contract/test_auth.py
+pytest tests/contract/test_auth.py -v
 
-# Run single test
-pytest tests/contract/test_auth.py::test_login_success -v
+# Run tests by marker
+pytest -m "not slow"
+pytest -m voice
+pytest -m queue
+```
 
-# Linting and formatting
-ruff check backend/
-black backend/
-mypy backend/
+### Code Quality
+```bash
+black backend/ tests/           # Format
+ruff check backend/ tests/      # Lint
+mypy backend/                   # Type check
+```
+
+### Celery Tasks
+```bash
+# Start worker manually
+celery -A backend.app.celery_app worker --loglevel=info
+
+# Start beat scheduler manually
+celery -A backend.app.celery_app beat --loglevel=info
+
+# Monitor with Flower
+celery -A backend.app.celery_app flower --port=5555
 ```
 
 ## Architecture
 
-### Service Components
-- **FastAPI Application** (`backend/app/main.py`): API server on port 3000
-- **Celery Worker** (`backend/app/celery_app.py`): Async task processing for voice calls
-- **Celery Beat**: Scheduler that runs queue processor every 30 seconds
-
-### Directory Structure
+### Layer Structure
 ```
 backend/app/
-├── api/v1/          # Route handlers (auth, health, geographies, campaigns, calls, queue)
-├── core/            # Config, database, redis, security, logging
-├── models/          # Beanie ODM models (User, Geography, Campaign, CallRecord, QueueEntry)
+├── api/v1/          # FastAPI route handlers (REST endpoints)
+├── services/        # Business logic, data access coordination
+├── domains/         # Feature-specific logic
+│   └── patient_feedback/
+│       ├── voice_pipeline.py      # Pipecat voice pipeline
+│       ├── flow_manager.py        # Conversation state management
+│       └── function_registry.py   # LLM function handlers (6 stages)
+├── models/          # MongoDB document models (Beanie ODM)
 ├── schemas/         # Pydantic request/response schemas
-├── services/        # Business logic layer
-├── tasks/           # Celery tasks (queue_processor, retry_handler, voice_call, recording_download, split_recording)
-├── infrastructure/  # External service integrations (S3/MinIO storage)
-└── domains/         # Domain-specific modules
-    └── patient_feedback/  # Voice pipeline, Twilio integration, urgency detection, FlowManager
+├── tasks/           # Celery async tasks
+├── infrastructure/  # External integrations (S3, Twilio)
+└── core/            # Config, database, security, logging
 ```
 
-### Data Flow
+### Key Patterns
+- **Async-first**: All DB, Redis, and HTTP operations are async
+- **Lifespan management**: FastAPI `@asynccontextmanager` for startup/shutdown
+- **Beanie ODM**: MongoDB document models with async operations
+- **State machine**: FlowManager handles 6-stage conversation flow (confirm_guardian → confirm_visit → confirm_service → record_side_effects → record_satisfaction → end_call)
 
-**Call Initiation & Execution:**
-1. Campaign created with patient phone list → QueueEntry records created
-2. Celery Beat triggers `queue_processor` every 30s
-3. Queue processor dequeues entries respecting concurrency limits
-4. `voice_call` task initiates Twilio call with Pipecat voice pipeline
-5. Twilio webhooks update CallRecord with status/transcript
-6. Failed calls retry with backoff; max 3 attempts before Dead Letter Queue (DLQ)
+### Configuration System
+Environment detection via `ENVIRONMENT` variable:
+- `development` → `config/.env.local`
+- `staging` → `config/.env.uat`
+- `production` → `config/.env.prod`
 
-**Recording Processing Pipeline:**
-1. Call completes → Twilio webhook provides recording URL
-2. `download_twilio_recording` task fetches MP3 from Twilio, uploads dual-channel recording to MinIO
-3. `split_recording_task` downloads dual-channel MP3, splits into caller/callee/mixed mono tracks using pydub
-4. Split tracks uploaded to MinIO with S3 keys cached in CallRecord.recording
+Test environment overrides:
+- `SKIP_STARTUP_VALIDATION=true` - Skip connectivity checks for test isolation
+- `ENABLE_BOOTSTRAP_ADMIN=false` - Disable auto-creation of admin user in tests
 
-### Key Technologies
-- **Database**: MongoDB 8.0 with Beanie ODM 2.0.1 (uses `pymongo.AsyncMongoClient`)
-- **Cache/Broker**: Redis 7 (Celery broker + result backend)
-- **Voice Pipeline**: Pipecat v0.0.99 + custom FlowManager for conversation state machine
-- **Telephony**: Twilio Media Streams (WebSocket)
-- **AI Model**: OpenAI gpt-4o-realtime-preview
-- **Storage**: S3/MinIO via boto3 for call recordings (supports both AWS S3 and self-hosted MinIO)
-- **Audio Processing**: pydub for splitting dual-channel recordings into caller/callee/mixed tracks
+### Main Entry Points
+- **API**: `backend/app/main.py` → `uvicorn backend.app.main:app`
+- **Celery**: `backend/app/celery_app.py`
+- **Voice Pipeline**: `backend/app/domains/patient_feedback/voice_pipeline.py`
 
-### Database Connection
-The database module (`backend/app/core/database.py`) performs fail-fast prechecks on startup:
-1. **Connectivity check** - Pings MongoDB server
-2. **Database access check** - Verifies database can be accessed
-3. **Privileges check** - Verifies user permissions (read-only check)
+### API Routes
+- `POST /api/v1/auth/login` - JWT authentication
+- `GET /api/v1/health/live` - Liveness probe
+- `GET /api/v1/metrics` - Prometheus metrics
+- `GET/POST /api/v1/geographies` - Regional organization management
+- `GET/POST /api/v1/queues` - CallQueue management (NEW architecture)
+- `GET/POST /api/v1/recipients` - Recipient & DLQ management (NEW)
+- `POST /api/v1/calls/test` - Initiate test call with scenarios
+- `GET/POST /api/v1/calls` - Call records & Twilio webhooks
+- `GET/POST /api/v1/campaigns` - Legacy campaign endpoints (backward compatibility)
+- `GET/POST /api/v1/queue` - Legacy queue endpoints (backward compatibility)
 
-If any precheck fails, the application exits immediately with a clear error message.
+### Celery Tasks (in `tasks/`)
+- `process_campaign_queues` - Periodic queue processor (Beat: every 30s)
+- `initiate_patient_call` - Initiate voice call with Twilio
+- `update_call_from_webhook` - Handle Twilio status webhooks
+- `download_twilio_recording` - Download & upload recordings to S3
+- `translate_transcript` - OpenAI-based transcript translation for non-English calls
+- `sync_clarity_data` - Bidirectional sync with Clarity integration
+- Intelligent retry with exponential backoff via `retry_handler.py`
 
-## Configuration
+## Database
 
-Settings loaded via Pydantic Settings from environment-specific files in `config/` directory. The application automatically selects the correct config file based on the `ENVIRONMENT` variable.
+MongoDB with Beanie async ODM. Key collections:
+- `users` - Admin/User accounts with RBAC (Admin vs User roles)
+- `geographies` - Regional organizations with retention policies
+- `call_queues` - NEW: Queue definitions (replaces campaigns)
+- `recipients` - NEW: Queue recipients (replaces queue_entry)
+- `campaigns` - Legacy: Campaign definitions (backward compatibility)
+- `queue_entry` - Legacy: Queue entries (backward compatibility)
+- `call_records` - Call data with conversation transcripts
+- `recording_dlq` - Dead Letter Queue for failed S3 uploads
 
-### Automatic Config Loading (`backend/app/core/config.py`)
-The `Settings` class automatically loads the appropriate config file:
-
-**Environment Detection:**
-- Reads `ENVIRONMENT` variable (defaults to "development" if not set)
-- Maps environment to config file:
-  - `development` → `config/.env.local`
-  - `staging` → `config/.env.uat`
-  - `production` → `config/.env.prod`
-- Fallback to root `.env` for backward compatibility
-- Uses Field defaults if no config file found
-
-**Usage:**
-```bash
-# Local development (loads config/.env.local)
-python -m uvicorn backend.app.main:app --reload
-
-# Staging (loads config/.env.uat)
-ENVIRONMENT=staging python -m uvicorn backend.app.main:app --reload
-
-# Production (loads config/.env.prod)
-ENVIRONMENT=production python -m uvicorn backend.app.main:app --reload
-```
-
-### Environment Files
-- **`config/.env.local`** - Local development with MinIO at localhost:9000 (gitignored, contains real credentials)
-- **`config/.env.uat`** - UAT/staging environment (gitignored, create from `config/.env.uat.example`)
-- **`config/.env.prod`** - Production environment (gitignored, create from `config/.env.prod.example`)
-- **`config/.env.base`** - Base configuration template with all variables (tracked in git)
-- **`config/.env.*.example`** - Environment templates with placeholders (tracked in git)
-
-### Docker Compose Integration
-Docker Compose files override the `ENVIRONMENT` variable and load config via `env_file`:
-- **Development**: `docker compose -f docker-compose.dev.yml up` uses `config/.env.local`
-- **UAT/Staging**: `docker compose -f docker-compose.uat.yml up` uses `config/.env.uat`
-- **Production**: `docker compose -f docker-compose.production.yml up` uses `config/.env.prod`
-
-### Storage Configuration by Environment
-- **Local**: MinIO (Docker) at `http://minio:9000` in container or `http://localhost:9000` from host (bucket: `voice-recordings`)
-- **UAT**: MinIO (Docker, default) at `http://minio:9000` (bucket: `voice-recordings-uat`) or Hetzner Object Storage (optional)
-- **Production**: Hetzner Object Storage (external) at `https://nbg1.your-objectstorage.com` (bucket: `shifo-supervisor`)
-
-### Key Settings
-- `MONGODB_URI` - MongoDB connection string (e.g., `mongodb://localhost:27017`)
-- `MONGODB_DATABASE` - Database name (e.g., `voice_agent`)
-- `ENVIRONMENT` - Environment name (development, staging, production)
-- `PUBLIC_URL` - Public URL for Twilio webhooks (e.g., ngrok URL for local dev)
-- `S3_ENDPOINT_URL` - Storage endpoint (MinIO or Hetzner)
-- `S3_BUCKET_NAME` - Bucket for call recordings
-- Required fields: `JWT_SECRET_KEY`, `TWILIO_*`, `OPENAI_API_KEY`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
-
-### MinIO Configuration
-
-**Default Setup (Development)**
-- Credentials: minioadmin / minioadmin (can be customized via environment variables)
-- Version: Pinned to specific release (RELEASE.2025-01-20T14-49-07Z) for reproducibility
-
-**Custom Credentials (Optional)**
-To use custom MinIO credentials in development:
-
-1. Edit `config/.env.local`:
-   ```bash
-   MINIO_ROOT_USER=your-custom-user
-   MINIO_ROOT_PASSWORD=your-strong-password
-   S3_ACCESS_KEY_ID=your-custom-user
-   S3_SECRET_ACCESS_KEY=your-strong-password
-   ```
-
-2. Restart services:
-   ```bash
-   docker compose -f docker-compose.dev.yml down
-   docker compose -f docker-compose.dev.yml up -d
-   ```
-
-**Updating MinIO Version**
-The MinIO version is pinned in docker-compose files for reproducibility.
-To update to a newer version:
-1. Check latest releases: https://github.com/minio/minio/releases
-2. Update `image:` tag in docker-compose.dev.yml and docker-compose.uat.yml
-3. Rebuild: `docker compose -f docker-compose.dev.yml up -d --build`
-
-### MongoDB Configuration
-
-**Authentication**
-
-**Development Environment**:
-- Authentication: **Disabled** (by design)
-- Rationale: Ease of development, faster iteration, no sensitive data
-- Warning: "Access control is not enabled" is expected and safe for local development
-
-**UAT/Production Environments**:
-- Authentication: **Enabled**
-- Credentials managed via environment variables
-- Root username: `${MONGODB_ROOT_USERNAME:-admin}`
-- Root password: Required (no default)
-
-**Suppressing MongoDB Startup Warnings (Optional)**
-
-If you want to suppress MongoDB's startup warnings in development logs, add to docker-compose.dev.yml:
-
-```yaml
-mongodb:
-  command: ["mongod", "--quiet"]  # Suppress startup warnings
-```
-
-**Note**: This hides informational warnings but doesn't address underlying OS optimizations. See `config/README.md` for OS-level MongoDB performance tuning options.
-
-For detailed configuration documentation, see `config/README.md`.
+Privacy filtering: User role receives `[REDACTED]` for patient_phone fields.
 
 ## Testing
 
-Tests organized by type:
-- `tests/contract/` - API contract tests validating endpoint behavior
-- `tests/integration/` - Integration tests for voice pipeline
-- `tests/unit/` - Unit tests for models, services, tasks
+- **80% coverage requirement** (configured in pytest.ini)
+- **Markers**: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.contract`, `@pytest.mark.voice`, `@pytest.mark.queue`, `@pytest.mark.auth`
+- **Fixtures** in `tests/conftest.py`: `async_client`, `test_db`, `test_admin_user`, `auth_headers`
 
-Test fixtures in `tests/conftest.py` provide:
-- `async_client` - HTTPX client for API testing
-- `auth_headers` / `user_auth_headers` - JWT auth headers (admin/user roles)
-- `test_db` - Isolated test database
+## Voice Pipeline (Pipecat v0.0.99)
 
-Coverage threshold: 80% (enforced by pytest.ini)
+The voice system uses Pipecat framework with:
+- **OpenAI Realtime API**: gpt-realtime-mini-2025-10-06 model
+- **Silero VAD**: Voice activity detection for turn management
+- **FunctionRegistry**: Pipecat-compatible handlers (FunctionCallParams + result_callback pattern)
+- **FlowManager**: 6-stage state machine with conversation data persistence
+- **Twilio**: Telephony integration via WebSocket (TwilioFrameSerializer)
+- **Turn Strategies**: VADUserTurnStartStrategy + TranscriptionUserTurnStopStrategy
 
-## API Structure
+Conversation stages:
+1. `confirm_guardian` - Verify speaking with correct person
+2. `confirm_visit` - Verify patient visited facility on date
+3. `confirm_service` - Verify specific service was received
+4. `record_side_effects` - Record side effects (vaccination service only)
+5. `record_satisfaction` - Collect 1-10 satisfaction rating
+6. `end_call` - Thank and disconnect with EndFrame
 
-All endpoints under `/api/v1/`:
-- `/auth` - JWT authentication (login, logout, me)
-- `/health`, `/health/ready`, `/health/live` - Health checks
-- `/metrics`, `/metrics/prometheus` - Monitoring
-- `/geographies` - Regional organization (Admin: create/update/delete)
-- `/campaigns` - Campaign management with state machine (DRAFT→ACTIVE↔PAUSED→COMPLETED)
-- `/calls` - Call records and transcripts
-- `/queue` - Queue status and DLQ management (Admin only)
+Multilingual support:
+- System prompts in `domains/patient_feedback/prompts/{lang}/` (en, es, fr, ht)
+- Voice mapping: en→alloy, es→nova, fr→alloy, ht→echo
+- Automatic transcript translation for non-English calls
 
-Role-based access: Admin has full access; User role has read-only with phone numbers redacted.
+## Infrastructure & Storage
 
-## Voice Pipeline Architecture
+**S3/MinIO**:
+- Bucket: `voice-recordings` (configurable via `S3_BUCKET_NAME`)
+- Purpose: Store call recordings from Twilio
+- Upload retry: Exponential backoff (1s base, 60s max), max 5 attempts
+- Fallback DLQ: Redis with 7-day TTL if S3 unavailable
 
-### FlowManager (State Machine)
-The custom FlowManager (`backend/app/domains/patient_feedback/flow_manager.py`) replaces the imaginary pipecat-flows package with a local implementation:
-- **NodeConfig**: Defines conversation stages with role/task messages and available LLM functions
-- **FlowManager**: Manages conversation state transitions and provides function schemas to OpenAI Realtime API
-- **FlowsFunctionSchema**: Converts function definitions to OpenAI tool calling format
-- Used in `conversation_flow.py` to orchestrate multi-stage patient feedback collection
+**Redis Usage**:
+- Celery broker for task distribution
+- Celery result backend (1-hour expiry)
+- Application caching (health checks, metadata)
 
-### Recording Storage
-S3StorageClient (`backend/app/infrastructure/storage/s3_storage.py`) provides unified interface for both AWS S3 and MinIO:
-- Automatically detects MinIO vs AWS based on `S3_ENDPOINT_URL` setting
-- Supports upload, download, presigned URLs, and deletion
-- Used by recording tasks to persist and retrieve call audio
+**Docker Deployment**:
+- Development: `docker-compose.dev.yml` with hot reload and local volumes
+- Production: `docker-compose.production.yml` with:
+  - Resource limits (MongoDB: 2 CPU/2GB RAM, Redis: 1 CPU/1GB RAM)
+  - Network segmentation (backend-network + frontend-network)
+  - Health checks (30s interval, 3 retries)
+  - 2 API replicas, 2 Celery worker replicas, 1 Beat replica
+  - Log rotation (50MB max, 5 files)
+
+## Important Patterns
+
+**Service Layer Architecture**:
+- Controllers (api/v1/) handle HTTP concerns only
+- Services (services/) contain business logic and coordinate data access
+- Domains (domains/) contain feature-specific logic isolated from API layer
+- Models (models/) are Beanie ODM documents with async operations
+
+**Async-First Design**:
+- All DB, Redis, and HTTP operations use async/await
+- Celery worker creates event loop on startup for MongoDB compatibility
+- Test fixtures use pytest-asyncio with function-scoped event loops
+
+**Celery Worker Initialization Pattern**:
+```python
+# workers must initialize event loop for Beanie async operations
+import asyncio
+from beanie import init_beanie
+
+@celery.on_after_configure.connect
+def worker_startup(sender, **kwargs):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(init_beanie(...))
+```
+
+**State Management in Voice Pipeline**:
+- FlowManager tracks conversation state across 6 stages
+- FunctionRegistry dispatches LLM function calls to stage-specific handlers
+- Each handler returns FunctionCallParams result via result_callback
+- State persisted to CallRecord on completion or error
+
+**Privacy & Security**:
+- JWT-based authentication with role-based access control (RBAC)
+- User role receives `[REDACTED]` for patient_phone in API responses
+- Admin role has full data access
+- Password hashing via bcrypt
+
+## Specs and Documentation
+
+Feature specifications in `specs/001-patient-feedback-api/`:
+- `spec.md` - Feature specification with user stories
+- `plan.md` - Implementation roadmap
+- `data-model.md` - Database schema documentation
+- `contracts/` - API contract definitions
+- `quickstart.md` - Getting started guide
+- `deployment-analysis.md` - Production deployment architecture

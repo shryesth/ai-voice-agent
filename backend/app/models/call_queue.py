@@ -93,7 +93,7 @@ class ClaritySyncConfig(BaseModel):
 
     enabled: bool = Field(default=False)
     sync_interval_minutes: int = Field(
-        default=5,
+        default=15,
         ge=1,
         le=60,
         description="How often to poll Clarity for new subjects",
@@ -121,7 +121,7 @@ class ClaritySyncConfig(BaseModel):
         json_schema_extra = {
             "example": {
                 "enabled": True,
-                "sync_interval_minutes": 5,
+                "sync_interval_minutes": 15,
                 "max_per_sync": 100,
                 "event_type_filter": ["Suivi des Enfants", "Prenatal"],
             }

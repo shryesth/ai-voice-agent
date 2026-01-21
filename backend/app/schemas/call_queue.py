@@ -50,7 +50,7 @@ class ClaritySyncConfigSchema(BaseModel):
     """Configuration for Clarity sync."""
 
     enabled: bool = Field(default=False)
-    sync_interval_minutes: int = Field(default=5, ge=1, le=60)
+    sync_interval_minutes: int = Field(default=15, ge=1, le=60)
     max_per_sync: int = Field(default=100, ge=1, le=1000)
     event_type_filter: List[str] = Field(default_factory=list)
 
@@ -161,6 +161,29 @@ class CallQueueStateChangeResponse(BaseModel):
     previous_state: str
     new_state: str
     changed_at: datetime
+
+
+class CallQueueSyncResponse(BaseModel):
+    """Response schema for manual Clarity sync."""
+
+    queue_id: str
+    queue_name: str
+    synced_count: int = Field(
+        ...,
+        description="Number of new recipients synced from Clarity"
+    )
+    last_sync_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of this sync"
+    )
+    last_sync_count: int = Field(
+        default=0,
+        description="Total count from last sync"
+    )
+    task_id: str = Field(
+        ...,
+        description="Celery task ID for tracking"
+    )
 
 
 def queue_to_response(queue, include_stats: bool = True) -> CallQueueResponse:

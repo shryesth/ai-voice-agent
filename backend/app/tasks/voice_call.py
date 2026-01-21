@@ -186,7 +186,7 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
                 call_record.call_tracking.duration_seconds = int(duration)
             # Don't override outcome if pipeline already set it
             if not call_record.call_tracking.outcome:
-                call_record.call_tracking.outcome = CallOutcome.SUCCESS
+                call_record.call_tracking.outcome = CallOutcome.COMPLETED_FULL
         elif status in ["busy", "no-answer", "failed", "canceled"]:
             call_record.call_tracking.ended_at = datetime.utcnow()
             if status == "busy":
@@ -194,7 +194,7 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
             elif status == "no-answer":
                 call_record.call_tracking.outcome = CallOutcome.NO_ANSWER
             else:
-                call_record.call_tracking.outcome = CallOutcome.FAILED
+                call_record.call_tracking.outcome = CallOutcome.TECHNICAL_ERROR
 
         call_record.updated_at = datetime.utcnow()
         loop.run_until_complete(call_record.save())

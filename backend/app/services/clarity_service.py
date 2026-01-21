@@ -309,9 +309,9 @@ class ClarityService:
         # Determine language
         language = subject.get("language", subject.get("preferred_language", queue.default_language))
 
-        # Create recipient
+        # Create recipient (just use queue.id for the Link field)
         recipient = Recipient(
-            queue_id=queue,  # Pass the queue Document, not just the ID
+            queue_id=queue.id,  # Link field accepts document ID
             external_source=ExternalSource.CLARITY,
             external_id=str(verification_id),
             contact_phone=phone,

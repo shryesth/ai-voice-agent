@@ -185,8 +185,16 @@ class ClarityService:
             logger.debug(f"Recipient already exists for verification {verification_id}")
             return None
 
-        # Extract event info
-        event_type = subject.get("event_type", subject.get("service_type", ""))
+        # Extract event info (handle camelCase and nested eventInfo)
+        event_info_obj = subject.get("eventInfo", subject.get("event_info", {}))
+        event_type = (
+            subject.get("event_type")
+            or subject.get("eventType")
+            or subject.get("service_type")
+            or event_info_obj.get("eventType")
+            or event_info_obj.get("event_type")
+            or ""
+        )
 
         # Check if this event type should trigger calls
         if not is_callable_event(event_type):
@@ -198,9 +206,23 @@ class ClarityService:
             logger.debug(f"Skipping filtered event type: {event_type}")
             return None
 
-        # Get event type configuration
-        vaccines = subject.get("vaccines", [])
-        attributes = subject.get("attributes", {})
+        # Get event type configuration (check eventInfo structure)
+        vaccines = (
+            subject.get("vaccines")
+            or event_info_obj.get("vaccineDoses")
+            or event_info_obj.get("vaccines")
+            or []
+        )
+        attributes_list = (
+            subject.get("attributes")
+            or event_info_obj.get("attributes")
+            or []
+        )
+        # Convert attributes list to dict if needed
+        if isinstance(attributes_list, list):
+            attributes = {attr.get("name", ""): attr.get("value", "") for attr in attributes_list}
+        else:
+            attributes = attributes_list or {}
         event_config = get_event_type_config(event_type, vaccines, attributes)
 
         # Extract contact information
@@ -209,11 +231,29 @@ class ClarityService:
             logger.warning(f"Subject {verification_id} missing phone number, skipping")
             return None
 
-        # Determine contact type
-        patient_name = subject.get("patient_name", subject.get("name", ""))
-        contact_name = subject.get("contact_name", subject.get("phone_owner_name", patient_name))
-        patient_age = subject.get("patient_age", subject.get("age"))
-        phone_owner_name = subject.get("phone_owner_name")
+        # Determine contact type (handle camelCase)
+        patient_name = (
+            subject.get("patient_name")
+            or subject.get("patientName")
+            or subject.get("name")
+            or ""
+        )
+        contact_name = (
+            subject.get("contact_name")
+            or subject.get("contactName")
+            or subject.get("phone_owner_name")
+            or subject.get("contactPhoneOwnerName")
+            or patient_name
+        )
+        patient_age = (
+            subject.get("patient_age")
+            or subject.get("patientAge")
+            or subject.get("age")
+        )
+        phone_owner_name = (
+            subject.get("phone_owner_name")
+            or subject.get("contactPhoneOwnerName")
+        )
 
         contact_type = determine_contact_type(
             patient_age=patient_age,
@@ -222,13 +262,29 @@ class ClarityService:
             phone_owner_name=phone_owner_name,
         )
 
-        # Extract facility info
-        facility_name = subject.get("facility_name", subject.get("dispensary_name", ""))
-        facility_id = subject.get("facility_id", subject.get("dispensary_id"))
+        # Extract facility info (check eventInfo and camelCase)
+        facility_name = (
+            subject.get("facility_name")
+            or subject.get("facilityName")
+            or subject.get("dispensary_name")
+            or event_info_obj.get("eventFacility")
+            or event_info_obj.get("facility_name")
+            or ""
+        )
+        facility_id = (
+            subject.get("facility_id")
+            or subject.get("facilityId")
+            or subject.get("dispensary_id")
+        )
 
-        # Parse event date
+        # Parse event date (check eventInfo and camelCase)
         event_date = None
-        date_str = subject.get("event_date", subject.get("visit_date"))
+        date_str = (
+            subject.get("event_date")
+            or subject.get("eventDate")
+            or subject.get("visit_date")
+            or event_info_obj.get("eventDate")
+        )
         if date_str:
             try:
                 event_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))

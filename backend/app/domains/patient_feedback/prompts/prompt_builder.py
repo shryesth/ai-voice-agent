@@ -163,6 +163,32 @@ def build_system_prompt(
     else:
         guardian_info = contact_name or patient_name
 
+    # Determine if speaking directly to patient or to a guardian
+    # Use "you/your" when speaking to patient directly, use patient name when speaking to guardian
+    # For child events, we're always speaking to a guardian about the child
+    is_child = is_child_event or event_info.get("is_child_event", False)
+    effective_patient_name = child_name or event_info.get("child_name") or patient_name
+
+    is_speaking_to_patient = (
+        not is_child and  # Child events always involve a guardian
+        (
+            contact_name == patient_name or
+            (not contact_name) or
+            event_info.get("contact_type") == "patient"
+        )
+    )
+
+    if is_speaking_to_patient:
+        subject_name = "you"
+        possessive = "your"
+    else:
+        # Speaking to a guardian about the patient (or child)
+        subject_name = effective_patient_name
+        possessive = f"{effective_patient_name}'s"
+
+    # Get event type for side effects logic
+    event_type = event_info.get("event_type", "general")
+
     # Get language instruction
     language_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["en"])
 
@@ -175,6 +201,9 @@ def build_system_prompt(
             facility_name=facility_name,
             visit_date=visit_date,
             service_name=service_name,
+            event_type=event_type,
+            subject_name=subject_name,
+            possessive=possessive,
             greeting_instruction=greeting_instruction,
             confirmation_message=confirmation_message,
             language_instruction=language_instruction,

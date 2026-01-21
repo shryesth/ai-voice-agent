@@ -179,11 +179,7 @@ class FunctionRegistry:
             self.flow_manager.state["completed_stages"] = completed_stages
 
             # Return success - LLM will continue to visit confirmation
-            await params.result_callback({
-                "status": "confirmed",
-                "message": "Guardian identity confirmed. Proceed to visit confirmation.",
-                "next_stage": "confirm_visit"
-            })
+            await params.result_callback({"success": True})
             return
 
         # Not confirmed - check retry count
@@ -203,19 +199,11 @@ class FunctionRegistry:
                     EndFrame()
                 ])
 
-            await params.result_callback({
-                "status": "failed",
-                "message": "Max retries reached. Call ending.",
-                "reason": "wrong_person_max_retries"
-            })
+            await params.result_callback({"success": False, "call_ended": True})
             return
 
         # Still have retries - ask to retry
-        await params.result_callback({
-            "status": "retry",
-            "message": f"Not confirmed. Please verify identity again. Retry {retry_count}/{MAX_RETRIES}.",
-            "retries_remaining": MAX_RETRIES - retry_count
-        })
+        await params.result_callback({"success": False, "retry": True})
 
     # =========================================================================
     # Stage 2: Confirm Visit Handler
@@ -248,12 +236,7 @@ class FunctionRegistry:
                 logger.info("Visit not confirmed after max retries, proceeding with discrepancy noted")
 
         # Always proceed to service confirmation
-        await params.result_callback({
-            "status": "confirmed" if confirmed else "not_confirmed",
-            "message": "Visit confirmation recorded. Proceed to service confirmation.",
-            "next_stage": "confirm_service",
-            "discrepancy_noted": self.flow_manager.state.get("visit_discrepancy", False)
-        })
+        await params.result_callback({"success": True})
 
     # =========================================================================
     # Stage 3: Confirm Service Handler
@@ -292,12 +275,7 @@ class FunctionRegistry:
             self.flow_manager.state["service_not_confirmed_followup"] = True
             logger.info("Service not confirmed, marked for follow-up")
 
-        await params.result_callback({
-            "status": "confirmed" if confirmed else "not_confirmed",
-            "message": f"Service confirmation recorded. Proceed to {next_stage}.",
-            "next_stage": next_stage,
-            "is_vaccination": is_vaccination
-        })
+        await params.result_callback({"success": True})
 
     # =========================================================================
     # Stage 4: Record Side Effects Handler (vaccination only)
@@ -332,12 +310,7 @@ class FunctionRegistry:
             self.flow_manager.state["urgency_flagged"] = True
             logger.warning(f"Severe side effects detected: {details}")
 
-        await params.result_callback({
-            "status": "recorded",
-            "message": "Side effects recorded. Proceed to satisfaction rating.",
-            "next_stage": "record_satisfaction",
-            "severe": is_severe
-        })
+        await params.result_callback({"success": True})
 
     # =========================================================================
     # Stage 5: Record Satisfaction Handler
@@ -369,13 +342,7 @@ class FunctionRegistry:
             self.flow_manager.state["low_satisfaction_followup"] = True
             logger.info(f"Low satisfaction rating ({rating}), marked for follow-up")
 
-        await params.result_callback({
-            "status": "recorded",
-            "message": "Satisfaction rating recorded. Proceed to end the call.",
-            "next_stage": "end_call",
-            "rating": rating,
-            "needs_followup": rating <= 3
-        })
+        await params.result_callback({"success": True})
 
     # =========================================================================
     # Stage 6: End Call Handler
@@ -426,8 +393,4 @@ class FunctionRegistry:
             logger.warning("No task available to queue EndFrame - call may not disconnect properly")
 
         # Return result (triggers LLM acknowledgment before disconnect)
-        await params.result_callback({
-            "status": "ended",
-            "message": "Call ending. Goodbye message queued.",
-            "reason": reason
-        })
+        await params.result_callback({"success": True, "call_ended": True})

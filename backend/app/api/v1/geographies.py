@@ -42,6 +42,7 @@ def geography_to_response(geography) -> GeographyResponse:
         name=geography.name,
         description=geography.description,
         region_code=geography.region_code,
+        clarity_config=geography.clarity_config,
         retention_policy=geography.retention_policy,
         metadata=geography.metadata,
         created_at=geography.created_at,

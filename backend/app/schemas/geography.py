@@ -41,32 +41,6 @@ class RetentionPolicyResponse(RetentionPolicyCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GeographyCreate(BaseModel):
-    """Request schema for creating a new geography"""
-    name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
-    region_code: Optional[str] = Field(None, max_length=20)
-    retention_policy: RetentionPolicyCreate = Field(default_factory=RetentionPolicyCreate)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "North America - East Coast",
-                "description": "US East Coast operations covering NY, NJ, PA, MD",
-                "region_code": "US-EAST",
-                "retention_policy": {
-                    "retention_days": 2555,
-                    "compliance_notes": "HIPAA requires 7-year retention"
-                },
-                "metadata": {
-                    "timezone": "America/New_York",
-                    "primary_language": "en"
-                }
-            }
-        }
-
-
 class ClarityConfigCreate(BaseModel):
     """Clarity API integration configuration"""
     enabled: bool = Field(default=False)
@@ -90,6 +64,41 @@ class ClarityConfigCreate(BaseModel):
         }
 
 
+class ClarityConfigResponse(ClarityConfigCreate):
+    """Clarity config in API responses (same as create)"""
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GeographyCreate(BaseModel):
+    """Request schema for creating a new geography"""
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    region_code: Optional[str] = Field(None, max_length=20)
+    timezone: str = Field(default="UTC")
+    default_language: str = Field(default="en")
+    supported_languages: List[str] = Field(default_factory=lambda: ["en"])
+    clarity_config: Optional[ClarityConfigCreate] = Field(default=None)
+    retention_policy: RetentionPolicyCreate = Field(default_factory=RetentionPolicyCreate)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "North America - East Coast",
+                "description": "US East Coast operations covering NY, NJ, PA, MD",
+                "region_code": "US-EAST",
+                "retention_policy": {
+                    "retention_days": 2555,
+                    "compliance_notes": "HIPAA requires 7-year retention"
+                },
+                "metadata": {
+                    "timezone": "America/New_York",
+                    "primary_language": "en"
+                }
+            }
+        }
+
+
 class GeographyUpdate(BaseModel):
     """Request schema for updating geography (all fields optional)"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
@@ -109,11 +118,6 @@ class GeographyUpdate(BaseModel):
                 }
             }
         }
-
-
-class ClarityConfigResponse(ClarityConfigCreate):
-    """Clarity config in API responses (same as create)"""
-    model_config = ConfigDict(from_attributes=True)
 
 
 class GeographyResponse(BaseModel):

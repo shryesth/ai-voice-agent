@@ -107,6 +107,10 @@ CONFIRMATION_MESSAGES_EN: Dict[str, str] = {
 # Haitian Creole (ht) confirmation messages
 CONFIRMATION_MESSAGES_HT: Dict[str, str] = {
     # ===== Child Vaccination =====
+    "child_vaccination": (
+        "{child_name} te vini pou vaksinasyon epi li te resevwa {vaccine_name}, "
+        "èske sa kòrèk?"
+    ),
     "child_vaccination_generic": (
         "{child_name} te vini pou vaksinasyon epi li te resevwa {vaccine_name}, "
         "èske sa kòrèk?"
@@ -121,6 +125,10 @@ CONFIRMATION_MESSAGES_HT: Dict[str, str] = {
     ),
     "child_vaccination_penta1": (
         "{child_name} te vini pou vaksinasyon epi li te resevwa premye dòz vaksen Penta a, "
+        "èske sa kòrèk?"
+    ),
+    "child_vaccination_penta2": (
+        "{child_name} te vini pou vaksinasyon epi li te resevwa dezyèm dòz vaksen Penta a, "
         "èske sa kòrèk?"
     ),
     "child_vaccination_penta3": (
@@ -138,6 +146,29 @@ CONFIRMATION_MESSAGES_HT: Dict[str, str] = {
     "child_vitamin_a": (
         "Pandan vizit sa a, èske {child_name} te resevwa sipleman Vitamin A?"
     ),
+    "child_malnutrition_screening": (
+        "Pandan vizit sa a, èske travayè sante a te tcheke {child_name} pou malnitrisyon, "
+        "pa egzanp, li mezire bra a ak yon tep koulè oswa li tcheke pwa ak wotè timoun nan?"
+    ),
+    # ===== Prenatal Care =====
+    "prenatal_anc": (
+        "Ou te vini pou swen anvan akouchman (ANC), èske sa kòrèk?"
+    ),
+    "prenatal_td_vaccine": (
+        "Pandan vizit sa a, èske ou te resevwa vaksen Tetanòs ak Difteria (Td) a?"
+    ),
+    "prenatal_first_trimester": (
+        "Ou te vini pou premye vizit swen anvan akouchman (ANC) ou epi yo te ba ou vitamin "
+        "ak sipleman tankou grenn fè ak asid folik, èske sa kòrèk?"
+    ),
+    # ===== Maternity =====
+    "maternity_delivery": (
+        "Pandan vizit sa a, èske ou te akouche nan etablisman sante sa a?"
+    ),
+    # ===== Family Planning =====
+    "family_planning": (
+        "Ou te vini pou sèvis planifikasyon familyal, èske sa kòrèk?"
+    ),
     # ===== Default =====
     "patient_feedback_default": (
         "{patient_name} te vizite {facility_name} nan dat {visit_date}, èske sa kòrèk?"
@@ -145,23 +176,76 @@ CONFIRMATION_MESSAGES_HT: Dict[str, str] = {
     "vaccination_default": (
         "{patient_name} te vini pou {vaccine_name}, èske sa kòrèk?"
     ),
+    "service_default": (
+        "{patient_name} te vini pou {service_name}, èske sa kòrèk?"
+    ),
 }
 
 
 # French (fr) confirmation messages
 CONFIRMATION_MESSAGES_FR: Dict[str, str] = {
     # ===== Child Vaccination =====
+    "child_vaccination": (
+        "{child_name} est venu pour la vaccination et a reçu le {vaccine_name}, "
+        "c'est correct?"
+    ),
     "child_vaccination_generic": (
         "{child_name} est venu pour la vaccination et a reçu le {vaccine_name}, "
+        "c'est correct?"
+    ),
+    "child_vaccination_bcg": (
+        "{child_name} est venu pour la vaccination et a reçu le vaccin BCG, "
+        "c'est correct?"
+    ),
+    "child_vaccination_polio": (
+        "{child_name} est venu pour la vaccination et a reçu le vaccin Polio, "
         "c'est correct?"
     ),
     "child_vaccination_penta1": (
         "{child_name} est venu pour la vaccination et a reçu la 1ère dose du vaccin Penta, "
         "c'est correct?"
     ),
+    "child_vaccination_penta2": (
+        "{child_name} est venu pour la vaccination et a reçu la 2ème dose du vaccin Penta, "
+        "c'est correct?"
+    ),
+    "child_vaccination_penta3": (
+        "{child_name} est venu pour la vaccination et a reçu la 3ème dose du vaccin Penta, "
+        "c'est correct?"
+    ),
     "child_vaccination_rr1": (
         "{child_name} est venu pour la vaccination et a reçu le vaccin rougeole-rubéole, "
         "c'est correct?"
+    ),
+    # ===== Child Services =====
+    "child_deworming": (
+        "Lors de cette visite, est-ce que {child_name} a reçu un médicament vermifuge?"
+    ),
+    "child_vitamin_a": (
+        "Lors de cette visite, est-ce que {child_name} a reçu un supplément de Vitamine A?"
+    ),
+    "child_malnutrition_screening": (
+        "Lors de cette visite, est-ce que l'agent de santé a vérifié si {child_name} souffre de malnutrition, "
+        "par exemple, en mesurant le bras avec un ruban coloré ou en vérifiant le poids et la taille de l'enfant?"
+    ),
+    # ===== Prenatal Care =====
+    "prenatal_anc": (
+        "Vous êtes venue pour des soins prénataux (CPN), c'est correct?"
+    ),
+    "prenatal_td_vaccine": (
+        "Lors de cette visite, avez-vous reçu le vaccin Tétanos et Diphtérie (Td)?"
+    ),
+    "prenatal_first_trimester": (
+        "Vous êtes venue pour votre première visite de soins prénataux (CPN) et on vous a donné des vitamines "
+        "et des suppléments comme des comprimés de fer et d'acide folique, c'est correct?"
+    ),
+    # ===== Maternity =====
+    "maternity_delivery": (
+        "Lors de cette visite, avez-vous accouché dans cet établissement de santé?"
+    ),
+    # ===== Family Planning =====
+    "family_planning": (
+        "Vous êtes venue pour des services de planification familiale, c'est correct?"
     ),
     # ===== Default =====
     "patient_feedback_default": (
@@ -170,19 +254,76 @@ CONFIRMATION_MESSAGES_FR: Dict[str, str] = {
     "vaccination_default": (
         "{patient_name} est venu pour {vaccine_name}, c'est correct?"
     ),
+    "service_default": (
+        "{patient_name} est venu pour {service_name}, c'est correct?"
+    ),
 }
 
 
 # Spanish (es) confirmation messages
 CONFIRMATION_MESSAGES_ES: Dict[str, str] = {
     # ===== Child Vaccination =====
+    "child_vaccination": (
+        "{child_name} vino para vacunación y recibió la {vaccine_name}, "
+        "¿es correcto?"
+    ),
     "child_vaccination_generic": (
         "{child_name} vino para vacunación y recibió la {vaccine_name}, "
+        "¿es correcto?"
+    ),
+    "child_vaccination_bcg": (
+        "{child_name} vino para vacunación y recibió la vacuna BCG, "
+        "¿es correcto?"
+    ),
+    "child_vaccination_polio": (
+        "{child_name} vino para vacunación y recibió la vacuna contra la Polio, "
         "¿es correcto?"
     ),
     "child_vaccination_penta1": (
         "{child_name} vino para vacunación y recibió la 1ra dosis de la vacuna Penta, "
         "¿es correcto?"
+    ),
+    "child_vaccination_penta2": (
+        "{child_name} vino para vacunación y recibió la 2da dosis de la vacuna Penta, "
+        "¿es correcto?"
+    ),
+    "child_vaccination_penta3": (
+        "{child_name} vino para vacunación y recibió la 3ra dosis de la vacuna Penta, "
+        "¿es correcto?"
+    ),
+    "child_vaccination_rr1": (
+        "{child_name} vino para vacunación y recibió la vacuna contra sarampión-rubéola, "
+        "¿es correcto?"
+    ),
+    # ===== Child Services =====
+    "child_deworming": (
+        "Durante esta visita, ¿recibió {child_name} medicamento antiparasitario?"
+    ),
+    "child_vitamin_a": (
+        "Durante esta visita, ¿recibió {child_name} suplemento de Vitamina A?"
+    ),
+    "child_malnutrition_screening": (
+        "Durante esta visita, ¿el trabajador de salud revisó a {child_name} por desnutrición, "
+        "por ejemplo, midiendo el brazo con una cinta de colores o verificando el peso y la altura del niño?"
+    ),
+    # ===== Prenatal Care =====
+    "prenatal_anc": (
+        "Usted vino para atención prenatal (APN), ¿es correcto?"
+    ),
+    "prenatal_td_vaccine": (
+        "Durante esta visita, ¿recibió la vacuna de Tétanos y Difteria (Td)?"
+    ),
+    "prenatal_first_trimester": (
+        "Usted vino para su primera visita de atención prenatal (APN) y le dieron vitaminas "
+        "y suplementos como tabletas de hierro y ácido fólico, ¿es correcto?"
+    ),
+    # ===== Maternity =====
+    "maternity_delivery": (
+        "Durante esta visita, ¿dio a luz en este centro de salud?"
+    ),
+    # ===== Family Planning =====
+    "family_planning": (
+        "Usted vino para servicios de planificación familiar, ¿es correcto?"
     ),
     # ===== Default =====
     "patient_feedback_default": (
@@ -190,6 +331,9 @@ CONFIRMATION_MESSAGES_ES: Dict[str, str] = {
     ),
     "vaccination_default": (
         "{patient_name} vino para {vaccine_name}, ¿es correcto?"
+    ),
+    "service_default": (
+        "{patient_name} vino para {service_name}, ¿es correcto?"
     ),
 }
 

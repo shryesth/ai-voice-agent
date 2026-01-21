@@ -216,6 +216,53 @@ class SplitRecordingResponse(BaseModel):
         }
 
 
+class TranslatedMessageResponse(BaseModel):
+    """Translated message entry in API responses"""
+    speaker: str
+    original_text: str
+    english_text: str
+    timestamp: datetime
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "speaker": "patient",
+                "original_text": "Wi, se mwen menm",
+                "english_text": "Yes, it's me",
+                "timestamp": "2026-01-21T06:10:05Z"
+            }
+        }
+
+
+class EnglishTranslationResponse(BaseModel):
+    """English translation of non-English transcript in API responses"""
+    status: str  # pending, in_progress, completed, failed
+    source_language: Optional[str]
+    messages: List[TranslatedMessageResponse]
+    completed_at: Optional[datetime]
+    attempts: int
+    error: Optional[str]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "completed",
+                "source_language": "ht",
+                "messages": [
+                    {
+                        "speaker": "ai",
+                        "original_text": "Bonjou, mwen se yon Asistan AI...",
+                        "english_text": "Hello, I am an AI Assistant...",
+                        "timestamp": "2026-01-21T06:10:00Z"
+                    }
+                ],
+                "completed_at": "2026-01-21T06:12:00Z",
+                "attempts": 1,
+                "error": None
+            }
+        }
+
+
 class CallRecordResponse(BaseModel):
     """Response schema for call record endpoints"""
     id: str
@@ -229,6 +276,7 @@ class CallRecordResponse(BaseModel):
     urgency_keywords_detected: List[str]
     call_tracking: CallTrackingResponse
     recording: Optional[RecordingMetadataResponse] = None
+    english_translation: Optional[EnglishTranslationResponse] = None
     error_message: Optional[str]
     created_at: datetime
     updated_at: datetime

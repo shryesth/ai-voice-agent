@@ -15,6 +15,7 @@ import io
 from beanie import PydanticObjectId
 from beanie.operators import In, Eq
 
+from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord, CallOutcome
 from backend.app.models.campaign import Campaign
 from backend.app.models.user import UserRole
@@ -226,6 +227,20 @@ class CallService:
         await call.save()
 
         logger.info(f"Updated call {call_id} from pipeline state: {list(pipeline_state.keys())}")
+
+        # Queue translation for non-English completed calls
+        if (
+            call.language != "en"
+            and pipeline_state.get("completed")
+            and getattr(settings, "translation_enabled", True)
+        ):
+            try:
+                from backend.app.tasks.transcript_translation import translate_transcript
+                translate_transcript.delay(str(call.id))
+                logger.info(f"Queued translation task for non-English call: {call.id}")
+            except Exception as e:
+                logger.warning(f"Failed to queue translation task: {e}")
+
         return call
 
     @staticmethod

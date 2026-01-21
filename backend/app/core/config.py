@@ -93,6 +93,16 @@ class Settings(BaseSettings):
         description="OpenAI Realtime model"
     )
 
+    # Translation Configuration
+    translation_enabled: bool = Field(
+        default=True,
+        description="Enable automatic transcript translation for non-English calls"
+    )
+    translation_model: str = Field(
+        default="gpt-4o-mini",
+        description="OpenAI model for transcript translation"
+    )
+
     # Security
     jwt_secret_key: str = Field(..., description="Secret key for JWT token signing")
     jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")

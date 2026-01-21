@@ -10,6 +10,7 @@ from backend.app.tasks.voice_call import initiate_patient_call, update_call_from
 from backend.app.tasks.retry_handler import handle_call_completion, update_queue_from_call
 from backend.app.tasks.recording_download import download_twilio_recording
 from backend.app.tasks.split_recording import split_recording_task
+from backend.app.tasks.transcript_translation import translate_transcript
 
 __all__ = [
     "process_campaign_queues",
@@ -19,4 +20,5 @@ __all__ = [
     "update_queue_from_call",
     "download_twilio_recording",
     "split_recording_task",
+    "translate_transcript",
 ]

@@ -89,6 +89,44 @@ class ConversationTurn(BaseModel):
     language: Optional[str] = Field(None, description="Language code for this turn")
 
 
+class TranslatedMessage(BaseModel):
+    """A translated message entry for non-English transcripts."""
+
+    speaker: str = Field(..., description="Original speaker: 'patient' or 'ai'")
+    original_text: str = Field(..., description="Original text in source language")
+    english_text: str = Field(..., description="Translated text in English")
+    timestamp: datetime = Field(..., description="Original message timestamp")
+
+
+class EnglishTranslation(BaseModel):
+    """English translation of non-English call transcript."""
+
+    status: str = Field(
+        default="pending",
+        description="Translation status: pending, in_progress, completed, failed"
+    )
+    source_language: Optional[str] = Field(
+        default=None,
+        description="Source language code (ht, fr, es)"
+    )
+    messages: List[TranslatedMessage] = Field(
+        default_factory=list,
+        description="List of translated messages"
+    )
+    completed_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when translation completed"
+    )
+    attempts: int = Field(
+        default=0,
+        description="Number of translation attempts"
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Error message if translation failed"
+    )
+
+
 class ConversationStage(str):
     """
     Conversation flow stages.
@@ -405,6 +443,12 @@ class CallRecord(Document):
     recording: Optional[RecordingMetadata] = Field(
         default=None,
         description="Call recording metadata (when recording_enabled=true)"
+    )
+
+    # English translation of non-English transcripts
+    english_translation: Optional[EnglishTranslation] = Field(
+        default=None,
+        description="English translation of transcript for non-English calls"
     )
 
     # Test call flag

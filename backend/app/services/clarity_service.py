@@ -71,7 +71,8 @@ class ClarityService:
             "Accept": "application/json",
         }
         if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            # Use X-API-Key header (as expected by Clarity mock server)
+            headers["X-API-Key"] = self.api_key
         return headers
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -117,8 +118,8 @@ class ClarityService:
         # Get subjects with IN_PROGRESS status
         url = f"{self.base_url}/client-visits/verification"
         params = {
-            "status": self.CLARITY_STATUS_IN_PROGRESS,
-            "limit": max_count,
+            "page": 1,
+            "pageSize": max_count,
         }
 
         try:
@@ -132,7 +133,8 @@ class ClarityService:
             raise ClarityAPIError(f"Failed to fetch from Clarity: {e}")
 
         # Process subjects and create recipients
-        subjects = data.get("data", []) if isinstance(data, dict) else data
+        # Mock server returns: {"items": [...], "page": 1, "pageSize": 50, "total": 5, "pages": 1}
+        subjects = data.get("items", []) if isinstance(data, dict) else data
         recipients = []
 
         for subject in subjects:
@@ -280,9 +282,10 @@ class ClarityService:
 
         Normalizes to E.164 format using the geography's default country code.
         """
-        # Try various phone fields
+        # Try various phone fields (support both snake_case and camelCase)
         phone = (
             subject.get("contact_phone")
+            or subject.get("contactPhone")  # Mock server uses camelCase
             or subject.get("phone")
             or subject.get("phone_number")
             or subject.get("mobile")

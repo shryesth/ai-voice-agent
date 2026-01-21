@@ -189,11 +189,23 @@ class CallQueueSyncResponse(BaseModel):
 
 def queue_to_response(queue, include_stats: bool = True) -> CallQueueResponse:
     """Convert CallQueue model to response schema."""
+    # Extract geography_id from Link, Document, or ObjectId
+    geo_id = queue.geography_id
+    if hasattr(geo_id, 'ref'):
+        # It's a Link reference
+        geo_id_str = str(geo_id.ref.id)
+    elif hasattr(geo_id, 'id'):
+        # It's a Geography document
+        geo_id_str = str(geo_id.id)
+    else:
+        # It's already an ObjectId or string
+        geo_id_str = str(geo_id)
+    
     return CallQueueResponse(
         id=str(queue.id),
         name=queue.name,
         description=queue.description,
-        geography_id=str(queue.geography_id.id) if hasattr(queue.geography_id, 'id') else str(queue.geography_id),
+        geography_id=geo_id_str,
         mode=queue.mode.value,
         state=queue.state.value,
         call_type=queue.call_type.value,

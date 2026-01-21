@@ -160,10 +160,16 @@ class GeographyService:
 
         # Apply updates (only non-None fields)
         update_data = data.model_dump(exclude_unset=True)
+        
+        logger.info(f"Updating geography {geography_id} with data: {update_data}")
 
         for field, value in update_data.items():
             if field == "retention_policy" and value is not None:
                 # value is already a dict from model_dump(), just use it directly
+                setattr(geography, field, value if isinstance(value, dict) else value.model_dump())
+            elif field == "clarity_config" and value is not None:
+                # Handle clarity_config the same way as retention_policy
+                logger.info(f"Setting clarity_config to: {value}")
                 setattr(geography, field, value if isinstance(value, dict) else value.model_dump())
             else:
                 setattr(geography, field, value)

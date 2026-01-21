@@ -6,7 +6,7 @@ These schemas define the API contract for geography endpoints.
 
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class RetentionPolicyCreate(BaseModel):
@@ -67,11 +67,35 @@ class GeographyCreate(BaseModel):
         }
 
 
+class ClarityConfigCreate(BaseModel):
+    """Clarity API integration configuration"""
+    enabled: bool = Field(default=False)
+    api_url: str = Field(default="")
+    api_key: Optional[str] = None
+    organization_id: Optional[str] = None
+    event_type_mapping: Dict[str, str] = Field(default_factory=dict)
+    skip_event_types: List[str] = Field(default_factory=list)
+    auto_push_results: bool = Field(default=True)
+    include_recording_url: bool = Field(default=True)
+    default_country_code: str = Field(default="509")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "enabled": True,
+                "api_url": "http://localhost:8001",
+                "organization_id": "test-org",
+                "auto_push_results": True,
+            }
+        }
+
+
 class GeographyUpdate(BaseModel):
     """Request schema for updating geography (all fields optional)"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     region_code: Optional[str] = None
+    clarity_config: Optional[ClarityConfigCreate] = None
     retention_policy: Optional[RetentionPolicyCreate] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -87,6 +111,11 @@ class GeographyUpdate(BaseModel):
         }
 
 
+class ClarityConfigResponse(ClarityConfigCreate):
+    """Clarity config in API responses (same as create)"""
+    model_config = ConfigDict(from_attributes=True)
+
+
 class GeographyResponse(BaseModel):
     """Response schema for geography endpoints"""
     model_config = ConfigDict(from_attributes=True)
@@ -95,6 +124,7 @@ class GeographyResponse(BaseModel):
     name: str
     description: Optional[str]
     region_code: Optional[str]
+    clarity_config: Optional[ClarityConfigResponse] = None
     retention_policy: RetentionPolicyResponse
     metadata: Dict[str, Any]
     created_at: datetime

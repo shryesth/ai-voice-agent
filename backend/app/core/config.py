@@ -296,6 +296,32 @@ class Settings(BaseSettings):
         description="Recording sample rate in Hz"
     )
 
+    # Recording Upload Retry Settings
+    recording_upload_max_retries: int = Field(
+        default=5,
+        description="Maximum retry attempts for S3 upload"
+    )
+    recording_upload_base_delay: float = Field(
+        default=1.0,
+        description="Base delay in seconds for exponential backoff"
+    )
+    recording_upload_max_delay: float = Field(
+        default=60.0,
+        description="Maximum delay in seconds for exponential backoff"
+    )
+    recording_fallback_ttl_days: int = Field(
+        default=7,
+        description="TTL in days for Redis fallback storage"
+    )
+    recording_task_timeout: int = Field(
+        default=300,
+        description="Timeout in seconds for recording download task"
+    )
+    recording_min_size_bytes: int = Field(
+        default=1024,
+        description="Minimum valid recording size in bytes (1KB)"
+    )
+
     # Public URL for Twilio webhooks and media streams
     public_url: Optional[str] = Field(
         default=None,

@@ -86,6 +86,12 @@ from backend.app.models.call_record import (
     RecordingMetadata,
 )
 
+# Recording DLQ for failed uploads
+from backend.app.models.recording_dlq import (
+    RecordingDLQ,
+    ErrorEntry,
+)
+
 __all__ = [
     # Enums
     "CallType",
@@ -144,4 +150,7 @@ __all__ = [
     "LegacyQueueState",
     "LegacyFailureReason",
     "RetryHistory",
+    # Recording DLQ
+    "RecordingDLQ",
+    "ErrorEntry",
 ]

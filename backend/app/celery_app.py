@@ -112,9 +112,10 @@ def init_worker(**kwargs):
     from backend.app.models.campaign import Campaign
     from backend.app.models.call_record import CallRecord
     from backend.app.models.queue_entry import QueueEntry
+    from backend.app.models.recording_dlq import RecordingDLQ
 
     _worker_event_loop.run_until_complete(db.connect(
-        document_models=[User, Geography, Campaign, CallRecord, QueueEntry]
+        document_models=[User, Geography, Campaign, CallRecord, QueueEntry, RecordingDLQ]
     ))
 
     logger.info("Celery worker initialized with event loop and Beanie models")

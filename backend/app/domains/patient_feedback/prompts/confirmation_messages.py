@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 # English (en) confirmation messages
 CONFIRMATION_MESSAGES_EN: Dict[str, str] = {
     # ===== Child Vaccination =====
+    # Alias for generic vaccination - used when no specific key provided
+    "child_vaccination": (
+        "{child_name} came for immunization and received the {vaccine_name}, "
+        "is that right?"
+    ),
     "child_vaccination_generic": (
         "{child_name} came for immunization and received the {vaccine_name}, "
         "is that right?"

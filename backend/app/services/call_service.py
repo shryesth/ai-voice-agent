@@ -175,40 +175,57 @@ class CallService:
         call = await CallRecord.get(PydanticObjectId(call_id))
         if not call:
             raise ValueError(f"Call record {call_id} not found")
-        
-        # Update conversation state from flow_manager.state
-        if "greeted" in pipeline_state:
-            call.conversation_state.completed_stages.append("greeting")
-        if "verified" in pipeline_state:
-            call.conversation_state.completed_stages.append("patient_verification")
-        if "feedback" in pipeline_state:
-            call.conversation_state.completed_stages.append("feedback_collection")
-            # Update feedback data
-            feedback_data = pipeline_state["feedback"]
-            call.feedback.overall_satisfaction = feedback_data.get("satisfaction")
-            call.feedback.specific_concerns = feedback_data.get("concerns")
-            call.feedback.side_effects_reported = feedback_data.get("side_effects")
-            call.feedback.experience_quality = feedback_data.get("experience")
-        
+
+        # Update conversation state from FlowManager state
+        # FlowManager uses: completed_stages, current_stage, *_retry_count, etc.
+        if "completed_stages" in pipeline_state:
+            call.conversation_state.completed_stages = pipeline_state["completed_stages"]
+
+        if "current_stage" in pipeline_state:
+            call.conversation_state.current_stage = pipeline_state["current_stage"]
+
+        # Update stage retry counts
+        stage_retry_counts = {}
+        if pipeline_state.get("guardian_retry_count"):
+            stage_retry_counts["confirm_guardian"] = pipeline_state["guardian_retry_count"]
+        if pipeline_state.get("visit_retry_count"):
+            stage_retry_counts["confirm_visit"] = pipeline_state["visit_retry_count"]
+        if stage_retry_counts:
+            call.conversation_state.stage_retry_counts = stage_retry_counts
+
+        # Update feedback data from FlowManager fields
+        if "satisfaction_rating" in pipeline_state:
+            call.feedback.overall_satisfaction = pipeline_state["satisfaction_rating"]
+
+        if "has_side_effects" in pipeline_state:
+            call.feedback.side_effects_reported = pipeline_state.get("side_effects_details", "")
+
         # Update urgency flags
-        if pipeline_state.get("urgency_flagged"):
+        if pipeline_state.get("urgency_flagged") or pipeline_state.get("severe_side_effects"):
             call.urgency_flagged = True
             call.urgency_keywords_detected = pipeline_state.get("urgency_keywords", [])
-        
+
         # Update completion status
         if pipeline_state.get("completed"):
-            call.conversation_state.current_stage = "call_completion"
+            if not call.conversation_state.current_stage:
+                call.conversation_state.current_stage = "completed"
             call.call_tracking.outcome = CallOutcome.SUCCESS
-        
+
+        # Store completion reason
+        if "completion_reason" in pipeline_state:
+            # Store in error_message if it's an abnormal completion
+            if pipeline_state["completion_reason"] not in ["complete"]:
+                call.error_message = f"Call ended: {pipeline_state['completion_reason']}"
+
         # Update error if present
         if "error" in pipeline_state:
             call.error_message = pipeline_state["error"]
             call.call_tracking.outcome = CallOutcome.FAILED
-        
+
         call.updated_at = datetime.utcnow()
         await call.save()
-        
-        logger.info(f"Updated call {call_id} from pipeline state")
+
+        logger.info(f"Updated call {call_id} from pipeline state: {list(pipeline_state.keys())}")
         return call
 
     @staticmethod

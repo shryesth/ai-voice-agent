@@ -3,11 +3,16 @@ S3/MinIO storage client for call recordings.
 
 Provides unified interface for uploading and retrieving call recordings
 from either AWS S3 or MinIO (self-hosted S3-compatible storage).
+
+Includes exponential backoff retry logic for resilience.
 """
 
+import asyncio
+import functools
 import logging
+import random
 from io import BytesIO
-from typing import Optional
+from typing import Optional, Callable, TypeVar
 
 import boto3
 from botocore.exceptions import ClientError
@@ -15,6 +20,88 @@ from botocore.exceptions import ClientError
 from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+class S3UploadError(Exception):
+    """Custom exception for S3 upload failures after all retries."""
+
+    def __init__(self, message: str, attempts: int, last_error: Optional[Exception] = None):
+        super().__init__(message)
+        self.attempts = attempts
+        self.last_error = last_error
+
+
+def exponential_backoff(
+    max_retries: Optional[int] = None,
+    base_delay: Optional[float] = None,
+    max_delay: Optional[float] = None,
+    jitter: bool = True,
+    retriable_exceptions: tuple = (ClientError, ConnectionError, TimeoutError),
+) -> Callable:
+    """
+    Decorator for exponential backoff retry logic.
+
+    Args:
+        max_retries: Maximum number of retry attempts (defaults to config)
+        base_delay: Base delay in seconds (defaults to config)
+        max_delay: Maximum delay in seconds (defaults to config)
+        jitter: Whether to add random jitter to delays
+        retriable_exceptions: Tuple of exceptions that should trigger retry
+
+    Returns:
+        Decorated async function with retry logic
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> T:
+            # Use config defaults if not specified
+            _max_retries = max_retries if max_retries is not None else settings.recording_upload_max_retries
+            _base_delay = base_delay if base_delay is not None else settings.recording_upload_base_delay
+            _max_delay = max_delay if max_delay is not None else settings.recording_upload_max_delay
+
+            last_exception: Optional[Exception] = None
+
+            for attempt in range(1, _max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except retriable_exceptions as e:
+                    last_exception = e
+
+                    if attempt == _max_retries:
+                        logger.error(
+                            f"S3 operation failed after {attempt} attempts: {e}",
+                            exc_info=True
+                        )
+                        raise S3UploadError(
+                            f"S3 operation failed after {attempt} attempts: {e}",
+                            attempts=attempt,
+                            last_error=e
+                        )
+
+                    # Calculate delay with exponential backoff
+                    delay = min(_base_delay * (2 ** (attempt - 1)), _max_delay)
+
+                    # Add jitter (0-25% of delay)
+                    if jitter:
+                        delay = delay * (1 + random.uniform(0, 0.25))
+
+                    logger.warning(
+                        f"S3 operation failed (attempt {attempt}/{_max_retries}), "
+                        f"retrying in {delay:.2f}s: {e}"
+                    )
+                    await asyncio.sleep(delay)
+
+            # Should not reach here, but just in case
+            raise S3UploadError(
+                f"S3 operation failed after {_max_retries} attempts",
+                attempts=_max_retries,
+                last_error=last_exception
+            )
+
+        return wrapper
+    return decorator
 
 
 class S3StorageClient:
@@ -68,7 +155,7 @@ class S3StorageClient:
         content_type: str = "audio/wav"
     ) -> str:
         """
-        Upload audio recording to S3/MinIO.
+        Upload audio recording to S3/MinIO (no retry, use upload_recording_with_retry for retries).
 
         Args:
             object_key: S3 object key (path within bucket)
@@ -81,29 +168,52 @@ class S3StorageClient:
         Raises:
             ClientError: If upload fails
         """
-        try:
-            # Ensure bucket exists before uploading
-            await self.ensure_bucket_exists()
-            
-            self.client.upload_fileobj(
-                BytesIO(audio_data),
-                self.bucket,
-                object_key,
-                ExtraArgs={"ContentType": content_type}
-            )
+        # Ensure bucket exists before uploading
+        await self.ensure_bucket_exists()
 
-            # Build URL based on endpoint
-            if settings.s3_endpoint_url:
-                url = f"{settings.s3_endpoint_url}/{self.bucket}/{object_key}"
-            else:
-                url = f"https://{self.bucket}.s3.{settings.s3_region}.amazonaws.com/{object_key}"
+        self.client.upload_fileobj(
+            BytesIO(audio_data),
+            self.bucket,
+            object_key,
+            ExtraArgs={"ContentType": content_type}
+        )
 
-            logger.info(f"Uploaded recording to S3: {object_key}")
-            return url
+        # Build URL based on endpoint
+        if settings.s3_endpoint_url:
+            url = f"{settings.s3_endpoint_url}/{self.bucket}/{object_key}"
+        else:
+            url = f"https://{self.bucket}.s3.{settings.s3_region}.amazonaws.com/{object_key}"
 
-        except ClientError as e:
-            logger.error(f"Failed to upload recording to S3: {e}")
-            raise
+        logger.info(f"Uploaded recording to S3: {object_key}")
+        return url
+
+    @exponential_backoff()
+    async def upload_recording_with_retry(
+        self,
+        object_key: str,
+        audio_data: bytes,
+        content_type: str = "audio/wav"
+    ) -> str:
+        """
+        Upload audio recording to S3/MinIO with exponential backoff retry.
+
+        Uses configurable retry settings from config:
+        - recording_upload_max_retries (default: 5)
+        - recording_upload_base_delay (default: 1.0s)
+        - recording_upload_max_delay (default: 60.0s)
+
+        Args:
+            object_key: S3 object key (path within bucket)
+            audio_data: Raw audio bytes to upload
+            content_type: MIME type of the audio file
+
+        Returns:
+            Full URL to the uploaded recording
+
+        Raises:
+            S3UploadError: If upload fails after all retries
+        """
+        return await self.upload_recording(object_key, audio_data, content_type)
 
     async def download_recording(self, object_key: str) -> Optional[bytes]:
         """

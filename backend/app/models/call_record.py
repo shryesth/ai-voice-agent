@@ -228,6 +228,24 @@ class RecordingMetadata(BaseModel):
         description="Audio format (mp3, wav, etc.)"
     )
 
+    # Upload tracking fields
+    upload_status: str = Field(
+        default="pending",
+        description="Upload status: pending, uploading, completed, failed, dlq"
+    )
+    upload_attempts: int = Field(
+        default=0,
+        description="Number of upload attempts"
+    )
+    last_upload_error: Optional[str] = Field(
+        None,
+        description="Last upload error message"
+    )
+    dlq_entry_id: Optional[str] = Field(
+        None,
+        description="Reference to RecordingDLQ entry if upload failed"
+    )
+
     # Split recordings (lazy-created on demand via /split-recording endpoint)
     caller_s3_key: Optional[str] = Field(
         None,

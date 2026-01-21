@@ -54,6 +54,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         # NEW: Supervisor models
         from backend.app.models.call_queue import CallQueue
         from backend.app.models.recipient import Recipient
+        # Recording DLQ for failed uploads
+        from backend.app.models.recording_dlq import RecordingDLQ
         # LEGACY: Keep for backward compatibility
         from backend.app.models.campaign import Campaign
         from backend.app.models.queue_entry import QueueEntry
@@ -65,6 +67,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             CallQueue,  # NEW: Replaces Campaign
             Recipient,  # NEW: Replaces QueueEntry
             CallRecord,
+            RecordingDLQ,  # Recording upload DLQ
             Campaign,   # LEGACY: Keep for backward compatibility
             QueueEntry, # LEGACY: Keep for backward compatibility
         ])

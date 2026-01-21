@@ -279,18 +279,22 @@ async def twilio_status_webhook(request: Request):
     # Get form data
     form_data = await request.form()
     params = dict(form_data)
-    
-    # Validate Twilio signature
+
+    # Validate Twilio signature (skip in development with ngrok)
+    # ngrok changes URLs which breaks Twilio signature validation
     twilio = TwilioIntegration()
-    signature = request.headers.get("X-Twilio-Signature", "")
-    url = str(request.url)
-    
-    if not twilio.validate_webhook(url, params, signature):
-        logger.warning(f"Invalid Twilio signature for webhook: {url}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid Twilio signature"
-        )
+    if not settings.is_development:
+        signature = request.headers.get("X-Twilio-Signature", "")
+        url = str(request.url)
+
+        if not twilio.validate_webhook(url, params, signature):
+            logger.warning(f"Invalid Twilio signature for webhook: {url}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid Twilio signature"
+            )
+    else:
+        logger.debug("Skipping Twilio signature validation in development mode")
     
     # Parse status data
     status_data = twilio.parse_status_callback(params)
@@ -323,16 +327,20 @@ async def twilio_recording_callback(
     logger.info(f"📼 Recording callback - CallSid: {CallSid}, RecordingSid: {RecordingSid}")
     logger.info(f"   Status: {RecordingStatus}, Duration: {RecordingDuration}s")
 
-    # Validate Twilio signature
-    validator = RequestValidator(settings.twilio_auth_token)
-    signature = request.headers.get("X-Twilio-Signature", "")
+    # Validate Twilio signature (skip in development with ngrok)
+    # ngrok changes URLs which breaks Twilio signature validation
+    if not settings.is_development:
+        validator = RequestValidator(settings.twilio_auth_token)
+        signature = request.headers.get("X-Twilio-Signature", "")
 
-    form_data = await request.form()
-    url = str(request.url)
+        form_data = await request.form()
+        url = str(request.url)
 
-    if not validator.validate(url, dict(form_data), signature):
-        logger.warning(f"⚠️ Invalid Twilio signature for recording callback")
-        raise HTTPException(status_code=403, detail="Invalid signature")
+        if not validator.validate(url, dict(form_data), signature):
+            logger.warning(f"⚠️ Invalid Twilio signature for recording callback: {url}")
+            raise HTTPException(status_code=403, detail="Invalid signature")
+    else:
+        logger.info("⚠️ Skipping Twilio signature validation in development mode")
 
     # Only process completed recordings
     if RecordingStatus != "completed":

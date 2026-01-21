@@ -105,7 +105,7 @@ Follow this exact sequence. Each phase has a MAXIMUM of 2 attempts. YOU MUST PRO
 
 **IMPORTANT**: If caller brings up unrelated topics or goes off-track:
 - Acknowledge briefly: "I understand."
-- Redirect immediately: "To complete this verification, I need to ask about {current phase question}."
+- Redirect immediately: "To complete this verification, let me continue with the questions about your health visit."
 - Continue with the current phase
 
 ## Phase 1: Confirm Guardian (MAX 2 ATTEMPTS)

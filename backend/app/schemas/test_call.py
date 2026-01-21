@@ -45,6 +45,32 @@ class EventInfo(BaseModel):
     # Child-specific fields
     child_name: Optional[str] = Field(None, description="Child's name for child health events")
 
+    @field_validator("event_type", "event_category", "confirmation_message_key", "event_date", "facility_name")
+    @classmethod
+    def validate_not_placeholder(cls, v: str, info) -> str:
+        """Prevent literal 'string' placeholder values."""
+        if v and v.lower() in ("string", "str", "text", "example"):
+            raise ValueError(f"{info.field_name} cannot be a placeholder value - provide actual data")
+        return v
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "event_type": "Child Vaccination Follow-up",
+                "event_category": "child_vaccination",
+                "confirmation_message_key": "child_vaccination_covid",
+                "event_date": "January 18th, 2026",
+                "facility_name": "Applo Health Center",
+                "vaccine_name": "COVID-19",
+                "service_name": "COVID-19 Vaccination",
+                "vaccines": [{"name": "COVID-19", "dose": 1}],
+                "requires_side_effects": True,
+                "requires_satisfaction": True,
+                "is_child_event": False,
+                "child_name": None,
+            }
+        }
+
 
 class TestCallRequest(BaseModel):
     """

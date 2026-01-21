@@ -259,7 +259,7 @@ async def create_voice_pipeline(
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
-            audio_in_sample_rate=24000,  
+            audio_in_sample_rate=16000,  
             audio_out_sample_rate=8000,  # Twilio transport expects 8kHz
             enable_metrics=True,
             enable_usage_metrics=True

@@ -2,7 +2,7 @@
 Integration tests for voice pipeline (User Story 4).
 
 Tests the complete voice call workflow:
-- T047: FlowManager-based 6-stage conversation flow
+- T047: FlowManager state management for 6-stage conversation flow
 - T048: Twilio integration (call initiation, webhook handling)
 - T049: Urgency detection (keyword matching)
 
@@ -15,23 +15,8 @@ from datetime import datetime
 from typing import Dict, Any
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
-from backend.app.domains.patient_feedback.flow_manager import (
-    FlowManager, NodeConfig, FlowArgs, FlowResult, FlowsFunctionSchema
-)
-from backend.app.domains.patient_feedback.conversation_flow import (
-    create_greeting_node,
-    create_language_selection_node,
-    create_verification_node,
-    create_feedback_node,
-    create_urgency_detection_node,
-    create_completion_node,
-    GreetingResult,
-    LanguageResult,
-    VerificationResult,
-    FeedbackResult,
-    UrgencyResult,
-    CompletionResult,
-)
+from backend.app.domains.patient_feedback.flow_manager import FlowManager
+from backend.app.domains.patient_feedback.function_registry import FunctionRegistry
 from backend.app.domains.patient_feedback.urgency_detector import UrgencyDetector
 from backend.app.domains.patient_feedback.twilio_integration import TwilioIntegration
 
@@ -40,231 +25,297 @@ pytestmark = pytest.mark.asyncio
 
 
 class TestFlowManager:
-    """T047: Integration test for FlowManager-based 6-stage conversation flow."""
+    """T047: Integration test for FlowManager state management."""
 
     async def test_flow_manager_initialization(self):
-        """Test FlowManager initializes with correct starting node."""
-        # Arrange
-        greeting_node = create_greeting_node()
-
+        """Test FlowManager initializes with correct starting state."""
         # Act
-        flow_manager = FlowManager(initial_node=greeting_node)
+        flow_manager = FlowManager()
         await flow_manager.initialize()
 
         # Assert
-        assert flow_manager.current_stage == "greeting"
+        assert flow_manager.current_stage == "confirm_guardian"
         assert flow_manager._initialized is True
         assert flow_manager.is_complete is False
+        assert flow_manager.state.get("completed_stages") == []
 
-    async def test_greeting_stage_success(self):
-        """Test greeting stage transitions to language selection."""
+    async def test_flow_manager_state_tracking(self):
+        """Test FlowManager tracks state updates correctly."""
         # Arrange
-        greeting_node = create_greeting_node()
-        flow_manager = FlowManager(initial_node=greeting_node)
+        flow_manager = FlowManager()
         await flow_manager.initialize()
 
-        # Act - Simulate patient acknowledging greeting
-        result, next_node = await flow_manager.handle_function_call(
-            "acknowledge_greeting",
-            {"acknowledged": True}
-        )
+        # Act - Simulate state updates from FunctionRegistry handlers
+        flow_manager.state["guardian_confirmed"] = True
+        flow_manager.state["current_stage"] = "confirm_visit"
+        flow_manager.state["completed_stages"] = ["confirm_guardian"]
 
         # Assert
-        assert isinstance(result, GreetingResult)
-        assert result.acknowledged is True
-        assert flow_manager.state.get("greeted") is True
-        assert flow_manager.current_stage == "language_selection"
+        assert flow_manager.current_stage == "confirm_visit"
+        assert flow_manager.state.get("guardian_confirmed") is True
+        assert "confirm_guardian" in flow_manager.state.get("completed_stages", [])
 
-    async def test_language_selection_stage(self):
-        """Test language selection transitions to verification."""
-        # Arrange - Start at language selection
-        language_node = create_language_selection_node()
-        flow_manager = FlowManager(initial_node=language_node)
-        await flow_manager.initialize()
-
-        # Act - Simulate patient selecting Spanish
-        result, next_node = await flow_manager.handle_function_call(
-            "select_language",
-            {"language": "es"}
-        )
-
-        # Assert
-        assert isinstance(result, LanguageResult)
-        assert result.language == "es"
-        assert flow_manager.state.get("language") == "es"
-        assert flow_manager.current_stage == "patient_verification"
-
-    async def test_verification_stage_success(self):
-        """Test verification with authorized person transitions to feedback."""
+    async def test_flow_manager_completion(self):
+        """Test FlowManager marks flow as complete."""
         # Arrange
-        verification_node = create_verification_node()
-        flow_manager = FlowManager(initial_node=verification_node)
+        flow_manager = FlowManager()
         await flow_manager.initialize()
 
-        # Act - Simulate patient confirming identity
-        result, next_node = await flow_manager.handle_function_call(
-            "verify_patient_identity",
-            {"is_appropriate_person": True}
-        )
+        # Act - Simulate completion
+        flow_manager.state["completed"] = True
+        flow_manager.state["completion_reason"] = "complete"
 
         # Assert
-        assert isinstance(result, VerificationResult)
-        assert result.verified is True
-        assert result.is_patient is True
-        assert flow_manager.state.get("verified") is True
-        assert flow_manager.current_stage == "feedback_collection"
-
-    async def test_verification_stage_wrong_person(self):
-        """Test verification with wrong person ends call gracefully."""
-        # Arrange
-        verification_node = create_verification_node()
-        flow_manager = FlowManager(initial_node=verification_node)
-        await flow_manager.initialize()
-
-        # Act - Simulate wrong person on call
-        result, next_node = await flow_manager.handle_function_call(
-            "verify_patient_identity",
-            {"is_appropriate_person": False}
-        )
-
-        # Assert
-        assert isinstance(result, VerificationResult)
-        assert result.verified is False
-        assert flow_manager.state.get("wrong_person") is True
-        assert flow_manager.current_stage == "call_completion"
-
-    async def test_feedback_collection_stage(self):
-        """Test feedback collection stores data and transitions to urgency."""
-        # Arrange
-        feedback_node = create_feedback_node()
-        flow_manager = FlowManager(initial_node=feedback_node)
-        await flow_manager.initialize()
-
-        # Act - Simulate patient providing feedback
-        result, next_node = await flow_manager.handle_function_call(
-            "record_feedback",
-            {
-                "satisfaction_rating": 8,
-                "specific_concerns": "Wait times were long",
-                "side_effects": "Mild headache",
-                "experience_quality": "Staff was very friendly"
-            }
-        )
-
-        # Assert
-        assert isinstance(result, FeedbackResult)
-        assert result.satisfaction_rating == 8
-        assert result.specific_concerns == "Wait times were long"
-        assert "feedback" in flow_manager.state
-        assert flow_manager.state["feedback"]["satisfaction"] == 8
-        assert flow_manager.current_stage == "urgency_detection"
-
-    async def test_urgency_detection_with_keywords(self):
-        """Test urgency detection flags urgent keywords."""
-        # Arrange
-        urgency_node = create_urgency_detection_node()
-        flow_manager = FlowManager(initial_node=urgency_node)
-        await flow_manager.initialize()
-
-        # Act - Simulate urgent keywords detected
-        result, next_node = await flow_manager.handle_function_call(
-            "detect_urgency",
-            {"urgent_keywords": ["hospital", "severe"]}
-        )
-
-        # Assert
-        assert isinstance(result, UrgencyResult)
-        assert result.flagged is True
-        assert "hospital" in result.keywords
-        assert flow_manager.state.get("urgency_flagged") is True
-        assert flow_manager.current_stage == "call_completion"
-
-    async def test_urgency_detection_no_keywords(self):
-        """Test urgency detection with no urgent keywords."""
-        # Arrange
-        urgency_node = create_urgency_detection_node()
-        flow_manager = FlowManager(initial_node=urgency_node)
-        await flow_manager.initialize()
-
-        # Act - No urgent keywords
-        result, next_node = await flow_manager.handle_function_call(
-            "detect_urgency",
-            {"urgent_keywords": []}
-        )
-
-        # Assert
-        assert isinstance(result, UrgencyResult)
-        assert result.flagged is False
-        assert flow_manager.state.get("urgency_flagged") is None
-        assert flow_manager.current_stage == "call_completion"
-
-    async def test_call_completion_ends_flow(self):
-        """Test call completion marks flow as complete."""
-        # Arrange
-        completion_node = create_completion_node("success")
-        flow_manager = FlowManager(initial_node=completion_node)
-        await flow_manager.initialize()
-
-        # Act - End the call
-        result, next_node = await flow_manager.handle_function_call(
-            "end_call",
-            {"acknowledged": True}
-        )
-
-        # Assert
-        assert isinstance(result, CompletionResult)
-        assert result.reason == "success"
-        assert flow_manager.state.get("completed") is True
         assert flow_manager.is_complete is True
 
-    async def test_complete_6_stage_flow(self):
-        """Test complete progression through all 6 stages."""
+    async def test_get_conversation_data(self):
+        """Test get_conversation_data returns collected data."""
         # Arrange
-        flow_manager = FlowManager(initial_node=create_greeting_node())
+        flow_manager = FlowManager()
         await flow_manager.initialize()
-        stages_visited = [flow_manager.current_stage]
 
-        # Stage 1: Greeting
-        await flow_manager.handle_function_call("acknowledge_greeting", {"acknowledged": True})
-        stages_visited.append(flow_manager.current_stage)
-
-        # Stage 2: Language Selection
-        await flow_manager.handle_function_call("select_language", {"language": "en"})
-        stages_visited.append(flow_manager.current_stage)
-
-        # Stage 3: Patient Verification
-        await flow_manager.handle_function_call("verify_patient_identity", {"is_appropriate_person": True})
-        stages_visited.append(flow_manager.current_stage)
-
-        # Stage 4: Feedback Collection
-        await flow_manager.handle_function_call("record_feedback", {
-            "satisfaction_rating": 9,
-            "specific_concerns": "",
-            "side_effects": "",
-            "experience_quality": "Great experience"
+        # Simulate full conversation data
+        flow_manager.state.update({
+            "guardian_confirmed": True,
+            "visit_confirmed": True,
+            "service_confirmed": True,
+            "has_side_effects": False,
+            "side_effects_details": "",
+            "satisfaction_rating": 8,
+            "completed": True,
+            "completion_reason": "complete",
+            "completed_stages": ["confirm_guardian", "confirm_visit", "confirm_service", "record_satisfaction", "end_call"]
         })
-        stages_visited.append(flow_manager.current_stage)
 
-        # Stage 5: Urgency Detection
-        await flow_manager.handle_function_call("detect_urgency", {"urgent_keywords": []})
-        stages_visited.append(flow_manager.current_stage)
-
-        # Stage 6: Call Completion
-        await flow_manager.handle_function_call("end_call", {"acknowledged": True})
+        # Act
+        data = flow_manager.get_conversation_data()
 
         # Assert
-        assert stages_visited == [
-            "greeting",
-            "language_selection",
-            "patient_verification",
-            "feedback_collection",
-            "urgency_detection",
-            "call_completion"
-        ]
-        assert flow_manager.is_complete is True
-        assert flow_manager.state.get("greeted") is True
-        assert flow_manager.state.get("verified") is True
-        assert flow_manager.state.get("completed") is True
+        assert data["guardian_confirmed"] is True
+        assert data["visit_confirmed"] is True
+        assert data["service_confirmed"] is True
+        assert data["satisfaction_rating"] == 8
+        assert data["completed"] is True
+        assert len(data["completed_stages"]) == 5
+
+
+class TestFunctionRegistry:
+    """Integration tests for FunctionRegistry function handlers."""
+
+    @pytest.fixture
+    def setup_registry(self):
+        """Create FlowManager and FunctionRegistry for testing."""
+        flow_manager = FlowManager()
+        call_record = Mock()
+        call_record.event_info = {"event_type": "vaccination", "vaccine_name": "Flu Shot"}
+        registry = FunctionRegistry(flow_manager, call_record)
+
+        # Mock task for queuing frames
+        mock_task = AsyncMock()
+        registry.set_task(mock_task)
+
+        return flow_manager, registry, mock_task
+
+    async def test_get_all_tools(self, setup_registry):
+        """Test get_all_tools returns all 6 function definitions."""
+        flow_manager, registry, _ = setup_registry
+
+        # Act
+        tools = registry.get_all_tools()
+
+        # Assert
+        assert len(tools) == 6
+        tool_names = [t["function"]["name"] for t in tools]
+        assert "confirm_guardian" in tool_names
+        assert "confirm_visit" in tool_names
+        assert "confirm_service" in tool_names
+        assert "record_side_effects" in tool_names
+        assert "record_satisfaction" in tool_names
+        assert "end_call" in tool_names
+
+    async def test_confirm_guardian_success(self, setup_registry):
+        """Test confirm_guardian handler updates state on confirmation."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+
+        # Mock FunctionCallParams
+        mock_params = Mock()
+        mock_params.arguments = {"confirmed": True}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_confirm_guardian(mock_params)
+
+        # Assert
+        assert flow_manager.state["guardian_confirmed"] is True
+        assert flow_manager.state["current_stage"] == "confirm_visit"
+        assert "confirm_guardian" in flow_manager.state["completed_stages"]
+        mock_params.result_callback.assert_called_once()
+        call_args = mock_params.result_callback.call_args[0][0]
+        assert call_args["status"] == "confirmed"
+
+    async def test_confirm_guardian_retry(self, setup_registry):
+        """Test confirm_guardian handler handles retries."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+
+        mock_params = Mock()
+        mock_params.arguments = {"confirmed": False}
+        mock_params.result_callback = AsyncMock()
+
+        # Act - First rejection
+        await registry._handle_confirm_guardian(mock_params)
+
+        # Assert
+        assert flow_manager.state["guardian_retry_count"] == 1
+        assert flow_manager.state.get("completed") is not True
+        call_args = mock_params.result_callback.call_args[0][0]
+        assert call_args["status"] == "retry"
+
+    async def test_confirm_guardian_max_retries(self, setup_registry):
+        """Test confirm_guardian ends call after max retries."""
+        flow_manager, registry, mock_task = setup_registry
+        await flow_manager.initialize()
+        flow_manager.state["guardian_retry_count"] = 1  # Already had one retry
+
+        mock_params = Mock()
+        mock_params.arguments = {"confirmed": False}
+        mock_params.result_callback = AsyncMock()
+
+        # Act - Second rejection (hits max retries)
+        await registry._handle_confirm_guardian(mock_params)
+
+        # Assert
+        assert flow_manager.state["completed"] is True
+        assert flow_manager.state["completion_reason"] == "wrong_person_max_retries"
+        mock_task.queue_frames.assert_called_once()  # Should queue EndFrame
+
+    async def test_confirm_visit_success(self, setup_registry):
+        """Test confirm_visit handler updates state."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+
+        mock_params = Mock()
+        mock_params.arguments = {"confirmed": True}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_confirm_visit(mock_params)
+
+        # Assert
+        assert flow_manager.state["visit_confirmed"] is True
+        assert flow_manager.state["current_stage"] == "confirm_service"
+        assert "confirm_visit" in flow_manager.state["completed_stages"]
+
+    async def test_confirm_service_vaccination_flow(self, setup_registry):
+        """Test confirm_service proceeds to side_effects for vaccination events."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+        flow_manager.state["event_info"] = {"event_type": "vaccination"}
+
+        mock_params = Mock()
+        mock_params.arguments = {"confirmed": True}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_confirm_service(mock_params)
+
+        # Assert
+        assert flow_manager.state["service_confirmed"] is True
+        assert flow_manager.state["current_stage"] == "record_side_effects"
+        call_args = mock_params.result_callback.call_args[0][0]
+        assert call_args["is_vaccination"] is True
+
+    async def test_confirm_service_non_vaccination_flow(self, setup_registry):
+        """Test confirm_service skips side_effects for non-vaccination events."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+        flow_manager.state["event_info"] = {"event_type": "checkup"}
+
+        mock_params = Mock()
+        mock_params.arguments = {"confirmed": True}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_confirm_service(mock_params)
+
+        # Assert
+        assert flow_manager.state["current_stage"] == "record_satisfaction"
+        call_args = mock_params.result_callback.call_args[0][0]
+        assert call_args["is_vaccination"] is False
+
+    async def test_record_side_effects_severe(self, setup_registry):
+        """Test record_side_effects flags severe symptoms."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+
+        mock_params = Mock()
+        mock_params.arguments = {
+            "has_side_effects": True,
+            "details": "I had difficulty breathing and went to the hospital"
+        }
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_record_side_effects(mock_params)
+
+        # Assert
+        assert flow_manager.state["has_side_effects"] is True
+        assert flow_manager.state["severe_side_effects"] is True
+        assert flow_manager.state["urgency_flagged"] is True
+        assert flow_manager.state["current_stage"] == "record_satisfaction"
+
+    async def test_record_satisfaction(self, setup_registry):
+        """Test record_satisfaction stores rating."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+
+        mock_params = Mock()
+        mock_params.arguments = {"rating": 9}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_record_satisfaction(mock_params)
+
+        # Assert
+        assert flow_manager.state["satisfaction_rating"] == 9
+        assert flow_manager.state["current_stage"] == "end_call"
+        assert flow_manager.state.get("low_satisfaction_followup") is not True
+
+    async def test_record_satisfaction_low_rating(self, setup_registry):
+        """Test record_satisfaction flags low ratings."""
+        flow_manager, registry, _ = setup_registry
+        await flow_manager.initialize()
+
+        mock_params = Mock()
+        mock_params.arguments = {"rating": 2}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_record_satisfaction(mock_params)
+
+        # Assert
+        assert flow_manager.state["satisfaction_rating"] == 2
+        assert flow_manager.state["low_satisfaction_followup"] is True
+
+    async def test_end_call(self, setup_registry):
+        """Test end_call queues goodbye and EndFrame."""
+        flow_manager, registry, mock_task = setup_registry
+        await flow_manager.initialize()
+
+        mock_params = Mock()
+        mock_params.arguments = {"reason": "complete"}
+        mock_params.result_callback = AsyncMock()
+
+        # Act
+        await registry._handle_end_call(mock_params)
+
+        # Assert
+        assert flow_manager.state["completed"] is True
+        assert flow_manager.state["completion_reason"] == "complete"
+        mock_task.queue_frames.assert_called_once()
+        call_args = mock_params.result_callback.call_args[0][0]
+        assert call_args["status"] == "ended"
 
 
 class TestTwilioIntegration:

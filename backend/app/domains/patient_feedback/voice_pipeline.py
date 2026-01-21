@@ -35,7 +35,6 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMUserAggregatorParams,
     LLMAssistantAggregatorParams
 )
-from pipecat.processors.aggregators.llm_context import NOT_GIVEN
 from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketTransport,
     FastAPIWebsocketParams
@@ -52,7 +51,7 @@ from pipecat.turns.mute import (
 )
 
 from backend.app.domains.patient_feedback.flow_manager import FlowManager
-from backend.app.domains.patient_feedback.conversation_flow import create_greeting_node
+from backend.app.domains.patient_feedback.function_registry import FunctionRegistry
 from backend.app.domains.patient_feedback.prompts.prompt_builder import build_prompt_from_call_record
 from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord
@@ -146,7 +145,19 @@ async def create_voice_pipeline(
         session_properties=session_properties  # REQUIRED for user transcription!
     )
 
-    # 4. Create LLMContext with system prompt built from call_record event_info
+    # 4. Create FlowManager first (for state management)
+    flow_manager = FlowManager()
+
+    # 4a. Pass event_info to FlowManager state for side effects branching
+    event_info = {}
+    if hasattr(call_record, 'event_info') and call_record.event_info:
+        event_info = call_record.event_info if isinstance(call_record.event_info, dict) else call_record.event_info.model_dump()
+    flow_manager.state["event_info"] = event_info
+
+    # 4b. Create FunctionRegistry with all 6 conversation functions
+    function_registry = FunctionRegistry(flow_manager, call_record)
+
+    # 4c. Create LLMContext with system prompt and ALL tools upfront
     # This uses the greeting templates, confirmation messages, and comprehensive prompt
     system_prompt = build_prompt_from_call_record(call_record)
     logger.info(f"Built system prompt for call {call_record_id} with event_info: {call_record.event_info is not None}")
@@ -158,7 +169,7 @@ async def create_voice_pipeline(
                 "content": system_prompt
             }
         ],
-        tools=NOT_GIVEN  # Tools populated dynamically by FlowManager
+        tools=function_registry.get_all_tools()  # ALL 6 functions available from start
     )
 
     # 5. Create Context Aggregators with user turn/mute strategies
@@ -229,19 +240,9 @@ async def create_voice_pipeline(
         except Exception as e:
             logger.error(f"Error capturing assistant transcript: {e}", exc_info=True)
 
-    # 7. Initialize FlowManager with starting node
-    flow_manager = FlowManager(
-        initial_node=create_greeting_node(),
-        context=context
-    )
-
-    # 8. Register FlowManager functions with LLM service
-    # FlowManager dynamically provides functions based on current conversation stage
-    for function_schema in flow_manager.get_current_function_schemas():
-        llm_service.register_function(
-            function_schema.name,
-            function_schema.handler
-        )
+    # 7. Register ALL function handlers with LLM service upfront
+    # This ensures all 6 functions are available throughout the conversation
+    function_registry.register_with_llm(llm_service)
 
     # 9. Build Pipeline (order matters!)
     # Note: Transcript capture now handled by aggregator event handlers (on_user_turn_stopped, on_assistant_turn_stopped)
@@ -264,8 +265,9 @@ async def create_voice_pipeline(
         # Interruption handling now managed by user_mute_strategies
     )
 
-    # 11. Link task to FlowManager so handlers can queue EndFrame
+    # 11. Link task to FlowManager and FunctionRegistry so handlers can queue EndFrame
     flow_manager.task = task
+    function_registry.set_task(task)
 
     # 12. Initialize FlowManager state
     await flow_manager.initialize()

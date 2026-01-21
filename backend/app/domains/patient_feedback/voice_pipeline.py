@@ -11,6 +11,7 @@ This module creates and runs the complete voice pipeline with:
 Based on architecture from plan.md (Pipecat v0.0.99 patterns).
 """
 
+import asyncio
 import os
 from datetime import datetime
 from fastapi import WebSocket
@@ -275,16 +276,34 @@ async def create_voice_pipeline(
     # 13. Queue initial LLMRunFrame to start conversation
     await task.queue_frame(LLMRunFrame())
 
-    # 14. Run Pipeline (blocks until EndFrame received or error)
+    # 14. Run Pipeline with max call duration timeout
+    # (blocks until EndFrame received, timeout, or error)
     runner = PipelineRunner()
+    max_duration = settings.max_call_duration_seconds
+
     try:
-        logger.info(f"Starting pipeline for call {call_record_id}")
-        await runner.run(task)
+        logger.info(f"Starting pipeline for call {call_record_id} (max duration: {max_duration}s)")
+        async with asyncio.timeout(max_duration):
+            await runner.run(task)
         logger.info(f"Pipeline completed for call {call_record_id}")
+    except asyncio.TimeoutError:
+        logger.warning(f"Call {call_record_id} exceeded max duration ({max_duration}s), terminating gracefully")
+        flow_manager.state["completion_reason"] = "max_duration_timeout"
+        flow_manager.state["completed"] = True
+        # Queue goodbye message and EndFrame to terminate call gracefully
+        try:
+            await task.queue_frames([
+                TTSSpeakFrame("I apologize, but we need to end our call now. Thank you for your time. Goodbye!"),
+                EndFrame()
+            ])
+            # Give a moment for the goodbye to be spoken
+            await asyncio.sleep(3)
+        except Exception as tts_error:
+            logger.error(f"Error queuing timeout goodbye for call {call_record_id}: {tts_error}")
     except Exception as e:
         logger.error(f"Pipeline error for call {call_record_id}: {e}", exc_info=True)
         flow_manager.state["error"] = str(e)
         flow_manager.state["completed"] = False
 
-    # 17. Return final conversation state for persistence
+    # 15. Return final conversation state for persistence
     return flow_manager.state

@@ -160,7 +160,7 @@ class FunctionRegistry:
         Handle guardian confirmation.
 
         On success: Update state, result_callback triggers LLM to continue to visit confirmation
-        On failure (2 retries): End call gracefully
+        On failure (2 retries): Signal LLM to say goodbye, system ends call
         """
         confirmed = params.arguments.get("confirmed", False)
         retry_count = self.flow_manager.state.get("guardian_retry_count", 0)
@@ -178,8 +178,11 @@ class FunctionRegistry:
                 completed_stages.append("confirm_guardian")
             self.flow_manager.state["completed_stages"] = completed_stages
 
-            # Return success - LLM will continue to visit confirmation
-            await params.result_callback({"success": True})
+            # Return success with clear guidance - LLM will continue to visit confirmation
+            await params.result_callback({
+                "success": True,
+                "message": "Guardian confirmed. Now ask about the visit to the facility."
+            })
             return
 
         # Not confirmed - check retry count
@@ -187,8 +190,8 @@ class FunctionRegistry:
         self.flow_manager.state["guardian_retry_count"] = retry_count
 
         if retry_count >= MAX_RETRIES:
-            # Max retries reached - end call gracefully
-            logger.info(f"Guardian confirmation failed after {retry_count} retries, ending call")
+            # Max retries reached - signal LLM to say goodbye
+            logger.info(f"Guardian confirmation failed after {retry_count} retries, signaling goodbye")
             self.flow_manager.state["completed"] = True
             self.flow_manager.state["completion_reason"] = "wrong_person_max_retries"
 
@@ -199,11 +202,20 @@ class FunctionRegistry:
                     EndFrame()
                 ])
 
-            await params.result_callback({"success": False, "call_ended": True})
+            # Tell LLM to say goodbye - system will end call automatically
+            await params.result_callback({
+                "success": False,
+                "should_say_goodbye": True,
+                "message": "Wrong person confirmed. Say a brief goodbye and the call will end automatically. DO NOT call end_call()."
+            })
             return
 
-        # Still have retries - ask to retry
-        await params.result_callback({"success": False, "retry": True})
+        # Still have retries - ask to retry with clear guidance
+        await params.result_callback({
+            "success": False,
+            "retry": True,
+            "message": "Person not confirmed. Ask 'May I know who I'm speaking with?' This is attempt " + str(retry_count) + " of 2."
+        })
 
     # =========================================================================
     # Stage 2: Confirm Visit Handler
@@ -212,7 +224,8 @@ class FunctionRegistry:
         """
         Handle visit confirmation.
 
-        On success/failure: Update state, proceed to service confirmation.
+        On success/failure: Update state, ALWAYS proceed to service confirmation.
+        Never get stuck - move forward regardless of confirmation status.
         """
         confirmed = params.arguments.get("confirmed", False)
         retry_count = self.flow_manager.state.get("visit_retry_count", 0)
@@ -235,8 +248,21 @@ class FunctionRegistry:
                 self.flow_manager.state["visit_discrepancy"] = True
                 logger.info("Visit not confirmed after max retries, proceeding with discrepancy noted")
 
-        # Always proceed to service confirmation
-        await params.result_callback({"success": True})
+        # Always proceed to service confirmation with clear guidance
+        if confirmed:
+            await params.result_callback({
+                "success": True,
+                "proceed_to_next_stage": True,
+                "next_stage": "confirm_service",
+                "message": "Visit confirmed. Now ask about the specific service received."
+            })
+        else:
+            await params.result_callback({
+                "success": False,
+                "proceed_to_next_stage": True,
+                "next_stage": "confirm_service",
+                "message": "Visit could not be confirmed. IMMEDIATELY proceed to ask about the service. DO NOT ask about the visit again."
+            })
 
     # =========================================================================
     # Stage 3: Confirm Service Handler
@@ -246,6 +272,7 @@ class FunctionRegistry:
         Handle service confirmation.
 
         Determines next stage based on whether this is a vaccination event.
+        Always proceeds forward - never gets stuck.
         """
         confirmed = params.arguments.get("confirmed", False)
 
@@ -275,7 +302,18 @@ class FunctionRegistry:
             self.flow_manager.state["service_not_confirmed_followup"] = True
             logger.info("Service not confirmed, marked for follow-up")
 
-        await params.result_callback({"success": True})
+        # Provide clear guidance on next step
+        if is_vaccination:
+            next_instruction = "Now ask about any side effects from the vaccination."
+        else:
+            next_instruction = "Now ask for their satisfaction rating on a scale of 1 to 10."
+
+        await params.result_callback({
+            "success": True if confirmed else False,
+            "proceed_to_next_stage": True,
+            "next_stage": next_stage,
+            "message": f"Service {'confirmed' if confirmed else 'not confirmed (marked for follow-up)'}. {next_instruction}"
+        })
 
     # =========================================================================
     # Stage 4: Record Side Effects Handler (vaccination only)
@@ -285,6 +323,7 @@ class FunctionRegistry:
         Handle side effects recording for vaccination visits.
 
         Checks for severe symptoms and flags for follow-up if needed.
+        Always proceeds to satisfaction rating.
         """
         has_side_effects = params.arguments.get("has_side_effects", False)
         details = params.arguments.get("details", "")
@@ -310,7 +349,12 @@ class FunctionRegistry:
             self.flow_manager.state["urgency_flagged"] = True
             logger.warning(f"Severe side effects detected: {details}")
 
-        await params.result_callback({"success": True})
+        await params.result_callback({
+            "success": True,
+            "proceed_to_next_stage": True,
+            "next_stage": "record_satisfaction",
+            "message": "Side effects recorded. Now ask for their satisfaction rating on a scale of 1 to 10."
+        })
 
     # =========================================================================
     # Stage 5: Record Satisfaction Handler
@@ -320,6 +364,7 @@ class FunctionRegistry:
         Handle satisfaction rating recording.
 
         Validates rating is 1-10 and flags low ratings for follow-up.
+        Always proceeds to end call.
         """
         rating = params.arguments.get("rating", 5)
 
@@ -342,7 +387,12 @@ class FunctionRegistry:
             self.flow_manager.state["low_satisfaction_followup"] = True
             logger.info(f"Low satisfaction rating ({rating}), marked for follow-up")
 
-        await params.result_callback({"success": True})
+        await params.result_callback({
+            "success": True,
+            "proceed_to_next_stage": True,
+            "next_stage": "end_call",
+            "message": f"Rating of {rating} recorded. Now thank them warmly and call end_call(reason='complete')."
+        })
 
     # =========================================================================
     # Stage 6: End Call Handler

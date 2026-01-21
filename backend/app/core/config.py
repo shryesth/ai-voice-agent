@@ -245,8 +245,8 @@ class Settings(BaseSettings):
 
     # Call Configuration
     max_call_duration_seconds: int = Field(
-        default=600,
-        description="Maximum call duration in seconds (10 minutes)"
+        default=300,
+        description="Maximum call duration in seconds before forced termination (5 minutes)"
     )
     carrier_rate_limit_seconds: int = Field(
         default=2,

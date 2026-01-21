@@ -255,7 +255,7 @@ class ClarityService:
 
         # Create recipient
         recipient = Recipient(
-            queue_id=queue.id,
+            queue_id=queue,  # Pass the queue Document, not just the ID
             external_source=ExternalSource.CLARITY,
             external_id=str(verification_id),
             contact_phone=phone,

@@ -152,7 +152,15 @@ class RecipientService:
         Returns:
             List of Recipient documents
         """
-        query = {"queue_id": ObjectId(queue_id)}
+        # Query by Link reference - Beanie stores Links as DBRefs
+        from beanie import PydanticObjectId
+        from backend.app.models.call_queue import CallQueue
+        
+        queue_obj_id = PydanticObjectId(queue_id)
+        
+        # When querying by Link, we can use the queue document or just the ID
+        # Beanie will match against the DBRef
+        query = {"queue_id.$id": queue_obj_id}
         if status:
             query["status"] = status.value
 
@@ -187,9 +195,12 @@ class RecipientService:
         now = datetime.utcnow()
 
         # Get pending recipients
+        from beanie import PydanticObjectId
+        queue_obj_id = PydanticObjectId(queue_id)
+        
         pending = await (
             Recipient.find(
-                Recipient.queue_id.id == ObjectId(queue_id),
+                {"queue_id.$id": queue_obj_id},
                 Recipient.status == RecipientStatus.PENDING,
             )
             .sort([("-priority", -1), ("created_at", 1)])
@@ -202,7 +213,7 @@ class RecipientService:
         if remaining > 0:
             retrying = await (
                 Recipient.find(
-                    Recipient.queue_id.id == ObjectId(queue_id),
+                    {"queue_id.$id": queue_obj_id},
                     Recipient.status == RecipientStatus.RETRYING,
                     Recipient.next_retry_at <= now,
                 )

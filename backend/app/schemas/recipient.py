@@ -251,7 +251,7 @@ def recipient_to_response(
 
     return RecipientResponse(
         id=str(recipient.id),
-        queue_id=str(recipient.queue_id.id) if hasattr(recipient.queue_id, 'id') else str(recipient.queue_id),
+        queue_id=str(recipient.queue_id.ref.id) if hasattr(recipient.queue_id, 'ref') else str(recipient.queue_id.id) if hasattr(recipient.queue_id, 'id') else str(recipient.queue_id),
         external_source=recipient.external_source.value,
         external_id=recipient.external_id,
         contact_phone=contact_phone,

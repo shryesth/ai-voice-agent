@@ -142,9 +142,7 @@ def process_campaign_queues(self):
             from backend.app.models.enums import QueueState, RecipientStatus
             from backend.app.services.recipient_service import recipient_service
             from backend.app.tasks.voice_call import initiate_patient_call
-            from backend.app.core.config import get_settings
-
-            settings = get_settings()
+            from backend.app.core.config import settings
 
             # Find all active CallQueues
             active_queues = loop.run_until_complete(
@@ -270,8 +268,8 @@ def process_campaign_queues(self):
                     )
                     continue
 
-        except ImportError:
-            logger.warning("CallQueue model not available, skipping new queue processing")
+        except ImportError as e:
+            logger.warning(f"CallQueue model not available: {e}", exc_info=True)
 
         # =====================================================================
         # LEGACY: Process Campaigns (backward compatibility)

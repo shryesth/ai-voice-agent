@@ -13,7 +13,7 @@ from typing import Optional
 from celery import shared_task
 from bson import ObjectId
 
-from backend.app.celery_app import celery_app
+from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.models.enums import (
     QueueState,
     QueueMode,
@@ -103,13 +103,9 @@ def sync_clarity_subjects(
             logger.error(f"Failed to pull from Clarity for queue {queue_id}: {e}")
             raise
 
-    # Run async function
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_sync())
-    finally:
-        loop.close()
+    # Run async function using worker's event loop
+    loop = get_worker_event_loop()
+    return loop.run_until_complete(_sync())
 
 
 @celery_app.task(
@@ -226,13 +222,9 @@ def sync_results_to_clarity(
         logger.info(f"Synced {synced_count} recipients to Clarity")
         return synced_count
 
-    # Run async function
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_sync())
-    finally:
-        loop.close()
+    # Run async function using worker's event loop
+    loop = get_worker_event_loop()
+    return loop.run_until_complete(_sync())
 
 
 @celery_app.task(
@@ -276,10 +268,6 @@ def sync_all_queues_from_clarity(self):
 
         return len(queues)
 
-    # Run async function
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_sync_all())
-    finally:
-        loop.close()
+    # Run async function using worker's event loop
+    loop = get_worker_event_loop()
+    return loop.run_until_complete(_sync_all())

@@ -12,6 +12,7 @@ from backend.app.tasks.recording_download import download_twilio_recording
 from backend.app.tasks.split_recording import split_recording_task
 from backend.app.tasks.transcript_translation import translate_transcript
 from backend.app.tasks.recipient_sync import sync_recipient_from_call
+from backend.app.tasks.clarity_sync import sync_clarity_subjects, sync_all_queues_from_clarity
 
 __all__ = [
     "process_campaign_queues",
@@ -23,4 +24,6 @@ __all__ = [
     "split_recording_task",
     "translate_transcript",
     "sync_recipient_from_call",
+    "sync_clarity_subjects",
+    "sync_all_queues_from_clarity",
 ]

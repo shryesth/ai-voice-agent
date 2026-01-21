@@ -95,6 +95,7 @@ class CallQueueUpdate(BaseModel):
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
+    mode: Optional[QueueMode] = None
     default_language: Optional[str] = None
     max_concurrent_calls: Optional[int] = Field(default=None, ge=1, le=100)
     time_windows: Optional[List[TimeWindowSchema]] = None

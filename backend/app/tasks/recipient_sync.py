@@ -12,7 +12,7 @@ from datetime import datetime
 
 from bson import ObjectId
 
-from backend.app.celery_app import celery_app
+from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.models.call_record import CallRecord, CallOutcome
 from backend.app.models.recipient import (
     Recipient,
@@ -88,11 +88,13 @@ def sync_recipient_from_call(
         )
 
         # 4. Determine terminal status based on call outcome
-        if call_record.outcome == CallOutcome.COMPLETED:
+        outcome = call_record.call_tracking.outcome if call_record.call_tracking else None
+        
+        if outcome in (CallOutcome.COMPLETED_FULL, CallOutcome.COMPLETED_PARTIAL):
             new_status = RecipientStatus.COMPLETED
-        elif call_record.outcome == CallOutcome.FAILED:
+        elif outcome == CallOutcome.TECHNICAL_ERROR:
             new_status = RecipientStatus.FAILED
-        elif call_record.outcome in (CallOutcome.NO_ANSWER, CallOutcome.BUSY):
+        elif outcome in (CallOutcome.NO_ANSWER, CallOutcome.BUSY):
             new_status = RecipientStatus.NOT_REACHABLE
         else:
             # Default to FAILED for unknown outcomes
@@ -117,7 +119,7 @@ def sync_recipient_from_call(
         recipient.recording_url = recording_url
         recipient.status = new_status
         recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync
-        recipient.completed_at = call_record.ended_at
+        recipient.completed_at = call_record.call_tracking.ended_at if call_record.call_tracking else None
         recipient.urgency_flagged = call_record.urgency_flagged
 
         await recipient.save()
@@ -144,10 +146,6 @@ def sync_recipient_from_call(
 
         return True
 
-    # Run async function
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_sync())
-    finally:
-        loop.close()
+    # Run async function using worker's event loop
+    loop = get_worker_event_loop()
+    return loop.run_until_complete(_sync())

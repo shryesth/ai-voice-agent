@@ -201,6 +201,11 @@ def process_campaign_queues(self):
                     # Initiate calls for each recipient
                     for recipient in ready_recipients:
                         try:
+                            # Convert event_info to dict if present
+                            event_info_dict = None
+                            if recipient.event_info:
+                                event_info_dict = recipient.event_info.model_dump() if hasattr(recipient.event_info, 'model_dump') else recipient.event_info
+
                             # Create CallRecord
                             call_record = CallRecord(
                                 geography_id=str(queue.geography_id.id),
@@ -212,6 +217,8 @@ def process_campaign_queues(self):
                                 contact_type=recipient.contact_type,
                                 language=recipient.language,
                                 patient_name=recipient.patient_name,
+                                guardian_relation=recipient.patient_relation,
+                                event_info=event_info_dict,
                                 conversation_state=ConversationState(),
                                 call_tracking=CallTracking(status="initiated"),
                                 created_at=datetime.utcnow(),

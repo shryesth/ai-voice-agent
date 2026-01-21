@@ -323,6 +323,11 @@ async def force_process_queue(
     call_ids = []
     for recipient in recipients:
         try:
+            # Convert event_info to dict if present
+            event_info_dict = None
+            if recipient.event_info:
+                event_info_dict = recipient.event_info.model_dump() if hasattr(recipient.event_info, 'model_dump') else recipient.event_info
+
             # Create call record
             call_record = CallRecord(
                 geography_id=str(queue.geography_id.id),
@@ -334,6 +339,8 @@ async def force_process_queue(
                 contact_type=recipient.contact_type,
                 language=recipient.language,
                 patient_name=recipient.patient_name,
+                guardian_relation=recipient.patient_relation,
+                event_info=event_info_dict,
                 conversation_state=ConversationState(),
                 call_tracking=CallTracking(status="initiated"),
                 created_at=datetime.utcnow(),

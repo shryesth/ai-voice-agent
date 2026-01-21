@@ -43,7 +43,7 @@ class TranslationService:
     def __init__(self):
         """Initialize with OpenAI client."""
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self.model = getattr(settings, "translation_model", "gpt-4o-mini")
+        self.model = settings.translation_model
 
     async def translate_transcript(self, call_record: "CallRecord") -> bool:
         """

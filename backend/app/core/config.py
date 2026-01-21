@@ -88,9 +88,17 @@ class Settings(BaseSettings):
 
     # OpenAI Configuration
     openai_api_key: str = Field(..., description="OpenAI API key")
-    openai_model: str = Field(
-        default="gpt-realtime-mini-2025-10-06",
-        description="OpenAI Realtime model"
+
+    # Realtime Model (for voice/audio streaming via Pipecat)
+    openai_realtime_model: str = Field(
+        default="gpt-realtime-mini-2025-12-15",
+        description="OpenAI Realtime model for voice calls and audio streaming"
+    )
+
+    # General LLM Model (for chat/text completion tasks)
+    openai_llm_model: str = Field(
+        default="gpt-5-mini-2025-08-07",
+        description="OpenAI LLM model for general text completion and chat tasks"
     )
 
     # Translation Configuration
@@ -99,7 +107,7 @@ class Settings(BaseSettings):
         description="Enable automatic transcript translation for non-English calls"
     )
     translation_model: str = Field(
-        default="gpt-4o-mini",
+        default="gpt-5-mini-2025-08-07",
         description="OpenAI model for transcript translation"
     )
 

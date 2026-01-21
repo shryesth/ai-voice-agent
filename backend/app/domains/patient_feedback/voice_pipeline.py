@@ -141,7 +141,7 @@ async def create_voice_pipeline(
     
     llm_service = OpenAIRealtimeLLMService(
         api_key=settings.openai_api_key,
-        model=settings.openai_model,
+        model=settings.openai_realtime_model,
         voice=voice,
         session_properties=session_properties  # REQUIRED for user transcription!
     )

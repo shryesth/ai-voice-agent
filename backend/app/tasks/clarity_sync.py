@@ -71,7 +71,7 @@ def sync_clarity_subjects(
             return 0
 
         # Get geography and verify Clarity is configured
-        geography = await Geography.get(queue.geography_id.ref.id)
+        geography = await Geography.get(queue.geography_id)
         if not geography or not geography.clarity_config.enabled:
             logger.warning(f"Clarity not configured for geography of queue {queue_id}")
             return 0

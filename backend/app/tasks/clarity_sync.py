@@ -167,11 +167,11 @@ def sync_results_to_clarity(
         for recipient in recipients:
             # Get queue to find geography
             from backend.app.models.call_queue import CallQueue
-            queue = await CallQueue.get(recipient.queue_id.id)
+            queue = await CallQueue.get(recipient.queue_id)
             if not queue:
                 continue
 
-            geo_id = str(queue.geography_id.id)
+            geo_id = str(queue.geography_id)
             if geo_id not in by_geography:
                 by_geography[geo_id] = []
             by_geography[geo_id].append(recipient)

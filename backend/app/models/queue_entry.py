@@ -8,7 +8,7 @@ Handles:
 - Max 3 retry attempts before DLQ
 """
 
-from beanie import Document, Link
+from beanie import Document
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List

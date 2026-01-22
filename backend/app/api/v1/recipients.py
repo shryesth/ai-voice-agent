@@ -339,7 +339,7 @@ async def get_recipient_summary(
 
     for status in RecipientStatus:
         count = await Recipient.find(
-            Recipient.queue_id.id == ObjectId(queue_id),
+            Recipient.queue_id == ObjectId(queue_id),
             Recipient.status == status,
         ).count()
         by_status[status.value] = count
@@ -347,13 +347,13 @@ async def get_recipient_summary(
 
     # Count urgent
     urgent_count = await Recipient.find(
-        Recipient.queue_id.id == ObjectId(queue_id),
+        Recipient.queue_id == ObjectId(queue_id),
         Recipient.urgency_flagged == True,
     ).count()
 
     # Count callback requested
     callback_count = await Recipient.find(
-        Recipient.queue_id.id == ObjectId(queue_id),
+        Recipient.queue_id == ObjectId(queue_id),
         Recipient.human_callback_requested == True,
     ).count()
 

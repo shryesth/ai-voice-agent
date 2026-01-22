@@ -12,7 +12,7 @@ Tracks:
 
 from __future__ import annotations
 
-from beanie import Document, Link
+from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -339,7 +339,7 @@ class CallRecord(Document):
     )
 
     # Legacy reference (backward compatibility)
-    campaign_id: Optional[Link["Campaign"]] = Field(
+    campaign_id: Optional[PydanticObjectId] = Field(
         default=None,
         description="[Deprecated] Use queue_id instead",
     )

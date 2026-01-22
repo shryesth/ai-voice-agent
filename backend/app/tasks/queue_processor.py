@@ -206,7 +206,7 @@ def process_campaign_queues(self):
 
                             # Create CallRecord
                             call_record = CallRecord(
-                                geography_id=str(queue.geography_id.ref.id) if hasattr(queue.geography_id, 'ref') else str(queue.geography_id.id) if hasattr(queue.geography_id, 'id') else str(queue.geography_id),
+                                geography_id=str(queue.geography_id),
                                 queue_id=str(queue.id),
                                 recipient_id=str(recipient.id),
                                 call_type=queue.call_type,

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 from bson import ObjectId
+from beanie.operators import In
 
 from backend.app.models.enums import (
     RecipientStatus,
@@ -92,9 +93,9 @@ class RecipientService:
 
         # Check for duplicate phone in same queue (pending/retrying only)
         existing = await Recipient.find_one(
-            Recipient.queue_id.id == ObjectId(queue_id),
+            Recipient.queue_id == ObjectId(queue_id),
             Recipient.contact_phone == contact_phone,
-            Recipient.status.in_([
+            In(Recipient.status, [
                 RecipientStatus.PENDING,
                 RecipientStatus.CALLING,
                 RecipientStatus.RETRYING,
@@ -152,15 +153,12 @@ class RecipientService:
         Returns:
             List of Recipient documents
         """
-        # Query by Link reference - Beanie stores Links as DBRefs
         from beanie import PydanticObjectId
         from backend.app.models.call_queue import CallQueue
-        
+
         queue_obj_id = PydanticObjectId(queue_id)
-        
-        # When querying by Link, we can use the queue document or just the ID
-        # Beanie will match against the DBRef
-        query = {"queue_id.$id": queue_obj_id}
+
+        query = {"queue_id": queue_obj_id}
         if status:
             query["status"] = status.value
 
@@ -200,7 +198,7 @@ class RecipientService:
         
         pending = await (
             Recipient.find(
-                {"queue_id.$id": queue_obj_id},
+                {"queue_id": queue_obj_id},
                 Recipient.status == RecipientStatus.PENDING,
             )
             .sort([("-priority", -1), ("created_at", 1)])
@@ -213,7 +211,7 @@ class RecipientService:
         if remaining > 0:
             retrying = await (
                 Recipient.find(
-                    {"queue_id.$id": queue_obj_id},
+                    {"queue_id": queue_obj_id},
                     Recipient.status == RecipientStatus.RETRYING,
                     Recipient.next_retry_at <= now,
                 )
@@ -288,7 +286,7 @@ class RecipientService:
             raise ValueError(f"Recipient not found: {recipient_id}")
 
         # Get queue for retry strategy
-        queue = await CallQueue.get(recipient.queue_id.id)
+        queue = await CallQueue.get(recipient.queue_id)
         max_retries = queue.retry_strategy.max_retries if queue else DEFAULT_MAX_RETRIES
 
         # Create call attempt record

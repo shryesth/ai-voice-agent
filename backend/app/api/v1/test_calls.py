@@ -13,6 +13,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from bson import ObjectId
+from beanie.operators import In
 
 from backend.app.models.enums import (
     CallType,
@@ -143,7 +144,7 @@ async def list_active_test_calls(
     # Find test calls that are not in terminal state
     active_calls = await CallRecord.find(
         CallRecord.is_test_call == True,
-        CallRecord.call_tracking.status.in_(["initiated", "ringing", "in-progress"]),
+        In(CallRecord.call_tracking.status, ["initiated", "ringing", "in-progress"]),
     ).sort("-created_at").limit(50).to_list()
 
     items = []
@@ -237,24 +238,24 @@ async def get_queue_debug(
 
     # Get recipient counts
     pending = await Recipient.find(
-        Recipient.queue_id.id == ObjectId(queue_id),
+        Recipient.queue_id == ObjectId(queue_id),
         Recipient.status == RecipientStatus.PENDING,
     ).count()
 
     calling = await Recipient.find(
-        Recipient.queue_id.id == ObjectId(queue_id),
+        Recipient.queue_id == ObjectId(queue_id),
         Recipient.status == RecipientStatus.CALLING,
     ).count()
 
     retrying = await Recipient.find(
-        Recipient.queue_id.id == ObjectId(queue_id),
+        Recipient.queue_id == ObjectId(queue_id),
         Recipient.status == RecipientStatus.RETRYING,
     ).count()
 
     # Get recent failures
     recent_failures = await Recipient.find(
-        Recipient.queue_id.id == ObjectId(queue_id),
-        Recipient.status.in_([RecipientStatus.FAILED, RecipientStatus.NOT_REACHABLE]),
+        Recipient.queue_id == ObjectId(queue_id),
+        In(Recipient.status, [RecipientStatus.FAILED, RecipientStatus.NOT_REACHABLE]),
     ).sort("-updated_at").limit(10).to_list()
 
     failure_list = [
@@ -330,7 +331,7 @@ async def force_process_queue(
 
             # Create call record
             call_record = CallRecord(
-                geography_id=str(queue.geography_id.id),
+                geography_id=str(queue.geography_id),
                 queue_id=str(queue.id),
                 recipient_id=str(recipient.id),
                 call_type=queue.call_type,
@@ -395,7 +396,7 @@ async def sync_clarity(
     max_count = data.max_count if data else 100
 
     # Get Clarity service
-    geography = await Geography.get(queue.geography_id.id)
+    geography = await Geography.get(queue.geography_id)
     if not geography or not geography.clarity_config.enabled:
         raise HTTPException(status_code=400, detail="Clarity not configured for this geography")
 
@@ -424,8 +425,8 @@ async def sync_clarity(
         try:
             # Find completed recipients not yet synced
             completed = await Recipient.find(
-                Recipient.queue_id.id == ObjectId(queue_id),
-                Recipient.status.in_([
+                Recipient.queue_id == ObjectId(queue_id),
+                In(Recipient.status, [
                     RecipientStatus.COMPLETED,
                     RecipientStatus.FAILED,
                     RecipientStatus.NOT_REACHABLE,
@@ -475,7 +476,7 @@ async def trigger_recipient_call(
         )
 
     # Get queue
-    queue = await CallQueue.get(recipient.queue_id.id)
+    queue = await CallQueue.get(recipient.queue_id)
     if not queue:
         raise HTTPException(status_code=400, detail="Queue not found")
 
@@ -486,7 +487,7 @@ async def trigger_recipient_call(
 
     # Create call record
     call_record = CallRecord(
-        geography_id=str(queue.geography_id.id),
+        geography_id=str(queue.geography_id),
         queue_id=str(queue.id),
         recipient_id=str(recipient.id),
         call_type=queue.call_type,

@@ -13,6 +13,7 @@ from typing import Optional, List, Dict, Any
 
 from bson import ObjectId
 from beanie import PydanticObjectId
+from beanie.operators import In
 
 from backend.app.models.enums import (
     QueueState,
@@ -64,7 +65,7 @@ class CallQueueService:
 
         # Check for duplicate name within geography
         existing = await CallQueue.find_one(
-            CallQueue.geography_id.id == ObjectId(geography_id),
+            CallQueue.geography_id == ObjectId(geography_id),
             CallQueue.name == name,
             CallQueue.deleted_at == None,
         )
@@ -326,8 +327,8 @@ class CallQueueService:
 
         # Move pending recipients to DLQ
         pending_recipients = await Recipient.find(
-            Recipient.queue_id.id == ObjectId(queue_id),
-            Recipient.status.in_([
+            Recipient.queue_id == ObjectId(queue_id),
+            In(Recipient.status, [
                 RecipientStatus.PENDING,
                 RecipientStatus.RETRYING,
             ]),
@@ -368,7 +369,7 @@ class CallQueueService:
 
         # Check for active calls
         active_count = await Recipient.find(
-            Recipient.queue_id.id == ObjectId(queue_id),
+            Recipient.queue_id == ObjectId(queue_id),
             Recipient.status == RecipientStatus.CALLING,
         ).count()
 
@@ -404,7 +405,7 @@ class CallQueueService:
         status_counts = {}
         for status in RecipientStatus:
             count = await Recipient.find(
-                Recipient.queue_id.id == ObjectId(queue_id),
+                Recipient.queue_id == ObjectId(queue_id),
                 Recipient.status == status,
             ).count()
             status_counts[status.value] = count
@@ -451,7 +452,7 @@ class CallQueueService:
 
         for status in RecipientStatus:
             count = await Recipient.find(
-                Recipient.queue_id.id == ObjectId(queue_id),
+                Recipient.queue_id == ObjectId(queue_id),
                 Recipient.status == status,
             ).count()
 
@@ -480,13 +481,13 @@ class CallQueueService:
 
         # Count urgent flagged
         stats.urgent_flagged_count = await Recipient.find(
-            Recipient.queue_id.id == ObjectId(queue_id),
+            Recipient.queue_id == ObjectId(queue_id),
             Recipient.urgency_flagged == True,
         ).count()
 
         # Get successful verifications
         stats.successful_verifications = await Recipient.find(
-            Recipient.queue_id.id == ObjectId(queue_id),
+            Recipient.queue_id == ObjectId(queue_id),
             Recipient.conversation_result.is_visit_confirmed == True,
         ).count()
 
@@ -520,8 +521,8 @@ class CallQueueService:
 
         # Check if any recipients still pending processing
         pending = await Recipient.find(
-            Recipient.queue_id.id == ObjectId(queue_id),
-            Recipient.status.in_([
+            Recipient.queue_id == ObjectId(queue_id),
+            In(Recipient.status, [
                 RecipientStatus.PENDING,
                 RecipientStatus.CALLING,
                 RecipientStatus.RETRYING,

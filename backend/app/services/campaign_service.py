@@ -127,7 +127,7 @@ class CampaignService:
 
         # Apply geography_id filter if provided
         if geography_id:
-            query = query.find(Campaign.geography_id.id == PydanticObjectId(geography_id))
+            query = query.find(Campaign.geography_id == PydanticObjectId(geography_id))
 
         # Apply state filter if provided
         if state:

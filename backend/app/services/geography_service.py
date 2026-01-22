@@ -208,7 +208,7 @@ class GeographyService:
 
         # Check for active campaigns
         active_campaign = await Campaign.find_one(
-            Campaign.geography_id.id == PydanticObjectId(geography_id),
+            Campaign.geography_id == PydanticObjectId(geography_id),
             In(Campaign.state, [CampaignState.ACTIVE, CampaignState.PAUSED])
         )
 

@@ -10,7 +10,7 @@ Replaces QueueEntry with richer context including:
 
 from __future__ import annotations
 
-from beanie import Document, Link
+from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -192,7 +192,10 @@ class Recipient(Document):
     Supports multiple call attempts with detailed tracking.
     """
 
-    queue_id: Link["CallQueue"]
+    queue_id: PydanticObjectId = Field(
+        ...,
+        description="Reference to the parent CallQueue"
+    )
 
     # Source tracking
     external_source: ExternalSource = Field(default=ExternalSource.MANUAL)

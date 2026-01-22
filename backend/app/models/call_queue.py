@@ -7,7 +7,7 @@ Supports multiple queue modes: FOREVER (continuous), BATCH (one-time), MANUAL.
 
 from __future__ import annotations
 
-from beanie import Document, Link
+from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
@@ -170,7 +170,10 @@ class CallQueue(Document):
     # Identity
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=1000)
-    geography_id: Link["Geography"]
+    geography_id: PydanticObjectId = Field(
+        ...,
+        description="Reference to the parent Geography"
+    )
 
     # Queue configuration
     mode: QueueMode = Field(default=QueueMode.BATCH)

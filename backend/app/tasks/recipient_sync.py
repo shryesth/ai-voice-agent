@@ -133,10 +133,13 @@ def sync_recipient_from_call(
         # 7. Optionally trigger immediate Clarity sync
         # (if queue has auto_push_results enabled)
         try:
-            queue = await recipient.queue_id.fetch()
-            geography = await queue.geography_id.fetch()
+            from backend.app.models.call_queue import CallQueue
+            from backend.app.models.geography import Geography
 
-            if geography.clarity_config and geography.clarity_config.auto_push_results:
+            queue = await CallQueue.get(recipient.queue_id)
+            geography = await Geography.get(queue.geography_id) if queue else None
+
+            if geography and geography.clarity_config and geography.clarity_config.auto_push_results:
                 logger.info(f"Auto-triggering Clarity sync for geography {geography.id}")
                 from backend.app.tasks.clarity_sync import sync_results_to_clarity
                 sync_results_to_clarity.delay(str(geography.id))

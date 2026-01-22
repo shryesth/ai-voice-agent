@@ -50,14 +50,15 @@ class VaccineDose(CamelModel):
     """Vaccine dose information."""
 
     name: str
-    dose_number: int
+    administered: bool
 
 
 class SptDocument(CamelModel):
     """SPT document reference."""
 
-    id: int
-    document_number: str
+    name: str
+    url: str
+    image: str
 
 
 class EventInfo(CamelModel):

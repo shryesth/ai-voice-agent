@@ -57,13 +57,28 @@ UPDATES_FILE = DATA_DIR / "updates.json"
 def load_verifications() -> list[dict]:
     """Load verification data from JSON file."""
     with open(VERIFICATIONS_FILE) as f:
-        return json.load(f)
+        data = json.load(f)
+        # Handle both list format and paginated response format
+        if isinstance(data, list):
+            return data
+        return data.get("items", [])
 
 
 def save_verifications(data: list[dict]) -> None:
     """Save verification data to JSON file."""
-    with open(VERIFICATIONS_FILE, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    with open(VERIFICATIONS_FILE) as f:
+        existing = json.load(f)
+
+    # If the file has paginated format, update just the items array
+    if isinstance(existing, dict) and "items" in existing:
+        existing["items"] = data
+        existing["total"] = len(data)
+        with open(VERIFICATIONS_FILE, "w") as f:
+            json.dump(existing, f, indent=2, default=str)
+    else:
+        # If it's a simple list, save as list
+        with open(VERIFICATIONS_FILE, "w") as f:
+            json.dump(data, f, indent=2, default=str)
 
 
 def load_updates() -> list[dict]:

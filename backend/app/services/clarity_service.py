@@ -417,6 +417,7 @@ class ClarityService:
             recipient.sync_status = SyncStatus.SYNCED
             recipient.last_synced_at = datetime.utcnow()
             recipient.sync_error = None
+            recipient.updated_at = datetime.utcnow()
             await recipient.save()
 
             logger.info(f"Pushed result for recipient {recipient.id} to Clarity")
@@ -426,6 +427,7 @@ class ClarityService:
             logger.error(f"Failed to push result to Clarity: {e}")
             recipient.sync_status = SyncStatus.FAILED
             recipient.sync_error = str(e)
+            recipient.updated_at = datetime.utcnow()
             await recipient.save()
             return False
 

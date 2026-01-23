@@ -257,6 +257,7 @@ def process_campaign_queues(self):
                             )
                             # Revert recipient status on failure
                             recipient.status = RecipientStatus.PENDING
+                            recipient.updated_at = datetime.utcnow()
                             loop.run_until_complete(recipient.save())
 
                     queues_processed += 1

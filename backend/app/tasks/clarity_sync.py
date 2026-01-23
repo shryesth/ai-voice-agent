@@ -217,6 +217,7 @@ def sync_results_to_clarity(
                     logger.error(f"Failed to push recipient {recipient.id} to Clarity: {e}")
                     recipient.sync_status = SyncStatus.FAILED
                     recipient.sync_error = str(e)
+                    recipient.updated_at = datetime.utcnow()
                     await recipient.save()
 
         logger.info(f"Synced {synced_count} recipients to Clarity")

@@ -121,6 +121,7 @@ def sync_recipient_from_call(
         recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync
         recipient.completed_at = call_record.call_tracking.ended_at if call_record.call_tracking else None
         recipient.urgency_flagged = call_record.urgency_flagged
+        recipient.updated_at = datetime.utcnow()
 
         await recipient.save()
 

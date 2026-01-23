@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from backend.app.models.enums import (
@@ -317,8 +317,8 @@ class Recipient(Document):
     )
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     first_attempted_at: Optional[datetime] = Field(
         default=None,
         description="When first call attempt was made",

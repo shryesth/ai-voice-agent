@@ -4,7 +4,7 @@ Authentication service for user login and token management.
 Handles user authentication, password verification, and user creation.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from backend.app.core.security import verify_password, hash_password, create_access_token
@@ -48,7 +48,7 @@ class AuthService:
             return None
 
         # Update last login timestamp
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         await user.save()
 
         logger.info(

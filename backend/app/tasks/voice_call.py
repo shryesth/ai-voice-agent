@@ -13,7 +13,7 @@ from backend.app.domains.patient_feedback.twilio_integration import TwilioIntegr
 from backend.app.services.call_service import CallService
 from backend.app.models.call_record import CallOutcome
 from backend.app.core.config import settings
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import asyncio
 
@@ -122,7 +122,7 @@ def initiate_patient_call(
         # 5. Update CallRecord with Twilio metadata
         call_record.call_tracking.call_sid = call_data["call_sid"]
         call_record.call_tracking.status = call_data["status"]
-        call_record.call_tracking.created_at = datetime.utcnow()
+        call_record.call_tracking.created_at = datetime.now(timezone.utc)
         loop.run_until_complete(call_record.save())
 
         logger.info(f"Call initiated: {call_data['call_sid']} for record {call_record.id}")
@@ -179,16 +179,16 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
             # Call is ringing
             pass
         elif status == "in-progress" or status == "answered":
-            call_record.call_tracking.started_at = datetime.utcnow()
+            call_record.call_tracking.started_at = datetime.now(timezone.utc)
         elif status == "completed":
-            call_record.call_tracking.ended_at = datetime.utcnow()
+            call_record.call_tracking.ended_at = datetime.now(timezone.utc)
             if duration:
                 call_record.call_tracking.duration_seconds = int(duration)
             # Don't override outcome if pipeline already set it
             if not call_record.call_tracking.outcome:
                 call_record.call_tracking.outcome = CallOutcome.COMPLETED_FULL
         elif status in ["busy", "no-answer", "failed", "canceled"]:
-            call_record.call_tracking.ended_at = datetime.utcnow()
+            call_record.call_tracking.ended_at = datetime.now(timezone.utc)
             if status == "busy":
                 call_record.call_tracking.outcome = CallOutcome.BUSY
             elif status == "no-answer":
@@ -196,7 +196,7 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
             else:
                 call_record.call_tracking.outcome = CallOutcome.TECHNICAL_ERROR
 
-        call_record.updated_at = datetime.utcnow()
+        call_record.updated_at = datetime.now(timezone.utc)
         loop.run_until_complete(call_record.save())
 
         logger.info(f"Updated call record {call_record.id} with status {status}")

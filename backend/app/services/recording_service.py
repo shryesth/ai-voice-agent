@@ -16,7 +16,7 @@ import io
 import json
 import logging
 import wave
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional, Tuple
 
 import redis.asyncio as redis
@@ -109,7 +109,7 @@ class RecordingFallbackStorage:
             json.dumps(metadata)
         )
 
-        expiry = datetime.utcnow() + timedelta(seconds=ttl_seconds)
+        expiry = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
 
         logger.info(
             f"Stored recording fallback in Redis: {audio_key} "
@@ -245,7 +245,7 @@ class RecordingService:
         Returns:
             S3 object key string
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Geography ID is always present (use "unknown_geography" as fallback)
         geography_id = call_record.geography_id or "unknown_geography"
@@ -309,11 +309,11 @@ class RecordingService:
                 file_size_bytes=len(wav_data),
                 sample_rate=sample_rate,
                 num_channels=num_channels,
-                uploaded_at=datetime.utcnow(),
+                uploaded_at=datetime.now(timezone.utc),
                 upload_status="completed",
                 upload_attempts=1,
             )
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
             await call_record.save()
 
             logger.info(
@@ -399,11 +399,11 @@ class RecordingService:
             # 5. Update CallRecord with success
             call_record.recording.recording_url = url
             call_record.recording.s3_object_key = object_key
-            call_record.recording.uploaded_at = datetime.utcnow()
+            call_record.recording.uploaded_at = datetime.now(timezone.utc)
             call_record.recording.upload_status = "completed"
             call_record.recording.sample_rate = 8000
             call_record.recording.num_channels = 2
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
 
             await call_record.save()
             logger.info(f"Updated CallRecord with recording metadata: {call_id}")
@@ -539,7 +539,7 @@ class RecordingService:
                     dlq_entry_id=str(dlq_entry.id),
                 )
 
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
             await call_record.save()
 
             logger.info(
@@ -559,7 +559,7 @@ class RecordingService:
             if call_record.recording:
                 call_record.recording.upload_status = "failed"
                 call_record.recording.last_upload_error = f"Fallback failed: {fallback_error}"
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
             await call_record.save()
 
             return False
@@ -708,7 +708,7 @@ class RecordingService:
 
         # Clear recording metadata
         call_record.recording = None
-        call_record.updated_at = datetime.utcnow()
+        call_record.updated_at = datetime.now(timezone.utc)
         await call_record.save()
 
         logger.info(f"Deleted recording for call {call_record.id}")

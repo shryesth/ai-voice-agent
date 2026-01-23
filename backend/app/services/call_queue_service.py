@@ -8,7 +8,7 @@ This service handles:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from bson import ObjectId
@@ -78,8 +78,8 @@ class CallQueueService:
             description=description,
             geography_id=geography.id,
             state=QueueState.DRAFT,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
             **kwargs,
         )
 
@@ -182,7 +182,7 @@ class CallQueueService:
             if hasattr(queue, key):
                 setattr(queue, key, value)
 
-        queue.updated_at = datetime.utcnow()
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         logger.info(f"Updated queue: {queue_id}")
@@ -209,8 +209,8 @@ class CallQueueService:
             raise ValueError(f"Cannot start queue in state: {queue.state}")
 
         queue.state = QueueState.ACTIVE
-        queue.started_at = queue.started_at or datetime.utcnow()
-        queue.updated_at = datetime.utcnow()
+        queue.started_at = queue.started_at or datetime.now(timezone.utc)
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         logger.info(f"Started queue: {queue_id}")
@@ -237,7 +237,7 @@ class CallQueueService:
             raise ValueError(f"Cannot pause queue in state: {queue.state}")
 
         queue.state = QueueState.PAUSED
-        queue.updated_at = datetime.utcnow()
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         logger.info(f"Paused queue: {queue_id}")
@@ -264,7 +264,7 @@ class CallQueueService:
             raise ValueError(f"Cannot resume queue in state: {queue.state}")
 
         queue.state = QueueState.ACTIVE
-        queue.updated_at = datetime.utcnow()
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         logger.info(f"Resumed queue: {queue_id}")
@@ -296,8 +296,8 @@ class CallQueueService:
             raise ValueError(f"Cannot complete queue in state: {queue.state}")
 
         queue.state = QueueState.COMPLETED
-        queue.completed_at = datetime.utcnow()
-        queue.updated_at = datetime.utcnow()
+        queue.completed_at = datetime.now(timezone.utc)
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         logger.info(f"Completed queue: {queue_id}")
@@ -338,12 +338,12 @@ class CallQueueService:
             recipient.status = RecipientStatus.DLQ
             recipient.moved_to_dlq = True
             recipient.dlq_reason = "Queue cancelled"
-            recipient.dlq_moved_at = datetime.utcnow()
-            recipient.updated_at = datetime.utcnow()
+            recipient.dlq_moved_at = datetime.now(timezone.utc)
+            recipient.updated_at = datetime.now(timezone.utc)
             await recipient.save()
 
         queue.state = QueueState.CANCELLED
-        queue.updated_at = datetime.utcnow()
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         logger.info(f"Cancelled queue: {queue_id}, moved {len(pending_recipients)} to DLQ")
@@ -380,8 +380,8 @@ class CallQueueService:
             await queue.delete()
             logger.info(f"Hard deleted queue: {queue_id}")
         else:
-            queue.deleted_at = datetime.utcnow()
-            queue.updated_at = datetime.utcnow()
+            queue.deleted_at = datetime.now(timezone.utc)
+            queue.updated_at = datetime.now(timezone.utc)
             await queue.save()
             logger.info(f"Soft deleted queue: {queue_id}")
 
@@ -492,7 +492,7 @@ class CallQueueService:
         ).count()
 
         queue.stats = stats
-        queue.updated_at = datetime.utcnow()
+        queue.updated_at = datetime.now(timezone.utc)
         await queue.save()
 
         return queue

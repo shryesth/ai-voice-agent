@@ -8,7 +8,7 @@ Endpoints:
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -26,7 +26,7 @@ _health_check_cache: Dict[str, Any] = {}
 _cache_timestamp: float = 0.0
 
 # Application start time for uptime calculation
-_app_start_time = datetime.utcnow()
+_app_start_time = datetime.now(timezone.utc)
 
 
 @router.get("/health/live")
@@ -144,14 +144,14 @@ async def metrics(request: Request):
     Note: No authentication required for metrics scraping
     """
     # Calculate uptime
-    uptime_seconds = (datetime.utcnow() - _app_start_time).total_seconds()
+    uptime_seconds = (datetime.now(timezone.utc) - _app_start_time).total_seconds()
 
     # Collect metrics
     metrics_data = {
         "uptime_seconds": uptime_seconds,
         "environment": settings.environment,
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     # Check Accept header for format

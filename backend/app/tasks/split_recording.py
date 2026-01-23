@@ -8,7 +8,7 @@ Handles:
 - Updating CallRecord with split S3 keys (cache)
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from io import BytesIO
 import asyncio
@@ -132,7 +132,7 @@ def split_recording_task(self, call_id: str):
         call_record.recording.caller_s3_key = caller_s3_key
         call_record.recording.callee_s3_key = callee_s3_key
         call_record.recording.mixed_s3_key = mixed_s3_key
-        call_record.recording.split_created_at = datetime.utcnow()
+        call_record.recording.split_created_at = datetime.now(timezone.utc)
 
         asyncio.run(call_record.save())
 

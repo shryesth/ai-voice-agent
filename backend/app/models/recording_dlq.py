@@ -7,14 +7,14 @@ after all retry attempts. Enables manual recovery and monitoring.
 
 from beanie import Document
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 
 
 class ErrorEntry(BaseModel):
     """Single error occurrence in the error history."""
 
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     error_type: str = Field(..., description="Type of error (e.g., 'S3Error', 'ValidationError')")
     error_message: str = Field(..., description="Error message")
     attempt_number: int = Field(..., description="Which attempt this error occurred on")
@@ -109,8 +109,8 @@ class RecordingDLQ(Document):
     )
 
     # Audit timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
         name = "recording_dlq"
@@ -156,7 +156,7 @@ class RecordingDLQ(Document):
             attempt_number=attempt_number
         ))
         self.failure_count = attempt_number
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def mark_resolved(
         self,
@@ -167,7 +167,7 @@ class RecordingDLQ(Document):
         """Mark this DLQ entry as resolved."""
         self.resolved = True
         self.resolution_method = method
-        self.resolved_at = datetime.utcnow()
+        self.resolved_at = datetime.now(timezone.utc)
         self.resolved_by = resolved_by
         self.resolution_notes = notes
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)

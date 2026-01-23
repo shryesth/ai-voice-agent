@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 
 from backend.app.models.enums import (
@@ -210,8 +210,8 @@ class CallQueue(Document):
     stats: QueueStats = Field(default_factory=QueueStats)
 
     # Lifecycle timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = Field(
         default=None,
         description="When queue was first activated",

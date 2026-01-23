@@ -8,7 +8,7 @@ Endpoints:
 - DELETE /api/v1/auth/admin/{user_id} - Delete admin user (Admin only)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -348,7 +348,7 @@ async def delete_admin(
 
     # Perform soft delete
     target_user.is_active = False
-    target_user.updated_at = datetime.utcnow()
+    target_user.updated_at = datetime.now(timezone.utc)
     await target_user.save()
 
     logger.info(

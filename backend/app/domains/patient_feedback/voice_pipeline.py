@@ -13,7 +13,7 @@ Based on architecture from plan.md (Pipecat v0.0.99 patterns).
 
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import WebSocket
 import logging
 
@@ -206,11 +206,11 @@ async def create_voice_pipeline(
                 turn = ConversationTurn(
                     speaker="patient",
                     text=message.content.strip(),
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     language=call_data.get("language")
                 )
                 call_record.transcript.append(turn)
-                call_record.updated_at = datetime.utcnow()
+                call_record.updated_at = datetime.now(timezone.utc)
                 await call_record.save()
                 logger.info(f"📝 [patient]: {message.content[:50]}...")
             else:
@@ -230,10 +230,10 @@ async def create_voice_pipeline(
                 turn = ConversationTurn(
                     speaker="ai",
                     text=message.content.strip(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(timezone.utc)
                 )
                 call_record.transcript.append(turn)
-                call_record.updated_at = datetime.utcnow()
+                call_record.updated_at = datetime.now(timezone.utc)
                 await call_record.save()
                 logger.info(f"📝 [ai]: {message.content[:50]}...")
             else:

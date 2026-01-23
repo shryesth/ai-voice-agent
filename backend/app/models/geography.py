@@ -10,7 +10,7 @@ Each geography can have:
 
 from beanie import Document, Indexed
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from backend.app.models.enums import CallType
@@ -186,8 +186,8 @@ class Geography(Document):
     )
 
     # Audit timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_at: Optional[datetime] = Field(
         None,
         description="Soft delete timestamp for audit trail"

@@ -10,7 +10,7 @@ This service handles:
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 from bson import ObjectId
@@ -113,8 +113,8 @@ class RecipientService:
             language=language,
             external_source=ExternalSource.MANUAL,
             status=RecipientStatus.PENDING,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
             **kwargs,
         )
 
@@ -190,7 +190,7 @@ class RecipientService:
         Returns:
             List of ready Recipient documents
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Get pending recipients
         from beanie import PydanticObjectId
@@ -244,8 +244,8 @@ class RecipientService:
 
         recipient.status = RecipientStatus.CALLING
         recipient.current_call_record_id = call_record_id
-        recipient.first_attempted_at = recipient.first_attempted_at or datetime.utcnow()
-        recipient.updated_at = datetime.utcnow()
+        recipient.first_attempted_at = recipient.first_attempted_at or datetime.now(timezone.utc)
+        recipient.updated_at = datetime.now(timezone.utc)
 
         await recipient.save()
         return recipient
@@ -296,8 +296,8 @@ class RecipientService:
             outcome=outcome,
             failure_reason=failure_reason,
             duration_seconds=duration_seconds,
-            started_at=recipient.first_attempted_at or datetime.utcnow(),
-            ended_at=datetime.utcnow(),
+            started_at=recipient.first_attempted_at or datetime.now(timezone.utc),
+            ended_at=datetime.now(timezone.utc),
             notes=error_details,
         )
         recipient.call_attempts.append(attempt)
@@ -309,20 +309,20 @@ class RecipientService:
         # Determine next status based on outcome
         if self._is_successful_outcome(outcome):
             recipient.status = RecipientStatus.COMPLETED
-            recipient.completed_at = datetime.utcnow()
+            recipient.completed_at = datetime.now(timezone.utc)
             logger.info(f"Recipient {recipient_id} completed successfully")
 
         elif self._is_terminal_failure(failure_reason):
             # Non-retriable failure
             recipient.status = RecipientStatus.FAILED
-            recipient.completed_at = datetime.utcnow()
+            recipient.completed_at = datetime.now(timezone.utc)
             recipient.last_failure_reason = failure_reason
             logger.info(f"Recipient {recipient_id} failed with terminal reason: {failure_reason}")
 
         elif recipient.retry_count >= max_retries:
             # Max retries exceeded
             recipient.status = RecipientStatus.NOT_REACHABLE
-            recipient.completed_at = datetime.utcnow()
+            recipient.completed_at = datetime.now(timezone.utc)
             recipient.last_failure_reason = failure_reason
             logger.info(f"Recipient {recipient_id} not reachable after {max_retries} retries")
 
@@ -334,14 +334,14 @@ class RecipientService:
 
             # Calculate retry delay
             delay = self._get_retry_delay(failure_reason, queue, recipient.retry_count)
-            recipient.next_retry_at = datetime.utcnow() + timedelta(seconds=delay)
+            recipient.next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
             logger.info(
                 f"Recipient {recipient_id} scheduled for retry #{recipient.retry_count} "
                 f"in {delay} seconds"
             )
 
         recipient.current_call_record_id = None
-        recipient.updated_at = datetime.utcnow()
+        recipient.updated_at = datetime.now(timezone.utc)
         await recipient.save()
 
         return recipient
@@ -419,9 +419,9 @@ class RecipientService:
         recipient.status = RecipientStatus.DLQ
         recipient.moved_to_dlq = True
         recipient.dlq_reason = reason
-        recipient.dlq_moved_at = datetime.utcnow()
-        recipient.completed_at = datetime.utcnow()
-        recipient.updated_at = datetime.utcnow()
+        recipient.dlq_moved_at = datetime.now(timezone.utc)
+        recipient.completed_at = datetime.now(timezone.utc)
+        recipient.updated_at = datetime.now(timezone.utc)
 
         await recipient.save()
         logger.info(f"Moved recipient {recipient_id} to DLQ: {reason}")
@@ -461,7 +461,7 @@ class RecipientService:
             recipient.retry_count = 0
             recipient.call_attempts = []
 
-        recipient.updated_at = datetime.utcnow()
+        recipient.updated_at = datetime.now(timezone.utc)
         await recipient.save()
 
         logger.info(f"Retrying recipient {recipient_id} from DLQ")
@@ -487,8 +487,8 @@ class RecipientService:
             raise ValueError(f"Recipient not found: {recipient_id}")
 
         recipient.status = RecipientStatus.SKIPPED
-        recipient.completed_at = datetime.utcnow()
-        recipient.updated_at = datetime.utcnow()
+        recipient.completed_at = datetime.now(timezone.utc)
+        recipient.updated_at = datetime.now(timezone.utc)
 
         if reason:
             recipient.dlq_reason = f"Skipped: {reason}"
@@ -580,7 +580,7 @@ class RecipientService:
 
         recipient.urgency_flagged = urgency_flagged
         recipient.urgency_keywords_detected = keywords or []
-        recipient.updated_at = datetime.utcnow()
+        recipient.updated_at = datetime.now(timezone.utc)
 
         await recipient.save()
         return recipient
@@ -606,7 +606,7 @@ class RecipientService:
 
         recipient.human_callback_requested = True
         recipient.human_callback_reason = reason
-        recipient.updated_at = datetime.utcnow()
+        recipient.updated_at = datetime.now(timezone.utc)
 
         await recipient.save()
         logger.info(f"Human callback requested for recipient {recipient_id}")

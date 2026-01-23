@@ -5,7 +5,7 @@ Provides automatic creation of default admin user to ensure
 the system always has at least one admin account.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo.errors import DuplicateKeyError
 
 from backend.app.core.config import settings
@@ -68,8 +68,8 @@ async def bootstrap_default_admin() -> None:
                 hashed_password=hash_password(settings.bootstrap_admin_password),
                 role=UserRole.ADMIN,
                 is_active=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             )
 
             await default_admin.insert()

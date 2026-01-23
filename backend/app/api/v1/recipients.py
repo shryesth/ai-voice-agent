@@ -5,7 +5,7 @@ Provides CRUD operations and management for queue recipients.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -177,7 +177,7 @@ async def update_recipient(
         if hasattr(recipient, key):
             setattr(recipient, key, value)
 
-    recipient.updated_at = datetime.utcnow()
+    recipient.updated_at = datetime.now(timezone.utc)
     await recipient.save()
 
     return recipient_to_response(recipient, current_user.role)

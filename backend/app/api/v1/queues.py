@@ -5,7 +5,7 @@ Provides CRUD operations and state management for call queues.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -174,7 +174,7 @@ async def start_queue(
             name=queue.name,
             previous_state=previous_state,
             new_state=queue.state.value,
-            changed_at=datetime.utcnow(),
+            changed_at=datetime.now(timezone.utc),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -203,7 +203,7 @@ async def pause_queue(
             name=queue.name,
             previous_state=previous_state,
             new_state=queue.state.value,
-            changed_at=datetime.utcnow(),
+            changed_at=datetime.now(timezone.utc),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -232,7 +232,7 @@ async def resume_queue(
             name=queue.name,
             previous_state=previous_state,
             new_state=queue.state.value,
-            changed_at=datetime.utcnow(),
+            changed_at=datetime.now(timezone.utc),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -261,7 +261,7 @@ async def cancel_queue(
             name=queue.name,
             previous_state=previous_state,
             new_state=queue.state.value,
-            changed_at=datetime.utcnow(),
+            changed_at=datetime.now(timezone.utc),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

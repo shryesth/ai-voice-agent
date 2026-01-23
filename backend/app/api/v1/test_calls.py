@@ -8,7 +8,7 @@ Provides endpoints for:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -89,8 +89,8 @@ async def initiate_test_call(
         is_test_call=True,
         conversation_state=ConversationState(),
         call_tracking=CallTracking(status="initiated"),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await call_record.insert()
 
@@ -205,8 +205,8 @@ async def cancel_test_call(
     # Update call record
     if call_record.call_tracking:
         call_record.call_tracking.status = "canceled"
-        call_record.call_tracking.ended_at = datetime.utcnow()
-    call_record.updated_at = datetime.utcnow()
+        call_record.call_tracking.ended_at = datetime.now(timezone.utc)
+    call_record.updated_at = datetime.now(timezone.utc)
     await call_record.save()
 
     return CancelTestCallResponse(
@@ -276,7 +276,7 @@ async def get_queue_debug(
         state=queue.state.value,
         mode=queue.mode.value,
         is_within_time_window=is_within,
-        current_time_utc=datetime.utcnow().strftime("%H:%M"),
+        current_time_utc=datetime.now(timezone.utc).strftime("%H:%M"),
         time_windows=[tw.model_dump() for tw in queue.time_windows],
         clarity_sync_enabled=queue.clarity_sync.enabled,
         last_clarity_sync=queue.clarity_sync.last_sync_at.isoformat() if queue.clarity_sync.last_sync_at else None,
@@ -344,8 +344,8 @@ async def force_process_queue(
                 event_info=event_info_dict,
                 conversation_state=ConversationState(),
                 call_tracking=CallTracking(status="initiated"),
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             )
             await call_record.insert()
 
@@ -500,8 +500,8 @@ async def trigger_recipient_call(
         event_info=event_info_dict,  # Include event_info
         conversation_state=ConversationState(),
         call_tracking=CallTracking(status="initiated"),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await call_record.insert()
 

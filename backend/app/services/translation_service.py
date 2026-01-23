@@ -7,7 +7,7 @@ Implements marker-based batching for single API call efficiency.
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
 from openai import AsyncOpenAI
@@ -79,7 +79,7 @@ class TranslationService:
                 status="completed",
                 source_language=source_language,
                 messages=[],
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(timezone.utc),
                 attempts=1,
             )
             await call_record.save()
@@ -110,11 +110,11 @@ class TranslationService:
                 status="completed",
                 source_language=source_language,
                 messages=translated_messages,
-                completed_at=datetime.utcnow(),
+                completed_at=datetime.now(timezone.utc),
                 attempts=attempts,
                 error=None,
             )
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
             await call_record.save()
 
             logger.info(
@@ -142,7 +142,7 @@ class TranslationService:
                 attempts=attempts,
                 error=str(e),
             )
-            call_record.updated_at = datetime.utcnow()
+            call_record.updated_at = datetime.now(timezone.utc)
             await call_record.save()
 
             return False

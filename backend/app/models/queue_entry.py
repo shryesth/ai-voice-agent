@@ -10,7 +10,7 @@ Handles:
 
 from beanie import Document
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from enum import Enum
 
@@ -55,7 +55,7 @@ class FailureReason(str, Enum):
 class RetryHistory(BaseModel):
     """Single retry attempt record"""
     attempt_number: int = Field(..., ge=1, le=3)
-    attempted_at: datetime = Field(default_factory=datetime.utcnow)
+    attempted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     failure_reason: FailureReason
     error_details: Optional[str] = Field(
         None,
@@ -123,8 +123,8 @@ class QueueEntry(Document):
     )
 
     # Audit timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     first_attempted_at: Optional[datetime] = Field(
         None,
         description="Timestamp of first call attempt"

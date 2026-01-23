@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from backend.app.models.enums import (
@@ -85,7 +85,7 @@ class ConversationTurn(BaseModel):
 
     speaker: str = Field(..., description="'patient', 'ai', 'contact', or 'system'")
     text: str = Field(..., description="Transcribed text")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     language: Optional[str] = Field(None, description="Language code for this turn")
 
 
@@ -210,7 +210,7 @@ class CallTracking(BaseModel):
     )
 
     # Timing
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     duration_seconds: Optional[int] = Field(
@@ -464,8 +464,8 @@ class CallRecord(Document):
     )
 
     # Audit
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
         name = "call_records"

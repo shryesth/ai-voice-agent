@@ -435,11 +435,28 @@ class ClarityService:
         # Make API call
         url = f"{self.base_url}/api/v1/hmis/client-visits/verification/{recipient.external_id}"
 
+        # Log the complete payload being sent to Clarity
+        logger.info(
+            f"Pushing verification result to Clarity - "
+            f"Recipient ID: {recipient.id}, "
+            f"External ID: {recipient.external_id}, "
+            f"URL: {url}"
+        )
+        logger.info(f"Clarity Push Payload: {payload}")
+
         try:
             async with self._semaphore:
                 client = await self._get_client()
                 response = await client.put(url, headers=self.headers, json=payload)
                 response.raise_for_status()
+
+            # Log successful response
+            logger.info(
+                f"Successfully pushed result to Clarity - "
+                f"Recipient: {recipient.id}, "
+                f"HTTP Status: {response.status_code}, "
+                f"Response: {response.text[:200]}"  # Limit response to 200 chars
+            )
 
             # Update sync status
             recipient.sync_status = SyncStatus.SYNCED
@@ -448,11 +465,17 @@ class ClarityService:
             recipient.updated_at = datetime.utcnow()
             await recipient.save()
 
-            logger.info(f"Pushed result for recipient {recipient.id} to Clarity")
             return True
 
         except httpx.HTTPError as e:
-            logger.error(f"Failed to push result to Clarity: {e}")
+            # Log detailed error information
+            error_details = f"HTTP {e.response.status_code}: {e.response.text}" if hasattr(e, 'response') else str(e)
+            logger.error(
+                f"Failed to push result to Clarity - "
+                f"Recipient: {recipient.id}, "
+                f"Error: {error_details}, "
+                f"Payload: {payload}"
+            )
             recipient.sync_status = SyncStatus.FAILED
             recipient.sync_error = str(e)
             recipient.updated_at = datetime.utcnow()

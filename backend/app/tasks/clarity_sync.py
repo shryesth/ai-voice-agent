@@ -202,6 +202,21 @@ def sync_results_to_clarity(
                                 expiration=86400,  # 24 hours
                             )
 
+                    # Log recipient details before push
+                    logger.info(
+                        f"Preparing to sync recipient {recipient.id} to Clarity - "
+                        f"Status: {recipient.status}, "
+                        f"External ID: {recipient.external_id}, "
+                        f"Has Recording URL: {recording_url is not None}"
+                    )
+                    logger.debug(
+                        f"Recipient conversation result: "
+                        f"visit_confirmed={recipient.conversation_result.is_visit_confirmed}, "
+                        f"service_confirmed={recipient.conversation_result.is_service_confirmed}, "
+                        f"satisfaction_rating={recipient.conversation_result.satisfaction_rating}, "
+                        f"has_side_effects={recipient.conversation_result.has_side_effects}"
+                    )
+
                     # Push to Clarity
                     success = await clarity_service.push_verification_result(
                         recipient=recipient,

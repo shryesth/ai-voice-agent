@@ -340,6 +340,21 @@ class Recipient(Document):
             "priority",
             "sync_status",
             "created_at",
+            # Unique compound index to prevent duplicate recipients from same external source
+            [
+                ("external_source", 1),
+                ("external_id", 1),
+            ],
+        ]
+
+        # Define the unique compound index explicitly
+        indexes_models = [
+            {
+                "keys": [("external_source", 1), ("external_id", 1)],
+                "name": "external_source_external_id_unique",
+                "unique": True,
+                "sparse": True,  # Allow null values (for non-external recipients)
+            }
         ]
 
     class Config:

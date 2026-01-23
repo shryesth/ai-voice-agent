@@ -10,7 +10,7 @@ Respects time windows, concurrency limits, and retry schedules.
 
 from celery import Task
 from backend.app.celery_app import celery_app, get_worker_event_loop
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def is_within_time_window(time_windows: list) -> bool:
         # No time windows = always allowed
         return True
 
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc)
     current_time = now_utc.time()
     current_day_int = now_utc.weekday()  # 0=Monday, 6=Sunday
     current_day_name = now_utc.strftime("%A").lower()  # e.g., "monday"
@@ -219,8 +219,8 @@ def process_campaign_queues(self):
                                 event_info=event_info_dict,
                                 conversation_state=ConversationState(),
                                 call_tracking=CallTracking(status="initiated"),
-                                created_at=datetime.utcnow(),
-                                updated_at=datetime.utcnow(),
+                                created_at=datetime.now(timezone.utc),
+                                updated_at=datetime.now(timezone.utc),
                             )
                             loop.run_until_complete(call_record.insert())
 
@@ -257,7 +257,7 @@ def process_campaign_queues(self):
                             )
                             # Revert recipient status on failure
                             recipient.status = RecipientStatus.PENDING
-                            recipient.updated_at = datetime.utcnow()
+                            recipient.updated_at = datetime.now(timezone.utc)
                             loop.run_until_complete(recipient.save())
 
                     queues_processed += 1
@@ -355,7 +355,7 @@ def process_campaign_queues(self):
                         try:
                             # Update entry state to CALLING
                             entry.state = LegacyQueueState.CALLING
-                            entry.updated_at = datetime.utcnow()
+                            entry.updated_at = datetime.now(timezone.utc)
                             loop.run_until_complete(entry.save())
 
                             # Initiate call via Celery task

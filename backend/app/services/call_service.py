@@ -177,13 +177,19 @@ class CallService:
         if not call:
             raise ValueError(f"Call record {call_id} not found")
 
+        # Log pipeline state for debugging
+        logger.info(f"Updating call {call_id} with pipeline_state keys: {list(pipeline_state.keys())}")
+        logger.debug(f"Pipeline state contents: {pipeline_state}")
+
         # Update conversation state from FlowManager state
         # FlowManager uses: completed_stages, current_stage, *_retry_count, etc.
         if "completed_stages" in pipeline_state:
             call.conversation_state.completed_stages = pipeline_state["completed_stages"]
+            logger.info(f"Updated completed_stages: {pipeline_state['completed_stages']}")
 
         if "current_stage" in pipeline_state:
             call.conversation_state.current_stage = pipeline_state["current_stage"]
+            logger.info(f"Updated current_stage: {pipeline_state['current_stage']}")
 
         # Update stage retry counts
         stage_retry_counts = {}

@@ -176,15 +176,6 @@ class ClarityService:
             logger.warning("Subject missing verification_id, skipping")
             return None
 
-        # Check if recipient already exists
-        existing = await Recipient.find_one(
-            Recipient.external_id == str(verification_id),
-            Recipient.external_source == ExternalSource.CLARITY,
-        )
-        if existing:
-            logger.debug(f"Recipient already exists for verification {verification_id}")
-            return None
-
         # Extract event info (handle camelCase and nested eventInfo)
         event_info_obj = subject.get("eventInfo", subject.get("event_info", {}))
         event_type = (
@@ -309,7 +300,43 @@ class ClarityService:
         # Determine language
         language = subject.get("language", subject.get("preferred_language", queue.default_language))
 
-        # Create recipient (just use queue.id for the Link field)
+        # Check if recipient already exists (for upsert logic)
+        existing = await Recipient.find_one(
+            Recipient.external_id == str(verification_id),
+            Recipient.external_source == ExternalSource.CLARITY,
+        )
+
+        if existing:
+            # Update existing recipient with latest data from Clarity
+            # Only update if status is still PENDING or NOT_REACHABLE (not yet processed)
+            if existing.status in [RecipientStatus.PENDING, RecipientStatus.NOT_REACHABLE, RecipientStatus.FAILED]:
+                existing.queue_id = queue.id
+                existing.contact_phone = phone
+                existing.contact_name = contact_name
+                existing.contact_type = contact_type
+                existing.language = language
+                existing.patient_name = patient_name if patient_name != contact_name else None
+                existing.patient_relation = subject.get("relation", subject.get("relationship"))
+                existing.patient_age = patient_age
+                existing.event_info = event_info
+                existing.priority = subject.get("priority", 0)
+                existing.updated_at = datetime.utcnow()
+
+                # Reset status to PENDING if it was FAILED or NOT_REACHABLE (allow retry)
+                if existing.status in [RecipientStatus.FAILED, RecipientStatus.NOT_REACHABLE]:
+                    existing.status = RecipientStatus.PENDING
+                    existing.retry_count = 0
+                    existing.last_failure_reason = None
+
+                await existing.save()
+                logger.info(f"Updated existing recipient for verification {verification_id}")
+                return existing
+            else:
+                # Recipient already processed (COMPLETED, CALLING, etc.), skip
+                logger.debug(f"Recipient already exists and processed for verification {verification_id}, status={existing.status}")
+                return None
+
+        # Create new recipient (just use queue.id for the Link field)
         recipient = Recipient(
             queue_id=queue.id,  # Link field accepts document ID
             external_source=ExternalSource.CLARITY,
@@ -330,6 +357,7 @@ class ClarityService:
         )
 
         await recipient.insert()
+        logger.info(f"Created new recipient for verification {verification_id}")
         return recipient
 
     def _extract_phone(self, subject: Dict[str, Any]) -> Optional[str]:

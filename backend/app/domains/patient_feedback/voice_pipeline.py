@@ -307,5 +307,19 @@ async def create_voice_pipeline(
         flow_manager.state["error"] = str(e)
         flow_manager.state["completed"] = False
 
-    # 15. Return final conversation state for persistence
+    # 15. Ensure state has minimum required keys before returning
+    if "completed_stages" not in flow_manager.state:
+        flow_manager.state["completed_stages"] = []
+        logger.warning(f"completed_stages was missing from state for call {call_record_id}, initialized to empty list")
+
+    if "current_stage" not in flow_manager.state:
+        flow_manager.state["current_stage"] = None
+        logger.warning(f"current_stage was missing from state for call {call_record_id}, initialized to None")
+
+    # 16. Return final conversation state for persistence
+    logger.info(f"Voice pipeline returning state for call {call_record_id}: "
+                f"current_stage={flow_manager.state.get('current_stage')}, "
+                f"completed_stages={flow_manager.state.get('completed_stages')}, "
+                f"completed={flow_manager.state.get('completed')}")
+    logger.debug(f"Full pipeline state: {flow_manager.state}")
     return flow_manager.state

@@ -7,7 +7,7 @@ Tasks:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from celery import shared_task
@@ -89,9 +89,9 @@ def sync_clarity_subjects(
             )
 
             # Update sync metadata
-            queue.clarity_sync.last_sync_at = datetime.utcnow()
+            queue.clarity_sync.last_sync_at = datetime.now(timezone.utc)
             queue.clarity_sync.last_sync_count = len(recipients)
-            queue.updated_at = datetime.utcnow()
+            queue.updated_at = datetime.now(timezone.utc)
             await queue.save()
 
             logger.info(
@@ -217,7 +217,7 @@ def sync_results_to_clarity(
                     logger.error(f"Failed to push recipient {recipient.id} to Clarity: {e}")
                     recipient.sync_status = SyncStatus.FAILED
                     recipient.sync_error = str(e)
-                    recipient.updated_at = datetime.utcnow()
+                    recipient.updated_at = datetime.now(timezone.utc)
                     await recipient.save()
 
         logger.info(f"Synced {synced_count} recipients to Clarity")
@@ -261,7 +261,7 @@ def sync_all_queues_from_clarity(self):
                 next_sync = queue.clarity_sync.last_sync_at + timedelta(
                     minutes=queue.clarity_sync.sync_interval_minutes
                 )
-                if datetime.utcnow() < next_sync:
+                if datetime.now(timezone.utc) < next_sync:
                     continue
 
             # Queue the sync task

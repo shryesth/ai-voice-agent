@@ -455,31 +455,60 @@ async def twilio_media_stream(websocket: WebSocket):
         }
 
         # 4. Run Pipecat voice pipeline (blocks until call completes)
-        final_state = await create_voice_pipeline(
-            websocket=websocket,
-            call_record_id=str(call_record.id),
-            call_data=pipeline_call_data,
-            call_record=call_record  # Pass call_record for real-time transcript updates
-        )
+        # Store final_state outside try to access in exception handlers
+        final_state = None
+        try:
+            final_state = await create_voice_pipeline(
+                websocket=websocket,
+                call_record_id=str(call_record.id),
+                call_data=pipeline_call_data,
+                call_record=call_record  # Pass call_record for real-time transcript updates
+            )
 
-        # 5. Update CallRecord with final conversation state
-        await CallService.update_call_from_pipeline_state(
-            call_id=str(call_record.id),
-            pipeline_state=final_state
-        )
+            # 5. Update CallRecord with final conversation state
+            await CallService.update_call_from_pipeline_state(
+                call_id=str(call_record.id),
+                pipeline_state=final_state
+            )
 
-        logger.info(f"Call completed successfully: {call_sid}")
+            logger.info(f"Call completed successfully: {call_sid}")
+
+        except WebSocketDisconnect:
+            logger.info(f"Twilio WebSocket disconnected: {call_sid if 'call_sid' in locals() else 'unknown'}")
+            # Save pipeline state even on disconnect
+            if final_state:
+                try:
+                    await CallService.update_call_from_pipeline_state(
+                        call_id=str(call_record.id),
+                        pipeline_state=final_state
+                    )
+                    logger.info(f"Saved pipeline state after WebSocket disconnect: {call_sid}")
+                except Exception as save_error:
+                    logger.error(f"Failed to save pipeline state after disconnect: {save_error}")
+        except Exception as e:
+            logger.error(f"Error in voice pipeline: {e}", exc_info=True)
+            # Update CallRecord with error state
+            if 'call_record' in locals():
+                call_record.call_tracking.status = "failed"
+                call_record.error_message = str(e)
+                call_record.call_tracking.outcome = CallOutcome.FAILED
+                await call_record.save()
+
+            # Save pipeline state even on error
+            if final_state:
+                try:
+                    await CallService.update_call_from_pipeline_state(
+                        call_id=str(call_record.id),
+                        pipeline_state=final_state
+                    )
+                    logger.info(f"Saved pipeline state after error: {call_sid}")
+                except Exception as save_error:
+                    logger.error(f"Failed to save pipeline state after error: {save_error}")
 
     except WebSocketDisconnect:
-        logger.info(f"Twilio WebSocket disconnected: {call_sid if 'call_sid' in locals() else 'unknown'}")
+        logger.info(f"Twilio WebSocket disconnected during setup: {call_sid if 'call_sid' in locals() else 'unknown'}")
     except Exception as e:
-        logger.error(f"Error in voice pipeline: {e}", exc_info=True)
-        # Update CallRecord with error state
-        if 'call_record' in locals():
-            call_record.call_tracking.status = "failed"
-            call_record.error_message = str(e)
-            call_record.call_tracking.outcome = CallOutcome.FAILED
-            await call_record.save()
+        logger.error(f"Error in call setup: {e}", exc_info=True)
     finally:
         try:
             await websocket.close()

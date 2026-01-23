@@ -8,7 +8,7 @@ from CallRecord to Recipient, enabling bidirectional Clarity sync.
 import asyncio
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from bson import ObjectId
 
@@ -73,17 +73,18 @@ def sync_recipient_from_call(
 
         # 3. Map conversation results
         conversation_result = ConversationResult(
-            is_visit_confirmed=call_record.feedback.visit_confirmed if call_record.feedback else None,
-            is_service_confirmed=call_record.feedback.service_confirmed if call_record.feedback else None,
-            satisfaction_rating=call_record.feedback.satisfaction_rating if call_record.feedback else None,
-            side_effects_reported=call_record.feedback.side_effects_details if call_record.feedback else None,
-            has_side_effects=call_record.feedback.has_side_effects if call_record.feedback else None,
-            specific_concerns=call_record.feedback.specific_concerns if call_record.feedback else None,
+            is_visit_confirmed=call_record.conversation_data.is_visit_confirmed,
+            is_service_confirmed=call_record.conversation_data.is_service_confirmed,
+            satisfaction_rating=call_record.conversation_data.overall_satisfaction,
+            side_effects_reported=call_record.conversation_data.side_effects_reported,
+            has_side_effects=call_record.conversation_data.has_side_effects,
+            specific_concerns=call_record.conversation_data.specific_concerns,
             additional_notes=None,
             extracted_data={
                 "urgency_flagged": call_record.urgency_flagged,
-                "completed_stages": call_record.pipeline_state.get("completed_stages", []) if call_record.pipeline_state else [],
-                "completion_reason": call_record.pipeline_state.get("completion_reason") if call_record.pipeline_state else None,
+                "completed_stages": call_record.conversation_state.completed_stages if call_record.conversation_state else [],
+                "current_stage": call_record.conversation_state.current_stage if call_record.conversation_state else None,
+                **call_record.conversation_data.extracted_data  # Include all extracted data from conversation
             }
         )
 
@@ -121,7 +122,7 @@ def sync_recipient_from_call(
         recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync
         recipient.completed_at = call_record.call_tracking.ended_at if call_record.call_tracking else None
         recipient.urgency_flagged = call_record.urgency_flagged
-        recipient.updated_at = datetime.utcnow()
+        recipient.updated_at = datetime.now(timezone.utc)
 
         await recipient.save()
 

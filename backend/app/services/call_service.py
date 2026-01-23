@@ -194,17 +194,52 @@ class CallService:
         if stage_retry_counts:
             call.conversation_state.stage_retry_counts = stage_retry_counts
 
+        # Update verification responses (visit, service confirmation)
+        if "visit_confirmed" in pipeline_state:
+            call.conversation_data.is_visit_confirmed = pipeline_state["visit_confirmed"]
+        if "service_confirmed" in pipeline_state:
+            call.conversation_data.is_service_confirmed = pipeline_state["service_confirmed"]
+        
+        # Store verification-related data in verification_responses
+        verification_responses = {}
+        if "guardian_confirmed" in pipeline_state:
+            verification_responses["guardian_confirmed"] = pipeline_state["guardian_confirmed"]
+        if "visit_discrepancy" in pipeline_state:
+            verification_responses["visit_discrepancy"] = pipeline_state["visit_discrepancy"]
+        if "service_not_confirmed_followup" in pipeline_state:
+            verification_responses["service_not_confirmed_followup"] = pipeline_state["service_not_confirmed_followup"]
+        if verification_responses:
+            call.conversation_data.verification_responses = verification_responses
+
         # Update feedback data from FlowManager fields
         if "satisfaction_rating" in pipeline_state:
-            call.feedback.overall_satisfaction = pipeline_state["satisfaction_rating"]
+            call.conversation_data.overall_satisfaction = pipeline_state["satisfaction_rating"]
 
+        # Map has_side_effects to boolean field, side_effects_details to string field
         if "has_side_effects" in pipeline_state:
-            call.feedback.side_effects_reported = pipeline_state.get("side_effects_details", "")
+            call.conversation_data.has_side_effects = pipeline_state["has_side_effects"]
+        if "side_effects_details" in pipeline_state:
+            call.conversation_data.side_effects_reported = pipeline_state["side_effects_details"]
+        
+        # Store extracted data and follow-up flags
+        extracted_data = {}
+        if "low_satisfaction_followup" in pipeline_state:
+            extracted_data["low_satisfaction_followup"] = pipeline_state["low_satisfaction_followup"]
+        if "human_callback_requested" in pipeline_state:
+            extracted_data["human_callback_requested"] = pipeline_state["human_callback_requested"]
+        if "satisfaction_feedback" in pipeline_state:
+            extracted_data["satisfaction_feedback"] = pipeline_state["satisfaction_feedback"]
+        if extracted_data:
+            call.conversation_data.extracted_data = extracted_data
 
-        # Update urgency flags
+        # Update urgency flags from severe side effects or explicit flag
         if pipeline_state.get("urgency_flagged") or pipeline_state.get("severe_side_effects"):
             call.urgency_flagged = True
             call.urgency_keywords_detected = pipeline_state.get("urgency_keywords", [])
+        
+        # Store severe side effects flag in extracted data for follow-up
+        if pipeline_state.get("severe_side_effects"):
+            call.conversation_data.extracted_data["severe_side_effects"] = True
 
         # Update completion status
         if pipeline_state.get("completed"):

@@ -140,9 +140,7 @@ def sync_results_to_clarity(
         from backend.app.services.clarity_service import ClarityService
         from backend.app.infrastructure.storage.s3_storage import S3StorageClient
         from backend.app.models.call_record import CallRecord
-        from backend.app.core.config import get_settings
-
-        settings = get_settings()
+        from backend.app.core.config import settings
 
         # Build query for unsyncedrecipients
         query = {

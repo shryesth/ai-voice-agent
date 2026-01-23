@@ -48,19 +48,25 @@ class GeographyService:
             raise ValueError(f"Geography with name '{data.name}' already exists")
 
         # Create new geography
-        geography = Geography(
-            name=data.name,
-            description=data.description,
-            region_code=data.region_code,
-            timezone=getattr(data, 'timezone', 'UTC'),
-            default_language=getattr(data, 'default_language', 'en'),
-            supported_languages=getattr(data, 'supported_languages', ['en']),
-            clarity_config=data.clarity_config.model_dump() if data.clarity_config else None,
-            retention_policy=data.retention_policy.model_dump(),
-            metadata=data.metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
+        # Build geography kwargs, conditionally including clarity_config
+        geography_kwargs = {
+            "name": data.name,
+            "description": data.description,
+            "region_code": data.region_code,
+            "timezone": getattr(data, 'timezone', 'UTC'),
+            "default_language": getattr(data, 'default_language', 'en'),
+            "supported_languages": getattr(data, 'supported_languages', ['en']),
+            "retention_policy": data.retention_policy.model_dump(),
+            "metadata": data.metadata,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+
+        # Only include clarity_config if provided (let default_factory handle None case)
+        if data.clarity_config is not None:
+            geography_kwargs["clarity_config"] = data.clarity_config.model_dump()
+
+        geography = Geography(**geography_kwargs)
 
         await geography.insert()
         logger.info("Geography created", geography_id=str(geography.id), name=geography.name)

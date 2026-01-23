@@ -39,8 +39,8 @@ class ClarityService:
     Service for integrating with Clarity API.
 
     Supports bidirectional sync:
-    - Pull: GET /client-visits/verification?status=IN_PROGRESS
-    - Push: PUT /client-visits/verification/{id}
+    - Pull: GET /api/v1/hmis/client-visits/verification?status=IN_PROGRESS
+    - Push: PUT /api/v1/hmis/client-visits/verification/{id}
     """
 
     # Clarity verification status codes
@@ -116,7 +116,7 @@ class ClarityService:
             return []
 
         # Get subjects with IN_PROGRESS status
-        url = f"{self.base_url}/client-visits/verification"
+        url = f"{self.base_url}/api/v1/hmis/client-visits/verification"
         params = {
             "page": 1,
             "pageSize": max_count,
@@ -405,7 +405,7 @@ class ClarityService:
             payload["recording_url"] = recording_url
 
         # Make API call
-        url = f"{self.base_url}/client-visits/verification/{recipient.external_id}"
+        url = f"{self.base_url}/api/v1/hmis/client-visits/verification/{recipient.external_id}"
 
         try:
             async with self._semaphore:

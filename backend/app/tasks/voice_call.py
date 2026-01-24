@@ -199,13 +199,13 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
         call_record.updated_at = datetime.now(timezone.utc)
         loop.run_until_complete(call_record.save())
 
-        logger.info(f"Updated call record {call_record.id} with status {status}")
-
         # Trigger recipient sync for terminal call states
         if status in ["completed", "busy", "no-answer", "failed", "canceled"]:
             from backend.app.tasks.recipient_sync import sync_recipient_from_call
             sync_recipient_from_call.delay(str(call_record.id))
             logger.info(f"Triggered recipient sync for call record {call_record.id}")
+
+        logger.info(f"Updated call record {call_record.id} with status {status}")
 
         return {
             "call_record_id": str(call_record.id),

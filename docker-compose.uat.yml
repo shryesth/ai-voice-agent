@@ -2,7 +2,7 @@ services:
   # MongoDB Database (UAT/Staging)
   mongodb:
     image: mongo:8.0.17
-    container_name: voice-ai-mongodb-uat
+    container_name: shifo-supervisor-mongodb-uat
     restart: always
     ports:
       - "27017:27017"
@@ -39,7 +39,7 @@ services:
   # Redis Cache & Message Broker (UAT/Staging)
   redis:
     image: redis:7-alpine
-    container_name: voice-ai-redis-uat
+    container_name: shifo-supervisor-redis-uat
     restart: always
     ports:
       - "6379:6379"
@@ -71,7 +71,7 @@ services:
   # MinIO Object Storage (UAT/Staging)
   minio:
     image: minio/minio:RELEASE.2025-01-20T14-49-07Z
-    container_name: voice-ai-minio-uat
+    container_name: shifo-supervisor-minio-uat
     restart: always
     ports:
       - "9000:9000"      # S3 API endpoint
@@ -113,8 +113,8 @@ services:
       dockerfile: docker/Dockerfile.api
       args:
         - BUILD_ENV=staging
-    image: voice-ai-api:${VERSION:-uat-latest}
-    container_name: voice-ai-api-uat
+    image: shifo-supervisor-api:${VERSION:-uat-latest}
+    container_name: shifo-supervisor-api-uat
     restart: always
     ports:
       - "3000:3000"
@@ -173,8 +173,8 @@ services:
       dockerfile: docker/Dockerfile.worker
       args:
         - BUILD_ENV=staging
-    image: voice-ai-worker:${VERSION:-uat-latest}
-    container_name: voice-ai-celery-worker-uat
+    image: shifo-supervisor-worker:${VERSION:-uat-latest}
+    container_name: shifo-supervisor-celery-worker-uat
     restart: always
     env_file:
       - config/.env.uat
@@ -223,8 +223,8 @@ services:
       dockerfile: docker/Dockerfile.beat
       args:
         - BUILD_ENV=staging
-    image: voice-ai-beat:${VERSION:-uat-latest}
-    container_name: voice-ai-celery-beat-uat
+    image: shifo-supervisor-beat:${VERSION:-uat-latest}
+    container_name: shifo-supervisor-celery-beat-uat
     restart: always
     env_file:
       - config/.env.uat

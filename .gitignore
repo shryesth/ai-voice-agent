@@ -163,13 +163,15 @@ Thumbs.db
 *.bak
 *.swp
 *~.nib
-
-# Claude Code config
 .claude
+.specify
+CLAUDE.md
+
 
 # Application specific
 backups/
 logs/
+*.log
 
 # Environment configuration (new structure)
 # Actual config files with secrets (gitignored)
@@ -186,3 +188,60 @@ config/.env.prod
 # Legacy env file patterns (safeguard against accidental commits)
 .env.local
 .env.*.local
+
+# Docker volumes and data
+docker_volumes/
+.docker/
+
+# Audio/Media files (recordings, transcripts)
+*.wav
+*.mp3
+*.m4a
+*.ogg
+recordings/
+audio_files/
+
+# MinIO/S3 related
+minio_data/
+.minio/
+
+# Celery and Redis
+celery_results/
+*.rdb
+
+# Generated files
+*.generated.py
+.pipecat_cache/
+
+# Database backups and dumps
+*.dump
+*.sql
+*.bak
+db_backups/
+
+# Old/Legacy project directories
+old_project_config*/
+
+# Node modules (if any frontend build tools are used)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Pytest cache and reports
+.pytest_cache/
+test_results/
+junit.xml
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# IDE specific (additional)
+*.code-workspace
+.venv.bak/
+
+# Temporary/Generated
+*.pickle
+*.pkl
+__pycache__/
+.DS_Store

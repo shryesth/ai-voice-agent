@@ -9,7 +9,7 @@ This service handles:
 import httpx
 import logging
 from asyncio import Semaphore
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from backend.app.models.enums import (
@@ -352,8 +352,8 @@ class ClarityService:
             status=RecipientStatus.PENDING,
             priority=subject.get("priority", 0),
             sync_status=SyncStatus.PENDING,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
         await recipient.insert()
@@ -416,19 +416,22 @@ class ClarityService:
         # Map recipient status to Clarity status
         clarity_status = self._map_status_to_clarity(recipient.status)
 
-        # Build minimal payload - ONLY what Clarity API accepts
-        # Clarity API spec (verified from /Workspace/SHIFO/clarity) only accepts:
-        #   - status (int): 2=VALID, 3=NOT_VALID, 4=NOT_REACHABLE
-        #   - is_visit_confirmed (bool): whether visit was confirmed
-        #   - recording_url (str): presigned S3 URL
-        # All other fields (satisfaction_rating, side_effects, etc.) are stored
-        # in Recipient for internal use but NOT sent to Clarity
+        # Build payload
         payload = {
             "status": clarity_status,
             "is_visit_confirmed": recipient.conversation_result.is_visit_confirmed,
+            "is_service_confirmed": recipient.conversation_result.is_service_confirmed,
+            "satisfaction_rating": recipient.conversation_result.satisfaction_rating,
+            "side_effects_reported": recipient.conversation_result.side_effects_reported,
+            "has_side_effects": recipient.conversation_result.has_side_effects,
+            "specific_concerns": recipient.conversation_result.specific_concerns,
+            "urgency_flagged": recipient.urgency_flagged,
+            "human_callback_requested": recipient.human_callback_requested,
+            "call_attempts": len(recipient.call_attempts),
+            "completed_at": recipient.completed_at.isoformat() if recipient.completed_at else None,
         }
 
-        # Add recording URL if configured and available
+        # Add recording URL if configured
         if self.config.include_recording_url and recording_url:
             payload["recording_url"] = recording_url
 
@@ -460,11 +463,12 @@ class ClarityService:
 
             # Update sync status
             recipient.sync_status = SyncStatus.SYNCED
-            recipient.last_synced_at = datetime.utcnow()
+            recipient.last_synced_at = datetime.now(timezone.utc)
             recipient.sync_error = None
-            recipient.updated_at = datetime.utcnow()
+            recipient.updated_at = datetime.now(timezone.utc)
             await recipient.save()
 
+            logger.info(f"Pushed result for recipient {recipient.id} to Clarity")
             return True
 
         except httpx.HTTPError as e:
@@ -478,7 +482,7 @@ class ClarityService:
             )
             recipient.sync_status = SyncStatus.FAILED
             recipient.sync_error = str(e)
-            recipient.updated_at = datetime.utcnow()
+            recipient.updated_at = datetime.now(timezone.utc)
             await recipient.save()
             return False
 

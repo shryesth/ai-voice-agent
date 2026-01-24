@@ -45,6 +45,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_original_url(request: Request) -> str:
+    """
+    Reconstruct the original URL from the request, respecting proxy headers.
+
+    When behind a reverse proxy (like Caprover's nginx), the request URL will be
+    the internal HTTP URL. We need to use X-Forwarded-* headers to reconstruct
+    the original HTTPS URL that the client (Twilio) sent to.
+
+    This is critical for Twilio signature validation, which signs the original URL.
+    """
+    # Get proxy headers
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "http")
+    forwarded_host = request.headers.get("X-Forwarded-Host", request.url.hostname)
+
+    # Reconstruct the URL
+    scheme = forwarded_proto
+    host = forwarded_host
+    path = request.url.path
+
+    # Build the full URL
+    url = f"{scheme}://{host}{path}"
+
+    # Add query string if present
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
+
+    return url
+
+
 def call_to_response(call, user_role: Optional[UserRole] = None) -> CallRecordResponse:
     """Convert CallRecord to CallRecordResponse schema"""
     # Privacy: Hide patient_phone from User role
@@ -285,7 +314,7 @@ async def twilio_status_webhook(request: Request):
     twilio = TwilioIntegration()
     if not settings.is_development:
         signature = request.headers.get("X-Twilio-Signature", "")
-        url = str(request.url)
+        url = get_original_url(request)
 
         if not twilio.validate_webhook(url, params, signature):
             logger.warning(f"Invalid Twilio signature for webhook: {url}")
@@ -334,7 +363,7 @@ async def twilio_recording_callback(
         signature = request.headers.get("X-Twilio-Signature", "")
 
         form_data = await request.form()
-        url = str(request.url)
+        url = get_original_url(request)
 
         if not validator.validate(url, dict(form_data), signature):
             logger.warning(f"⚠️ Invalid Twilio signature for recording callback: {url}")

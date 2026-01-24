@@ -2,7 +2,7 @@ services:
   # MongoDB Database
   mongodb:
     image: mongo:8.0.17
-    container_name: voice-ai-mongodb
+    container_name: shifo-supervisor-mongodb
     restart: unless-stopped
     # Uncomment next line to suppress startup warnings (optional)
     # command: ["mongod", "--quiet"]
@@ -13,7 +13,7 @@ services:
     environment:
       MONGO_INITDB_DATABASE: voice_agent
     networks:
-      - voice-ai-network
+      - shifo-supervisor-network
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/voice_agent --quiet
       interval: 10s
@@ -23,14 +23,14 @@ services:
   # Redis Cache & Message Broker
   redis:
     image: redis:7-alpine
-    container_name: voice-ai-redis
+    container_name: shifo-supervisor-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - voice-ai-network
+      - shifo-supervisor-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -40,7 +40,7 @@ services:
   # MinIO Object Storage (Local Development)
   minio:
     image: minio/minio:RELEASE.2025-01-20T14-49-07Z
-    container_name: voice-ai-minio
+    container_name: shifo-supervisor-minio
     restart: unless-stopped
     ports:
       - "9000:9000"      # S3 API endpoint
@@ -52,7 +52,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     networks:
-      - voice-ai-network
+      - shifo-supervisor-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -64,7 +64,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
-    container_name: voice-ai-api
+    container_name: shifo-supervisor-api
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -87,7 +87,7 @@ services:
       minio:
         condition: service_healthy
     networks:
-      - voice-ai-network
+      - shifo-supervisor-network
     command: uvicorn backend.app.main:app --host 0.0.0.0 --port 3000 --reload
 
   # Celery Worker
@@ -95,7 +95,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
-    container_name: voice-ai-celery-worker
+    container_name: shifo-supervisor-celery-worker
     restart: unless-stopped
     volumes:
       - ./backend:/app/backend:ro
@@ -113,14 +113,14 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - voice-ai-network
+      - shifo-supervisor-network
 
   # Celery Beat Scheduler
   celery-beat:
     build:
       context: .
       dockerfile: docker/Dockerfile.beat
-    container_name: voice-ai-celery-beat
+    container_name: shifo-supervisor-celery-beat
     restart: unless-stopped
     volumes:
       - ./backend:/app/backend:ro
@@ -137,10 +137,10 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - voice-ai-network
+      - shifo-supervisor-network
 
 networks:
-  voice-ai-network:
+  shifo-supervisor-network:
     driver: bridge
 
 volumes:

@@ -50,7 +50,7 @@ class ClaritySyncConfigSchema(BaseModel):
     """Configuration for Clarity sync."""
 
     enabled: bool = Field(default=False)
-    sync_interval_minutes: int = Field(default=15, ge=1, le=60)
+    sync_interval_minutes: int = Field(default=5, ge=1, le=60)
     max_per_sync: int = Field(default=100, ge=1, le=1000)
     event_type_filter: List[str] = Field(default_factory=list)
 

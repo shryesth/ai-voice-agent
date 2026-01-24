@@ -335,7 +335,7 @@ def create_side_effects_node() -> NodeConfig:
             details=details,
             severe=severe
         ), create_satisfaction_node()
-    
+
     return NodeConfig(
         name="side_effects",
         role_messages=[
@@ -376,25 +376,25 @@ def create_side_effects_node() -> NodeConfig:
 def create_satisfaction_node() -> NodeConfig:
     """
     Collect satisfaction rating and feedback.
-    
+
     Goal: Ask for a rating from 1 to 10 and any specific concerns or feedback.
     """
-    
+
     async def satisfaction_handler(args: FlowArgs, flow_manager: FlowManager):
         rating = args.get("rating", 5)
         feedback = args.get("feedback", "")
-        
+
         flow_manager.state["satisfaction_rating"] = rating
         flow_manager.state["satisfaction_feedback"] = feedback
         flow_manager.state["completed_stages"].append("satisfaction")
         flow_manager.state["current_stage"] = "closing"
-        
+
         # Flag low satisfaction for follow-up
         if rating < 5:
             flow_manager.state["low_satisfaction_followup"] = True
-        
+
         return SatisfactionResult(rating=rating, feedback=feedback), create_closing_node()
-    
+
     return NodeConfig(
         name="satisfaction",
         role_messages=[
@@ -433,41 +433,41 @@ def create_satisfaction_node() -> NodeConfig:
 def create_closing_node() -> NodeConfig:
     """
     Thank the caller and end the conversation professionally.
-    
+
     Goal: Express gratitude, wish them good health, and end the call.
     """
-    
+
     async def closing_handler(args: FlowArgs, flow_manager: FlowManager):
         reason = args.get("reason", "complete")
-        
+
         flow_manager.state["completed"] = True
         flow_manager.state["completion_reason"] = reason
         flow_manager.state["completed_stages"].append("closing")
-        
+
         # Build personalized goodbye message
         goodbye_parts = ["Thank you very much for your time and valuable feedback."]
-        
+
         if flow_manager.state.get("human_callback_requested"):
             goodbye_parts.append("Someone from our team will follow up with you soon.")
-        
+
         if flow_manager.state.get("severe_side_effects"):
             goodbye_parts.append("Please contact your healthcare provider if your symptoms worsen.")
-        
+
         if flow_manager.state.get("low_satisfaction_followup"):
             goodbye_parts.append("We appreciate your honest feedback and will work to improve.")
-        
+
         goodbye_parts.append("Wishing you good health. Have a wonderful day!")
         goodbye_message = " ".join(goodbye_parts)
-        
+
         # Queue goodbye message and EndFrame to terminate call
         if flow_manager.task:
             await flow_manager.task.queue_frames([
                 TTSSpeakFrame(goodbye_message),
                 EndFrame()
             ])
-        
+
         return ClosingResult(reason=reason), None  # No next node - conversation ends
-    
+
     return NodeConfig(
         name="closing",
         role_messages=[

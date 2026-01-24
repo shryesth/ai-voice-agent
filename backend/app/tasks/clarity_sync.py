@@ -275,7 +275,6 @@ def sync_all_queues_from_clarity(self):
                 last_sync = queue.clarity_sync.last_sync_at
                 if last_sync.tzinfo is None:
                     last_sync = last_sync.replace(tzinfo=timezone.utc)
-
                 next_sync = last_sync + timedelta(
                     minutes=queue.clarity_sync.sync_interval_minutes
                 )

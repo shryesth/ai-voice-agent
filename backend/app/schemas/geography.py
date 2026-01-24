@@ -104,6 +104,9 @@ class GeographyUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     region_code: Optional[str] = None
+    timezone: Optional[str] = None
+    default_language: Optional[str] = None
+    supported_languages: Optional[List[str]] = None
     clarity_config: Optional[ClarityConfigCreate] = None
     retention_policy: Optional[RetentionPolicyCreate] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -128,6 +131,9 @@ class GeographyResponse(BaseModel):
     name: str
     description: Optional[str]
     region_code: Optional[str]
+    timezone: Optional[str] = None
+    default_language: Optional[str] = None
+    supported_languages: Optional[List[str]] = None
     clarity_config: Optional[ClarityConfigResponse] = None
     retention_policy: RetentionPolicyResponse
     metadata: Dict[str, Any]

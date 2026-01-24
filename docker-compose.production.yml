@@ -2,7 +2,7 @@ services:
   # MongoDB Database (Production)
   mongodb:
     image: mongo:8.0.17
-    container_name: voice-ai-mongodb-prod
+    container_name: shifo-supervisor-mongodb-prod
     restart: always
     ports:
       - "27017:27017"
@@ -39,7 +39,7 @@ services:
   # Redis Cache & Message Broker (Production)
   redis:
     image: redis:7-alpine
-    container_name: voice-ai-redis-prod
+    container_name: shifo-supervisor-redis-prod
     restart: always
     ports:
       - "6379:6379"
@@ -75,8 +75,8 @@ services:
       dockerfile: docker/Dockerfile.api
       args:
         - BUILD_ENV=production
-    image: voice-ai-api:${VERSION:-latest}
-    container_name: voice-ai-api-prod
+    image: shifo-supervisor-api:${VERSION:-latest}
+    container_name: shifo-supervisor-api-prod
     restart: always
     ports:
       - "3000:3000"
@@ -132,8 +132,8 @@ services:
       dockerfile: docker/Dockerfile.worker
       args:
         - BUILD_ENV=production
-    image: voice-ai-worker:${VERSION:-latest}
-    container_name: voice-ai-celery-worker-prod
+    image: shifo-supervisor-worker:${VERSION:-latest}
+    container_name: shifo-supervisor-celery-worker-prod
     restart: always
     env_file:
       - config/.env.prod
@@ -181,8 +181,8 @@ services:
       dockerfile: docker/Dockerfile.beat
       args:
         - BUILD_ENV=production
-    image: voice-ai-beat:${VERSION:-latest}
-    container_name: voice-ai-celery-beat-prod
+    image: shifo-supervisor-beat:${VERSION:-latest}
+    container_name: shifo-supervisor-celery-beat-prod
     restart: always
     env_file:
       - config/.env.prod
@@ -216,6 +216,59 @@ services:
         max-file: "3"
     security_opt:
       - no-new-privileges:true
+
+  # Celery Worker Service (processes queue tasks)
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shifo-vaccination-voice-agent:production
+    container_name: shifo-celery-worker-prod
+    restart: always
+    environment:
+      RUN_MODE: worker
+      CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-4}
+      MONGODB_URI: mongodb://${MONGODB_ROOT_USER:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-shifo-supervisor}
+      QUEUE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      QUEUE_ENABLED: "true"
+      PUBLIC_URL: ${PUBLIC_URL}
+      # Twilio Configuration (needed for making calls)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      # OpenAI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shifo-supervisor-network
+
+  # Celery Beat Service (scheduler for periodic tasks)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shifo-vaccination-voice-agent:production
+    container_name: shifo-celery-beat-prod
+    restart: always
+    environment:
+      RUN_MODE: beat
+      MONGODB_URI: mongodb://${MONGODB_ROOT_USER:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-shifo-supervisor}
+      QUEUE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      QUEUE_ENABLED: "true"
+      QUEUE_PROCESSOR_INTERVAL_SECONDS: ${QUEUE_PROCESSOR_INTERVAL_SECONDS:-30}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shifo-supervisor-network
 
 networks:
   # Backend network (database, cache, workers)

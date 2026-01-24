@@ -387,12 +387,69 @@ class FunctionRegistry:
             self.flow_manager.state["low_satisfaction_followup"] = True
             logger.info(f"Low satisfaction rating ({rating}), marked for follow-up")
 
-        await params.result_callback({
+        # Prepare result callback
+        result = {
             "success": True,
             "proceed_to_next_stage": True,
             "next_stage": "end_call",
             "message": f"Rating of {rating} recorded. Now thank them warmly and call end_call(reason='complete')."
-        })
+        }
+
+        await params.result_callback(result)
+
+        # FALLBACK: If LLM doesn't call end_call after this, auto-trigger it after brief delay
+        # This prevents calls from staying open indefinitely
+        import asyncio
+        asyncio.create_task(self._auto_end_call_fallback())
+
+    async def _auto_end_call_fallback(self) -> None:
+        """
+        Automatic fallback to end call if LLM doesn't call end_call function.
+
+        Waits 10 seconds after record_satisfaction, then checks if end_call
+        was called. If not, automatically queues goodbye and EndFrame.
+        """
+        import asyncio
+
+        # Wait 10 seconds to see if LLM calls end_call
+        await asyncio.sleep(10)
+
+        # Check if call already ended
+        if self.flow_manager.state.get("completed"):
+            logger.debug("Call already ended, skipping fallback")
+            return
+
+        # Check if end_call was called
+        completed_stages = self.flow_manager.state.get("completed_stages", [])
+        if "end_call" in completed_stages:
+            logger.debug("end_call already called, skipping fallback")
+            return
+
+        logger.warning("LLM did not call end_call after record_satisfaction - triggering automatic disconnect")
+
+        # Mark as completed
+        self.flow_manager.state["completed"] = True
+        self.flow_manager.state["completion_reason"] = "auto_fallback"
+        self.flow_manager.state["current_stage"] = "completed"
+
+        completed_stages.append("end_call")
+        self.flow_manager.state["completed_stages"] = completed_stages
+
+        # Build goodbye message
+        goodbye_parts = []
+
+        # Only add if not already said
+        # Check if AI already said goodbye by looking at recent transcript
+        # (We don't want to say goodbye twice)
+        # Just queue EndFrame to disconnect
+
+        if self.task:
+            logger.info("Auto-fallback: Queuing EndFrame to disconnect call")
+            await self.task.queue_frames([
+                EndFrame()
+            ])
+        else:
+            logger.error("No task available for auto-fallback EndFrame")
 
     # =========================================================================
     # Stage 6: End Call Handler

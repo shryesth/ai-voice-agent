@@ -257,7 +257,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         confirmation_message_key="maternity_delivery",
         requires_side_effects=False,
         requires_child_name=False,
-        attribute_patterns={"delivery_type": "normal|vaginal"},
+        attribute_patterns={"Type d'accouchement": "normal|vaginal|physiologique"},
         description="Maternity - Normal delivery",
     ),
     EventTypeConfig(
@@ -266,8 +266,17 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         confirmation_message_key="maternity_csection",
         requires_side_effects=False,
         requires_child_name=False,
-        attribute_patterns={"delivery_type": "cesarean|csection|c-section"},
+        attribute_patterns={"Type d'accouchement": "cesarean|csection|c-section|césarienne"},
         description="Maternity - C-section delivery",
+    ),
+    EventTypeConfig(
+        clarity_event_type="Maternité",
+        event_category=EventCategory.MATERNITY,
+        confirmation_message_key="maternity_delivery",
+        requires_side_effects=False,
+        requires_child_name=False,
+        attribute_patterns={},  # Default for any maternity visit
+        description="Maternity - Generic delivery",
     ),
 
     # -------------------------------------------------------------------------

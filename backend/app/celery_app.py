@@ -85,6 +85,13 @@ celery_app.conf.update(
                 "expires": 55,  # Prevent overlap
             },
         },
+        "sync-clarity-results": {
+            "task": "tasks.sync_results_to_clarity",
+            "schedule": 60.0,  # Every 60 seconds
+            "options": {
+                "expires": 55,  # Prevent overlap
+            },
+        },
     },
 )
 

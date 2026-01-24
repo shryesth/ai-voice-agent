@@ -7,7 +7,7 @@ Supports multiple queue modes: FOREVER (continuous), BATCH (one-time), MANUAL.
 
 from __future__ import annotations
 
-from beanie import Document, PydanticObjectId
+from beanie import Document, PydanticObjectId, Link
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -93,7 +93,7 @@ class ClaritySyncConfig(BaseModel):
 
     enabled: bool = Field(default=False)
     sync_interval_minutes: int = Field(
-        default=15,
+        default=5,
         ge=1,
         le=60,
         description="How often to poll Clarity for new subjects",
@@ -121,7 +121,7 @@ class ClaritySyncConfig(BaseModel):
         json_schema_extra = {
             "example": {
                 "enabled": True,
-                "sync_interval_minutes": 15,
+                "sync_interval_minutes": 5,
                 "max_per_sync": 100,
                 "event_type_filter": ["Suivi des Enfants", "Prenatal"],
             }

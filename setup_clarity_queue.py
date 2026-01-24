@@ -21,14 +21,14 @@ from datetime import datetime
 # Configuration
 BASE_URL = "http://localhost:3000"
 # Use host.docker.internal for Docker containers to access host machine
-CLARITY_URL_EXTERNAL = "http://localhost:8001"  # For external access
-CLARITY_URL_DOCKER = "http://host.docker.internal:8001"  # For Docker containers
+CLARITY_URL_EXTERNAL = "http://localhost:8001/api/v1/hmis"  # For external access
+CLARITY_URL_DOCKER = "http://host.docker.internal:8001/api/v1/hmis"  # For Docker containers
 # API key must match the one in clarity_mock_server/main.py (VALID_API_KEY)
 CLARITY_API_KEY = "mock-api-key-12345"
 
 # Admin credentials (default bootstrap admin)
-ADMIN_EMAIL = "admin@example.com"
-ADMIN_PASSWORD = "admin123"
+ADMIN_EMAIL = "admin@local.com"
+ADMIN_PASSWORD = "DevAdmin123!"
 
 
 async def login() -> str:
@@ -234,6 +234,7 @@ async def check_clarity_mock_server():
                 params={"page": 1, "pageSize": 1}
             )
             response.raise_for_status()
+            print(f"✓ Clarity mock server is running at {CLARITY_URL_EXTERNAL}")
             print(f"✓ Clarity API key is valid: {CLARITY_API_KEY}")
             return True
     except httpx.HTTPStatusError as e:

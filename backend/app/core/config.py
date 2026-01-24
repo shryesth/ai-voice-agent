@@ -18,7 +18,8 @@ def get_env_file() -> str:
 
     Environment mapping:
     - development → config/.env.local
-    - staging → config/.env.uat
+    - uat → config/.env.uat
+    - staging → config/.env.uat (backward compatibility)
     - production → config/.env.prod
 
     Fallback order:
@@ -36,7 +37,7 @@ def get_env_file() -> str:
     # Map environment to config file
     env_file_map = {
         "development": "config/.env.local",
-        "staging": "config/.env.uat",
+        "uat": "config/.env.uat",
         "production": "config/.env.prod",
     }
 
@@ -298,6 +299,10 @@ class Settings(BaseSettings):
     s3_region: str = Field(
         default="us-east-1",
         description="S3 region"
+    )
+    s3_path_prefix: str = Field(
+        default="",
+        description="S3 path prefix for environment isolation (e.g., 'uat/', 'prod/', or '' for development)"
     )
 
     # Recording Settings

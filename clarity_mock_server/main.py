@@ -191,6 +191,9 @@ def client_visit_verification_update(
 
     Only records with IN_PROGRESS (1) or UNKNOWN (999) status can be updated.
     """
+    # Log the request body
+    print(f"PUT /api/v1/hmis/client-visits/verification/{client_visit_verification_id} - Body: {body.model_dump()}")
+    
     verifications = load_verifications()
 
     # Find the verification record

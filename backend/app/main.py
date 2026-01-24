@@ -160,9 +160,9 @@ def create_app() -> FastAPI:
     """
     # OpenAPI metadata
     description = """
-## Supervisor - AI Calling Agent Platform
+## Shifo Supervisor
 
-Flexible AI-powered voice call system for patient feedback collection and other calling use cases.
+AI-powered voice agent system for patient feedback collection and other calling use cases.
 
 ### Features
 
@@ -255,7 +255,7 @@ All endpoints except webhooks require JWT authentication.
     ]
 
     app = FastAPI(
-        title="Supervisor - AI Calling Agent Platform",
+        title="Shifo Supervisor",
         description=description,
         version="1.0.0",
         lifespan=lifespan,

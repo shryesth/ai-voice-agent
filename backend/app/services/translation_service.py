@@ -202,7 +202,7 @@ Translate each message while keeping the exact format:
                 {"role": "user", "content": text},
             ],
             temperature=0.3,
-            max_tokens=4096,
+            max_completion_tokens=4096,
         )
 
         return response.choices[0].message.content

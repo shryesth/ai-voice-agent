@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from backend.app.models.queue_models import (
     QueueConfig,
@@ -28,7 +28,7 @@ class QueueRepository:
 
     COLLECTION_NAME = "managed_queues"
 
-    def __init__(self, db: Optional[AsyncIOMotorDatabase] = None):
+    def __init__(self, db: Optional[AsyncDatabase] = None):
         """Initialize queue repository"""
         self._db = db
         self._collection = None
@@ -159,7 +159,7 @@ class CallEntryRepository:
 
     COLLECTION_NAME = "managed_call_entries"
 
-    def __init__(self, db: Optional[AsyncIOMotorDatabase] = None):
+    def __init__(self, db: Optional[AsyncDatabase] = None):
         """Initialize call entry repository"""
         self._db = db
         self._collection = None

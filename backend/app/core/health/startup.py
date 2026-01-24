@@ -84,10 +84,10 @@ class StartupValidator:
 
     async def check_mongodb(self) -> bool:
         """Check MongoDB connectivity"""
-        from motor.motor_asyncio import AsyncIOMotorClient
+        from pymongo import AsyncMongoClient
 
         try:
-            client = AsyncIOMotorClient(
+            client = AsyncMongoClient(
                 self.config.mongodb_url,
                 serverSelectionTimeoutMS=2000
             )

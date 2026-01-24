@@ -212,17 +212,37 @@ def client_visit_verification_update(
         )
 
     # Check if record can be updated
+    current_status_enum = VerificationStatus(record["status"])
     if not VerificationStatus.can_be_updated(record["status"]):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Verification record with status {record['status']} cannot be updated",
-        )
+        # Allow updating other fields (recording_url, is_visit_confirmed) but not status
+        if body.status is not None and body.status != record["status"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Verification record with status {current_status_enum.name} cannot have its status changed",
+            )
 
     # Track changes for logging
     changes = {}
 
     # Apply updates
     if body.status is not None:
+        # Validate status is a valid enum value
+        try:
+            status_enum = VerificationStatus(body.status)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status value: {body.status}. Valid values: {[s.value for s in VerificationStatus]}",
+            )
+
+        # Prevent setting status to UNKNOWN or IN_PROGRESS
+        if body.status in (VerificationStatus.UNKNOWN, VerificationStatus.IN_PROGRESS):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot set verification status to {status_enum.name}. "
+                       "Only VALID, NOT_VALID, or NOT_REACHABLE are allowed.",
+            )
+
         changes["status"] = {"from": record["status"], "to": body.status}
         record["status"] = body.status
         record["canBeChanged"] = VerificationStatus.can_be_updated(body.status)

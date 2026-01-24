@@ -139,7 +139,7 @@ def initiate_patient_call(
         # Update call record with error
         if 'call_record' in locals():
             call_record.error_message = str(e)
-            call_record.call_tracking.outcome = CallOutcome.FAILED
+            call_record.call_tracking.outcome = CallOutcome.TECHNICAL_ERROR
             loop = get_worker_event_loop()
             loop.run_until_complete(call_record.save())
         

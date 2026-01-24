@@ -228,7 +228,7 @@ class QueueService:
         mapping = {
             CallOutcome.NO_ANSWER: FailureReason.NO_ANSWER,
             CallOutcome.BUSY: FailureReason.BUSY,
-            CallOutcome.FAILED: FailureReason.FAILED,
+            CallOutcome.TECHNICAL_ERROR: FailureReason.FAILED,
             CallOutcome.INVALID_NUMBER: FailureReason.INVALID_NUMBER,
             CallOutcome.REJECTED: FailureReason.REJECTED,
             CallOutcome.WRONG_PERSON: FailureReason.PERSON_NOT_AVAILABLE,

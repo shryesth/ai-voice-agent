@@ -75,10 +75,10 @@ def handle_call_completion(
             outcome = CallOutcome(call_outcome)
         except ValueError:
             logger.error(f"Invalid call outcome: {call_outcome}")
-            outcome = CallOutcome.FAILED
+            outcome = CallOutcome.TECHNICAL_ERROR
 
         # Handle success
-        if outcome in [CallOutcome.SUCCESS, CallOutcome.PARTIAL_SUCCESS]:
+        if outcome in [CallOutcome.COMPLETED_FULL, CallOutcome.COMPLETED_PARTIAL]:
             queue_entry = loop.run_until_complete(
                 QueueService.handle_call_success(queue_entry)
             )

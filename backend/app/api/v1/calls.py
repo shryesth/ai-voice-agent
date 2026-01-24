@@ -520,7 +520,7 @@ async def twilio_media_stream(websocket: WebSocket):
             if 'call_record' in locals():
                 call_record.call_tracking.status = "failed"
                 call_record.error_message = str(e)
-                call_record.call_tracking.outcome = CallOutcome.FAILED
+                call_record.call_tracking.outcome = CallOutcome.TECHNICAL_ERROR
                 await call_record.save()
 
             # Save pipeline state even on error

@@ -251,7 +251,7 @@ class CallService:
         if pipeline_state.get("completed"):
             if not call.conversation_state.current_stage:
                 call.conversation_state.current_stage = "completed"
-            call.call_tracking.outcome = CallOutcome.SUCCESS
+            call.call_tracking.outcome = CallOutcome.COMPLETED_FULL
 
         # Store completion reason
         if "completion_reason" in pipeline_state:
@@ -262,7 +262,7 @@ class CallService:
         # Update error if present
         if "error" in pipeline_state:
             call.error_message = pipeline_state["error"]
-            call.call_tracking.outcome = CallOutcome.FAILED
+            call.call_tracking.outcome = CallOutcome.TECHNICAL_ERROR
 
         call.updated_at = datetime.now(timezone.utc)
         await call.save()

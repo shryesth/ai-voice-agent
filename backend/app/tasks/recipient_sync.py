@@ -21,6 +21,7 @@ from backend.app.models.recipient import (
     ConversationResult,
 )
 from backend.app.models.enums import FailureReason
+from backend.app.services.recipient_service import recipient_service
 
 logger = logging.getLogger(__name__)
 
@@ -88,20 +89,7 @@ def sync_recipient_from_call(
             }
         )
 
-        # 4. Determine terminal status based on call outcome
-        outcome = call_record.call_tracking.outcome if call_record.call_tracking else None
-        
-        if outcome in (CallOutcome.COMPLETED_FULL, CallOutcome.COMPLETED_PARTIAL):
-            new_status = RecipientStatus.COMPLETED
-        elif outcome == CallOutcome.TECHNICAL_ERROR:
-            new_status = RecipientStatus.FAILED
-        elif outcome in (CallOutcome.NO_ANSWER, CallOutcome.BUSY):
-            new_status = RecipientStatus.NOT_REACHABLE
-        else:
-            # Default to FAILED for unknown outcomes
-            new_status = RecipientStatus.FAILED
-
-        # 5. Get presigned recording URL (if recording exists)
+        # 4. Get presigned recording URL (if recording exists)
         recording_url = None
         if call_record.recording and call_record.recording.s3_object_key:
             try:
@@ -115,10 +103,36 @@ def sync_recipient_from_call(
                 logger.warning(f"Failed to get presigned URL for recording: {e}")
                 # Continue without recording URL
 
-        # 6. Update Recipient
-        recipient.conversation_result = conversation_result
+        # 5. Handle call completion and determine next status via retry logic
+        outcome = call_record.call_tracking.outcome if call_record.call_tracking else None
+        
+        # Map outcome to failure_reason
+        failure_reason = None
+        if outcome == CallOutcome.NO_ANSWER:
+            failure_reason = FailureReason.NO_ANSWER
+        elif outcome == CallOutcome.BUSY:
+            failure_reason = FailureReason.BUSY
+        elif outcome == CallOutcome.TECHNICAL_ERROR:
+            failure_reason = FailureReason.FAILED
+        # For successful outcomes or unknown, failure_reason remains None
+        
+        # Get additional call details
+        duration_seconds = call_record.call_tracking.duration_seconds if call_record.call_tracking else None
+        error_details = getattr(call_record.call_tracking, 'error_message', None) if call_record.call_tracking else None
+        
+        # Call handle_call_completion to manage retries and status
+        recipient = await recipient_service.handle_call_completion(
+            recipient_id=str(recipient.id),
+            call_record_id=call_record_id,
+            outcome=outcome,
+            failure_reason=failure_reason,
+            duration_seconds=duration_seconds,
+            conversation_result=conversation_result.model_dump() if conversation_result else None,
+            error_details=error_details,
+        )
+
+        # 6. Update additional Recipient fields
         recipient.recording_url = recording_url
-        recipient.status = new_status
         recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync
         recipient.completed_at = call_record.call_tracking.ended_at if call_record.call_tracking else None
         recipient.urgency_flagged = call_record.urgency_flagged
@@ -128,7 +142,7 @@ def sync_recipient_from_call(
 
         logger.info(
             f"Synced Recipient {recipient.id} from CallRecord {call_record_id}: "
-            f"status={new_status}, has_conversation_data={bool(conversation_result.is_visit_confirmed)}, "
+            f"status={recipient.status.value}, has_conversation_data={bool(conversation_result.is_visit_confirmed)}, "
             f"has_recording={bool(recording_url)}"
         )
 

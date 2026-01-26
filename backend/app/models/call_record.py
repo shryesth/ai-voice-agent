@@ -45,8 +45,8 @@ class ConversationData(BaseModel):
         description="Stage-by-stage verification responses",
     )
 
-    # Legacy fields (backward compatible with FeedbackData)
-    overall_satisfaction: Optional[int] = Field(
+    # Feedback fields (canonical naming)
+    satisfaction_rating: Optional[int] = Field(
         None,
         ge=1,
         le=10,
@@ -69,15 +69,22 @@ class ConversationData(BaseModel):
         description="Overall experience description"
     )
 
+    # Backward compatibility property for old field name
+    @property
+    def overall_satisfaction(self) -> Optional[int]:
+        """Deprecated: Use satisfaction_rating instead."""
+        return self.satisfaction_rating
+
+    @overall_satisfaction.setter
+    def overall_satisfaction(self, value: Optional[int]):
+        """Deprecated: Use satisfaction_rating instead."""
+        self.satisfaction_rating = value
+
     # Flexible extraction
     extracted_data: Dict[str, Any] = Field(
         default_factory=dict,
         description="All extracted data from conversation (per flow schema)",
     )
-
-
-# Backward compatibility alias
-FeedbackData = ConversationData
 
 
 class ConversationTurn(BaseModel):
@@ -307,15 +314,12 @@ class CallRecord(Document):
     """
     Individual call record with full conversation history.
 
-    Supports both:
-    - Legacy campaign-based calls (campaign_id)
-    - New queue-based calls (queue_id, recipient_id)
+    All calls belong to a queue (queue_id) and may have a recipient (recipient_id).
 
     Indexes:
     - geography_id: Query all calls for a geography
     - queue_id: Query all calls for a queue
     - recipient_id: Query all calls for a recipient
-    - campaign_id: Legacy campaign queries
     - call_tracking.call_sid: Twilio webhook lookups
     - call_tracking.outcome: Filter by call result
     - call_outcome: Filter by detailed outcome
@@ -336,12 +340,6 @@ class CallRecord(Document):
     recipient_id: Optional[str] = Field(
         default=None,
         description="Recipient this call is for",
-    )
-
-    # Legacy reference (backward compatibility)
-    campaign_id: Optional[PydanticObjectId] = Field(
-        default=None,
-        description="[Deprecated] Use queue_id instead",
     )
 
     # Call configuration
@@ -389,12 +387,6 @@ class CallRecord(Document):
         description="Greeting template key (default, facility)",
     )
 
-    # Legacy field alias (backward compatibility)
-    @property
-    def patient_phone(self) -> str:
-        """Backward compatibility alias for contact_phone."""
-        return self.contact_phone
-
     # Conversation data
     conversation_state: ConversationState = Field(default_factory=ConversationState)
     transcript: List[ConversationTurn] = Field(
@@ -405,12 +397,6 @@ class CallRecord(Document):
         default_factory=ConversationData,
         description="Extracted data from conversation",
     )
-
-    # Legacy field alias (backward compatibility)
-    @property
-    def feedback(self) -> ConversationData:
-        """Backward compatibility alias for conversation_data."""
-        return self.conversation_data
 
     # Call outcome (new detailed enum)
     call_outcome: Optional[CallOutcome] = Field(
@@ -473,7 +459,6 @@ class CallRecord(Document):
             "geography_id",
             "queue_id",
             "recipient_id",
-            "campaign_id",
             "call_type",
             "call_outcome",
             "call_tracking.call_sid",

@@ -192,6 +192,22 @@ def sync_results_to_clarity(
 
             for recipient in geo_recipients:
                 try:
+                    # Skip if already synced recently (within last 30 seconds) - prevents double-sync race condition
+                    if recipient.last_synced_at:
+                        time_since_sync = (datetime.now(timezone.utc) - recipient.last_synced_at).total_seconds()
+                        if time_since_sync < 30:
+                            logger.debug(
+                                f"Skipping recipient {recipient.id} - already synced {time_since_sync:.1f}s ago"
+                            )
+                            continue
+
+                    # Skip if sync not pending (may have been synced by auto-trigger)
+                    if recipient.sync_status != SyncStatus.PENDING:
+                        logger.debug(
+                            f"Skipping recipient {recipient.id} - sync_status={recipient.sync_status.value}"
+                        )
+                        continue
+
                     # Get recording URL if available
                     recording_url = None
                     if geography.clarity_config.include_recording_url and recipient.current_call_record_id:
@@ -217,14 +233,31 @@ def sync_results_to_clarity(
                         f"has_side_effects={recipient.conversation_result.has_side_effects}"
                     )
 
-                    # Push to Clarity
-                    success = await clarity_service.push_verification_result(
-                        recipient=recipient,
-                        recording_url=recording_url,
-                    )
+                    # Optimistic locking: mark as synced immediately to prevent concurrent sync attempts
+                    recipient.sync_status = SyncStatus.SYNCED
+                    recipient.last_synced_at = datetime.now(timezone.utc)
+                    await recipient.save()
 
-                    if success:
-                        synced_count += 1
+                    # Push to Clarity
+                    try:
+                        success = await clarity_service.push_verification_result(
+                            recipient=recipient,
+                            recording_url=recording_url,
+                        )
+
+                        if success:
+                            synced_count += 1
+                        else:
+                            # Rollback on failure
+                            recipient.sync_status = SyncStatus.FAILED
+                            await recipient.save()
+                    except Exception as push_error:
+                        # Rollback on exception
+                        recipient.sync_status = SyncStatus.FAILED
+                        recipient.sync_error = str(push_error)
+                        recipient.updated_at = datetime.now(timezone.utc)
+                        await recipient.save()
+                        raise
 
                 except Exception as e:
                     logger.error(f"Failed to push recipient {recipient.id} to Clarity: {e}")

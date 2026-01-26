@@ -115,6 +115,8 @@ class FailureReason(str, Enum):
     PERSON_NOT_AVAILABLE = "person_not_available"  # 2 hour retry
     SHORT_DURATION = "short_duration"  # 1 hour retry
     VOICEMAIL = "voicemail"  # 2 hour retry
+    WRONG_PERSON = "wrong_person"  # 2 hour retry
+    NEEDS_VERIFICATION = "needs_verification"  # 2 hour retry
     # Terminal (no retry)
     INVALID_NUMBER = "invalid_number"
     REJECTED = "rejected"
@@ -153,6 +155,8 @@ RETRY_DELAYS_SECONDS = {
     FailureReason.PERSON_NOT_AVAILABLE: 7200,  # 2 hours
     FailureReason.SHORT_DURATION: 3600,  # 1 hour
     FailureReason.VOICEMAIL: 7200,  # 2 hours
+    FailureReason.WRONG_PERSON: 7200,  # 2 hours
+    FailureReason.NEEDS_VERIFICATION: 7200,  # 2 hours
 }
 
 # Non-retriable failure reasons (terminal states)

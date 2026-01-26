@@ -52,7 +52,6 @@ from backend.app.models.recipient import (
 from backend.app.models.call_record import (
     CallRecord,
     ConversationData,
-    FeedbackData,  # Alias for ConversationData
     ConversationTurn,
     ConversationStage,
     ConversationState,
@@ -107,7 +106,6 @@ __all__ = [
     # CallRecord
     "CallRecord",
     "ConversationData",
-    "FeedbackData",
     "ConversationTurn",
     "ConversationStage",
     "ConversationState",

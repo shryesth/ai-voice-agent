@@ -25,6 +25,7 @@ from backend.app.models.enums import (
     EventCategory,
     SyncStatus,
 )
+from backend.app.models.call_record import ConversationData
 
 
 class ClarityEventInfo(BaseModel):
@@ -136,47 +137,9 @@ class CallAttempt(BaseModel):
         }
 
 
-class ConversationResult(BaseModel):
-    """
-    Results extracted from the conversation.
-
-    Used for Clarity sync and reporting.
-    """
-
-    is_visit_confirmed: Optional[bool] = Field(
-        default=None,
-        description="Whether the visit was confirmed",
-    )
-    is_service_confirmed: Optional[bool] = Field(
-        default=None,
-        description="Whether the specific service was confirmed",
-    )
-    satisfaction_rating: Optional[int] = Field(
-        default=None,
-        ge=1,
-        le=10,
-        description="Satisfaction rating (1-10)",
-    )
-    side_effects_reported: Optional[str] = Field(
-        default=None,
-        description="Any side effects reported",
-    )
-    has_side_effects: Optional[bool] = Field(
-        default=None,
-        description="Whether side effects were reported",
-    )
-    specific_concerns: Optional[str] = Field(
-        default=None,
-        description="Any specific concerns mentioned",
-    )
-    additional_notes: Optional[str] = Field(
-        default=None,
-        description="Additional notes from conversation",
-    )
-    extracted_data: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="All extracted data from conversation",
-    )
+# ConversationResult is now unified with ConversationData from call_record.py
+# This alias is kept for backward compatibility
+ConversationResult = ConversationData
 
 
 class Recipient(Document):
@@ -287,8 +250,8 @@ class Recipient(Document):
     dlq_moved_at: Optional[datetime] = None
 
     # Conversation results (for Clarity sync)
-    conversation_result: ConversationResult = Field(
-        default_factory=ConversationResult,
+    conversation_result: ConversationData = Field(
+        default_factory=ConversationData,
     )
 
     # Urgency flagging
@@ -340,6 +303,11 @@ class Recipient(Document):
             "priority",
             "sync_status",
             "created_at",
+            # Compound index for queue processing (frequently queries by queue_id + status)
+            [
+                ("queue_id", 1),
+                ("status", 1),
+            ],
             # Unique compound index to prevent duplicate recipients from same external source
             [
                 ("external_source", 1),

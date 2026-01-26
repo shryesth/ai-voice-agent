@@ -426,7 +426,9 @@ class ClarityService:
             "has_side_effects": recipient.conversation_result.has_side_effects,
             "specific_concerns": recipient.conversation_result.specific_concerns,
             "urgency_flagged": recipient.urgency_flagged,
+            "urgency_keywords_detected": recipient.urgency_keywords_detected,
             "human_callback_requested": recipient.human_callback_requested,
+            "human_callback_reason": recipient.human_callback_reason,
             "call_attempts": len(recipient.call_attempts),
             "completed_at": recipient.completed_at.isoformat() if recipient.completed_at else None,
         }

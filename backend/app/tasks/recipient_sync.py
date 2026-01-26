@@ -18,12 +18,51 @@ from backend.app.models.recipient import (
     Recipient,
     RecipientStatus,
     SyncStatus,
-    ConversationResult,
 )
+from backend.app.models.call_record import ConversationData
 from backend.app.models.enums import FailureReason
 from backend.app.services.recipient_service import recipient_service
 
 logger = logging.getLogger(__name__)
+
+
+def _map_outcome_to_failure_reason(outcome: Optional[CallOutcome]) -> Optional[FailureReason]:
+    """
+    Map CallOutcome to FailureReason for retry logic.
+
+    Args:
+        outcome: The call outcome from CallRecord
+
+    Returns:
+        FailureReason if outcome represents a failure, None for successful outcomes
+    """
+    if outcome is None:
+        return None
+
+    mapping = {
+        # Connection issues
+        CallOutcome.NO_ANSWER: FailureReason.NO_ANSWER,
+        CallOutcome.BUSY: FailureReason.BUSY,
+        CallOutcome.INVALID_NUMBER: FailureReason.INVALID_NUMBER,
+        CallOutcome.REJECTED: FailureReason.REJECTED,
+        CallOutcome.TIMEOUT: FailureReason.TIMEOUT,
+        CallOutcome.SHORT_DURATION: FailureReason.SHORT_DURATION,
+        CallOutcome.NETWORK_FAILURE: FailureReason.FAILED,  # Network issues treated as generic failure
+
+        # Needs follow-up
+        CallOutcome.VOICEMAIL: FailureReason.VOICEMAIL,
+        CallOutcome.REQUEST_HUMAN_CALLBACK: FailureReason.REQUEST_HUMAN_CALLBACK,
+        CallOutcome.WRONG_PERSON: FailureReason.WRONG_PERSON,
+        CallOutcome.NEEDS_VERIFICATION: FailureReason.NEEDS_VERIFICATION,
+
+        # Technical
+        CallOutcome.TECHNICAL_ERROR: FailureReason.FAILED,
+
+        # Successful outcomes return None (no failure reason)
+        # COMPLETED_FULL, COMPLETED_PARTIAL not in mapping -> returns None
+    }
+
+    return mapping.get(outcome)
 
 
 @celery_app.task(
@@ -72,22 +111,15 @@ def sync_recipient_from_call(
             logger.warning(f"Recipient not found for CallRecord {call_record_id}")
             return False
 
-        # 3. Map conversation results
-        conversation_result = ConversationResult(
-            is_visit_confirmed=call_record.conversation_data.is_visit_confirmed,
-            is_service_confirmed=call_record.conversation_data.is_service_confirmed,
-            satisfaction_rating=call_record.conversation_data.overall_satisfaction,
-            side_effects_reported=call_record.conversation_data.side_effects_reported,
-            has_side_effects=call_record.conversation_data.has_side_effects,
-            specific_concerns=call_record.conversation_data.specific_concerns,
-            additional_notes=None,
-            extracted_data={
-                "urgency_flagged": call_record.urgency_flagged,
-                "completed_stages": call_record.conversation_state.completed_stages if call_record.conversation_state else [],
-                "current_stage": call_record.conversation_state.current_stage if call_record.conversation_state else None,
-                **call_record.conversation_data.extracted_data  # Include all extracted data from conversation
-            }
-        )
+        # 3. Map conversation results - direct copy since both use ConversationData now
+        conversation_result = call_record.conversation_data.model_copy(deep=True)
+
+        # Merge additional context into extracted_data
+        conversation_result.extracted_data.update({
+            "urgency_flagged": call_record.urgency_flagged,
+            "completed_stages": call_record.conversation_state.completed_stages if call_record.conversation_state else [],
+            "current_stage": call_record.conversation_state.current_stage if call_record.conversation_state else None,
+        })
 
         # 4. Get presigned recording URL (if recording exists)
         recording_url = None
@@ -105,16 +137,9 @@ def sync_recipient_from_call(
 
         # 5. Handle call completion and determine next status via retry logic
         outcome = call_record.call_tracking.outcome if call_record.call_tracking else None
-        
-        # Map outcome to failure_reason
-        failure_reason = None
-        if outcome == CallOutcome.NO_ANSWER:
-            failure_reason = FailureReason.NO_ANSWER
-        elif outcome == CallOutcome.BUSY:
-            failure_reason = FailureReason.BUSY
-        elif outcome == CallOutcome.TECHNICAL_ERROR:
-            failure_reason = FailureReason.FAILED
-        # For successful outcomes or unknown, failure_reason remains None
+
+        # Map outcome to failure_reason using complete mapping
+        failure_reason = _map_outcome_to_failure_reason(outcome)
         
         # Get additional call details
         duration_seconds = call_record.call_tracking.duration_seconds if call_record.call_tracking else None

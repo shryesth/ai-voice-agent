@@ -76,9 +76,9 @@ def get_original_url(request: Request) -> str:
 
 def call_to_response(call, user_role: Optional[UserRole] = None) -> CallRecordResponse:
     """Convert CallRecord to CallRecordResponse schema"""
-    # Privacy: Hide patient_phone from User role
-    patient_phone = call.patient_phone if user_role != UserRole.USER else "[REDACTED]"
-    
+    # Privacy: Hide contact_phone from User role
+    patient_phone = call.contact_phone if user_role != UserRole.USER else "[REDACTED]"
+
     return CallRecordResponse(
         id=str(call.id),
         campaign_id=str(call.campaign_id),
@@ -100,10 +100,10 @@ def call_to_response(call, user_role: Optional[UserRole] = None) -> CallRecordRe
             for turn in call.transcript
         ],
         feedback=FeedbackDataResponse(
-            overall_satisfaction=call.feedback.overall_satisfaction,
-            specific_concerns=call.feedback.specific_concerns,
-            side_effects_reported=call.feedback.side_effects_reported,
-            experience_quality=call.feedback.experience_quality
+            overall_satisfaction=call.conversation_data.overall_satisfaction,
+            specific_concerns=call.conversation_data.specific_concerns,
+            side_effects_reported=call.conversation_data.side_effects_reported,
+            experience_quality=call.conversation_data.experience_quality
         ),
         urgency_flagged=call.urgency_flagged,
         urgency_keywords_detected=call.urgency_keywords_detected,

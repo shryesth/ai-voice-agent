@@ -71,7 +71,7 @@ class CallService:
         
         # Privacy: Hide patient_phone from User role
         if call and user_role == UserRole.USER:
-            call.patient_phone = "[REDACTED]"
+            call.contact_phone = "[REDACTED]"
         
         return call
 
@@ -131,7 +131,7 @@ class CallService:
         # Privacy: Hide patient_phone from User role
         if user_role == UserRole.USER:
             for call in calls:
-                call.patient_phone = "[REDACTED]"
+                call.contact_phone = "[REDACTED]"
         
         return calls, total
 
@@ -350,7 +350,7 @@ class CallService:
             writer.writerow([
                 str(call.id),
                 str(call.campaign_id),
-                call.patient_phone,
+                call.contact_phone,
                 call.language,
                 call.call_tracking.call_sid or "",
                 call.call_tracking.outcome or "",

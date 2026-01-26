@@ -25,18 +25,20 @@ docker compose -f docker-compose.dev.yml logs -f api
 # Run all tests with coverage
 pytest
 
-# Run specific test categories
-pytest tests/unit -m unit
-pytest tests/integration -m integration
-pytest tests/contract -m contract
+# Run specific test directories
+pytest tests/unit
+pytest tests/integration
 
 # Run single test file
-pytest tests/contract/test_auth.py -v
+pytest tests/integration/test_queue_processor.py -v
+
+# Run single test function
+pytest tests/integration/test_queue_processor.py::test_function_name -v
 
 # Run tests by marker
 pytest -m "not slow"
-pytest -m voice
-pytest -m queue
+pytest -m unit
+pytest -m integration
 ```
 
 ### Code Quality
@@ -86,7 +88,7 @@ backend/app/
 ### Configuration System
 Environment detection via `ENVIRONMENT` variable:
 - `development` → `config/.env.local`
-- `staging` → `config/.env.uat`
+- `uat` → `config/.env.uat`
 - `production` → `config/.env.prod`
 
 Test environment overrides:
@@ -98,46 +100,48 @@ Test environment overrides:
 - **Celery**: `backend/app/celery_app.py`
 - **Voice Pipeline**: `backend/app/domains/patient_feedback/voice_pipeline.py`
 
-### API Routes
-- `POST /api/v1/auth/login` - JWT authentication
-- `GET /api/v1/health/live` - Liveness probe
-- `GET /api/v1/metrics` - Prometheus metrics
-- `GET/POST /api/v1/geographies` - Regional organization management
-- `GET/POST /api/v1/queues` - CallQueue management (NEW architecture)
-- `GET/POST /api/v1/recipients` - Recipient & DLQ management (NEW)
-- `POST /api/v1/calls/test` - Initiate test call with scenarios
-- `GET/POST /api/v1/calls` - Call records & Twilio webhooks
-- `GET/POST /api/v1/campaigns` - Legacy campaign endpoints (backward compatibility)
-- `GET/POST /api/v1/queue` - Legacy queue endpoints (backward compatibility)
+### API Routes (in `api/v1/`)
+- `auth.py` - `POST /api/v1/auth/login` - JWT authentication
+- `health.py` - `GET /api/v1/health/live`, `/ready` - Health probes
+- `geographies.py` - Regional organization management
+- `queues.py` - CallQueue management
+- `recipients.py` - Recipient & DLQ management
+- `test_calls.py` - Test call endpoints
+- `calls.py` - Call records & Twilio webhooks
 
 ### Celery Tasks (in `tasks/`)
-- `process_campaign_queues` - Periodic queue processor (Beat: every 30s)
-- `initiate_patient_call` - Initiate voice call with Twilio
-- `update_call_from_webhook` - Handle Twilio status webhooks
-- `download_twilio_recording` - Download & upload recordings to S3
-- `translate_transcript` - OpenAI-based transcript translation for non-English calls
-- `sync_clarity_data` - Bidirectional sync with Clarity integration
-- Intelligent retry with exponential backoff via `retry_handler.py`
+- `queue_processor.py` - `process_campaign_queues` - Periodic queue processor (Beat: every 30s)
+- `voice_call.py` - `initiate_patient_call`, `update_call_from_webhook` - Call initiation & status handling
+- `recording_download.py` - `download_twilio_recording` - Download & upload recordings to S3
+- `split_recording.py` - `split_recording_task` - Audio file processing
+- `transcript_translation.py` - `translate_transcript` - OpenAI-based translation for non-English calls
+- `clarity_sync.py` - `sync_clarity_subjects`, `sync_results_to_clarity`, `sync_all_queues_from_clarity` - Clarity integration (Beat: every 60s)
+- `recipient_sync.py` - `sync_recipient_from_call` - Sync call results to recipient records
+
+### Celery Beat Schedule
+- `process-campaign-queues`: Every 30s - Process call queues
+- `sync-clarity-queues`: Every 60s - Pull subjects from Clarity
+- `sync-clarity-results`: Every 60s - Push results to Clarity
 
 ## Database
 
-MongoDB with Beanie async ODM. Key collections:
-- `users` - Admin/User accounts with RBAC (Admin vs User roles)
-- `geographies` - Regional organizations with retention policies
-- `call_queues` - NEW: Queue definitions (replaces campaigns)
-- `recipients` - NEW: Queue recipients (replaces queue_entry)
-- `campaigns` - Legacy: Campaign definitions (backward compatibility)
-- `queue_entry` - Legacy: Queue entries (backward compatibility)
-- `call_records` - Call data with conversation transcripts
+MongoDB with Beanie async ODM. Key collections (models in `models/`):
+- `users` - Admin/User accounts with RBAC
+- `geographies` - Regional organizations with Clarity config and retention policies
+- `call_queues` - Queue definitions with time windows and retry strategies
+- `recipients` - Queue recipients with call attempts and conversation results
+- `call_records` - Call data with conversation transcripts and recording metadata
 - `recording_dlq` - Dead Letter Queue for failed S3 uploads
+
+**Model Import Order**: Geography → CallQueue → Recipient → CallRecord (parent before child for Link resolution)
 
 Privacy filtering: User role receives `[REDACTED]` for patient_phone fields.
 
 ## Testing
 
-- **80% coverage requirement** (configured in pytest.ini)
-- **Markers**: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.contract`, `@pytest.mark.voice`, `@pytest.mark.queue`, `@pytest.mark.auth`
+- **Markers**: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`, `@pytest.mark.asyncio`
 - **Fixtures** in `tests/conftest.py`: `async_client`, `test_db`, `test_admin_user`, `auth_headers`
+- asyncio_mode is auto-configured in pytest.ini
 
 ## Voice Pipeline (Pipecat v0.0.99)
 
@@ -147,7 +151,6 @@ The voice system uses Pipecat framework with:
 - **FunctionRegistry**: Pipecat-compatible handlers (FunctionCallParams + result_callback pattern)
 - **FlowManager**: 6-stage state machine with conversation data persistence
 - **Twilio**: Telephony integration via WebSocket (TwilioFrameSerializer)
-- **Turn Strategies**: VADUserTurnStartStrategy + TranscriptionUserTurnStopStrategy
 
 Conversation stages:
 1. `confirm_guardian` - Verify speaking with correct person
@@ -167,7 +170,7 @@ Multilingual support:
 **S3/MinIO**:
 - Bucket: `voice-recordings` (configurable via `S3_BUCKET_NAME`)
 - Purpose: Store call recordings from Twilio
-- Upload retry: Exponential backoff (1s base, 60s max), max 5 attempts
+- Upload retry: Exponential backoff, max 5 attempts
 - Fallback DLQ: Redis with 7-day TTL if S3 unavailable
 
 **Redis Usage**:
@@ -176,39 +179,22 @@ Multilingual support:
 - Application caching (health checks, metadata)
 
 **Docker Deployment**:
-- Development: `docker-compose.dev.yml` with hot reload and local volumes
-- Production: `docker-compose.production.yml` with:
-  - Resource limits (MongoDB: 2 CPU/2GB RAM, Redis: 1 CPU/1GB RAM)
-  - Network segmentation (backend-network + frontend-network)
-  - Health checks (30s interval, 3 retries)
-  - 2 API replicas, 2 Celery worker replicas, 1 Beat replica
-  - Log rotation (50MB max, 5 files)
+- Development: `docker-compose.dev.yml` with hot reload
+- Production: `docker-compose.production.yml` with resource limits, health checks, replicas
 
 ## Important Patterns
 
-**Service Layer Architecture**:
-- Controllers (api/v1/) handle HTTP concerns only
-- Services (services/) contain business logic and coordinate data access
-- Domains (domains/) contain feature-specific logic isolated from API layer
-- Models (models/) are Beanie ODM documents with async operations
-
-**Async-First Design**:
-- All DB, Redis, and HTTP operations use async/await
-- Celery worker creates event loop on startup for MongoDB compatibility
-- Test fixtures use pytest-asyncio with function-scoped event loops
-
-**Celery Worker Initialization Pattern**:
+**Celery Worker Event Loop**:
+Workers must use a consistent event loop for MongoDB async operations. See `celery_app.py`:
 ```python
-# workers must initialize event loop for Beanie async operations
-import asyncio
-from beanie import init_beanie
-
-@celery.on_after_configure.connect
-def worker_startup(sender, **kwargs):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(init_beanie(...))
+@worker_process_init.connect
+def init_worker(**kwargs):
+    global _worker_event_loop
+    _worker_event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_worker_event_loop)
+    _worker_event_loop.run_until_complete(db.connect(...))
 ```
+Use `get_worker_event_loop()` in tasks to ensure MongoDB client compatibility.
 
 **State Management in Voice Pipeline**:
 - FlowManager tracks conversation state across 6 stages
@@ -220,7 +206,6 @@ def worker_startup(sender, **kwargs):
 - JWT-based authentication with role-based access control (RBAC)
 - User role receives `[REDACTED]` for patient_phone in API responses
 - Admin role has full data access
-- Password hashing via bcrypt
 
 ## Specs and Documentation
 
@@ -230,4 +215,3 @@ Feature specifications in `specs/001-patient-feedback-api/`:
 - `data-model.md` - Database schema documentation
 - `contracts/` - API contract definitions
 - `quickstart.md` - Getting started guide
-- `deployment-analysis.md` - Production deployment architecture

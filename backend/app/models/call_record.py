@@ -510,9 +510,3 @@ class CallRecord(Document):
                 }
             }
         }
-
-
-# Import Campaign after CallRecord class definition for model_rebuild() to work
-# This import must happen at runtime (not just type checking) so that Campaign
-# is in the module's globals when Pydantic resolves the forward reference
-from backend.app.models.campaign import Campaign  # noqa: F401, E402

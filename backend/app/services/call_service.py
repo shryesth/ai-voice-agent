@@ -17,7 +17,6 @@ from beanie.operators import In, Eq
 
 from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord, CallOutcome
-from backend.app.models.campaign import Campaign
 from backend.app.models.user import UserRole
 import logging
 

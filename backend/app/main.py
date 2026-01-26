@@ -47,29 +47,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Initialize database connection
     logger.info("Initializing database connection")
     try:
-        # Import models for all user stories
+        # Import models
         from backend.app.models.user import User
         from backend.app.models.geography import Geography
         from backend.app.models.call_record import CallRecord
-        # NEW: Supervisor models
         from backend.app.models.call_queue import CallQueue
         from backend.app.models.recipient import Recipient
-        # Recording DLQ for failed uploads
         from backend.app.models.recording_dlq import RecordingDLQ
-        # LEGACY: Keep for backward compatibility
-        from backend.app.models.campaign import Campaign
-        from backend.app.models.queue_entry import QueueEntry
 
-        # Initialize database with all models (new and legacy)
+        # Initialize database with all models
         await db.connect(document_models=[
             User,
             Geography,
-            CallQueue,  # NEW: Replaces Campaign
-            Recipient,  # NEW: Replaces QueueEntry
+            CallQueue,
+            Recipient,
             CallRecord,
-            RecordingDLQ,  # Recording upload DLQ
-            Campaign,   # LEGACY: Keep for backward compatibility
-            QueueEntry, # LEGACY: Keep for backward compatibility
+            RecordingDLQ,
         ])
         logger.info("Database initialized successfully")
     except Exception as e:
@@ -349,32 +342,16 @@ All endpoints except webhooks require JWT authentication.
         )
 
     # Register routers
-    from backend.app.api.v1 import auth, health, geographies, campaigns, calls, queue
-    # NEW: Supervisor routers
+    from backend.app.api.v1 import auth, health, geographies, calls
     from backend.app.api.v1 import queues, recipients, test_calls
 
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(health.router, prefix="/api/v1", tags=["Health & Metrics"])
     app.include_router(geographies.router, prefix="/api/v1/geographies", tags=["Geographies"])
-
-    # NEW: CallQueue endpoints (replaces campaigns)
     app.include_router(queues.router, prefix="/api/v1", tags=["Call Queues"])
-
-    # NEW: Recipient endpoints (replaces queue entries)
     app.include_router(recipients.router, prefix="/api/v1", tags=["Recipients"])
-
-    # NEW: Test call endpoints
     app.include_router(test_calls.router, prefix="/api/v1", tags=["Test Calls"])
-
-    # LEGACY: Campaign endpoints (deprecated, use queues)
-    app.include_router(campaigns.campaign_create_router, prefix="/api/v1", tags=["Campaigns (Legacy)"])
-    app.include_router(campaigns.router, prefix="/api/v1/campaigns", tags=["Campaigns (Legacy)"])
-
-    # Calls & Webhooks
     app.include_router(calls.router, prefix="/api/v1", tags=["Calls & Webhooks"])
-
-    # LEGACY: Queue endpoints (deprecated, use recipients)
-    app.include_router(queue.router, prefix="/api/v1", tags=["Queue & DLQ (Legacy)"])
 
     logger.info("FastAPI application created")
 

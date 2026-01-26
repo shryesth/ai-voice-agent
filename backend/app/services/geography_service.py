@@ -14,7 +14,8 @@ from beanie import PydanticObjectId
 from beanie.operators import In
 
 from backend.app.models.geography import Geography
-from backend.app.models.campaign import Campaign, CampaignState
+from backend.app.models.call_queue import CallQueue
+from backend.app.models.enums import QueueState
 from backend.app.schemas.geography import GeographyCreate, GeographyUpdate
 from backend.app.core.logging import get_logger
 
@@ -212,19 +213,19 @@ class GeographyService:
         if not geography:
             return False
 
-        # Check for active campaigns
-        active_campaign = await Campaign.find_one(
-            Campaign.geography_id == PydanticObjectId(geography_id),
-            In(Campaign.state, [CampaignState.ACTIVE, CampaignState.PAUSED])
+        # Check for active queues
+        active_queue = await CallQueue.find_one(
+            CallQueue.geography_id == PydanticObjectId(geography_id),
+            In(CallQueue.state, [QueueState.ACTIVE, QueueState.PAUSED])
         )
 
-        if active_campaign:
+        if active_queue:
             logger.warning(
-                "Cannot delete geography with active campaigns",
+                "Cannot delete geography with active queues",
                 geography_id=geography_id
             )
             raise ValueError(
-                "Cannot delete geography with active campaigns. Pause or complete campaigns first."
+                "Cannot delete geography with active queues. Pause or complete queues first."
             )
 
         # Soft delete

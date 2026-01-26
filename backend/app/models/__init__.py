@@ -3,14 +3,6 @@ Models package for Beanie documents.
 
 Exports all model classes for easy imports.
 IMPORTANT: Import order matters for Link resolution (parent models before child models)
-
-NEW Supervisor models:
-- CallQueue (replaces Campaign)
-- Recipient (replaces QueueEntry)
-- Updated Geography with ClarityConfig
-- Updated CallRecord with new fields
-
-Legacy models (Campaign, QueueEntry) are kept for backward compatibility but deprecated.
 """
 
 # Import shared enums first
@@ -33,11 +25,11 @@ from backend.app.models.enums import (
     SUPPORTED_LANGUAGES,
 )
 
-# Import in dependency order: Geography -> CallQueue/Campaign -> Recipient/QueueEntry -> CallRecord
+# Import in dependency order: Geography -> CallQueue -> Recipient -> CallRecord
 from backend.app.models.user import User
 from backend.app.models.geography import Geography, RetentionPolicy, ClarityConfig
 
-# NEW: CallQueue model (replaces Campaign)
+# CallQueue model
 from backend.app.models.call_queue import (
     CallQueue,
     TimeWindow,
@@ -47,7 +39,7 @@ from backend.app.models.call_queue import (
     can_transition_to,
 )
 
-# NEW: Recipient model (replaces QueueEntry)
+# Recipient model
 from backend.app.models.recipient import (
     Recipient,
     ClarityEventInfo,
@@ -56,25 +48,7 @@ from backend.app.models.recipient import (
     determine_contact_type,
 )
 
-# LEGACY: Campaign model (deprecated, use CallQueue)
-from backend.app.models.campaign import (
-    Campaign,
-    CampaignState,
-    CampaignConfig,
-    CampaignStats as LegacyCampaignStats,
-    TimeWindow as LegacyTimeWindow,
-    DayOfWeek,
-)
-
-# LEGACY: QueueEntry model (deprecated, use Recipient)
-from backend.app.models.queue_entry import (
-    QueueEntry,
-    QueueState as LegacyQueueState,
-    FailureReason as LegacyFailureReason,
-    RetryHistory,
-)
-
-# CallRecord with new fields
+# CallRecord
 from backend.app.models.call_record import (
     CallRecord,
     ConversationData,
@@ -117,14 +91,14 @@ __all__ = [
     "Geography",
     "RetentionPolicy",
     "ClarityConfig",
-    # NEW: CallQueue
+    # CallQueue
     "CallQueue",
     "TimeWindow",
     "RetryStrategy",
     "ClaritySyncConfig",
     "QueueStats",
     "can_transition_to",
-    # NEW: Recipient
+    # Recipient
     "Recipient",
     "ClarityEventInfo",
     "CallAttempt",
@@ -139,17 +113,6 @@ __all__ = [
     "ConversationState",
     "CallTracking",
     "RecordingMetadata",
-    # LEGACY (deprecated)
-    "Campaign",
-    "CampaignState",
-    "CampaignConfig",
-    "LegacyCampaignStats",
-    "LegacyTimeWindow",
-    "DayOfWeek",
-    "QueueEntry",
-    "LegacyQueueState",
-    "LegacyFailureReason",
-    "RetryHistory",
     # Recording DLQ
     "RecordingDLQ",
     "ErrorEntry",

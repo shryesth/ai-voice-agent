@@ -1,10 +1,7 @@
 """
 Queue processor Celery task.
 
-Runs every 30 seconds to process:
-- NEW: Active CallQueues (Supervisor model)
-- LEGACY: Active Campaigns (for backward compatibility)
-
+Runs every 30 seconds to process active CallQueues.
 Respects time windows, concurrency limits, and retry schedules.
 """
 
@@ -107,17 +104,15 @@ def is_within_time_window(time_windows: list) -> bool:
 @celery_app.task(base=QueueProcessorTask, bind=True, name="process_campaign_queues")
 def process_campaign_queues(self):
     """
-    Process pending queue entries for all active queues and campaigns.
+    Process pending recipients for all active call queues.
 
     Runs every 30 seconds via Celery Beat.
 
     Logic:
-    1. Process NEW CallQueues (Supervisor model):
-       - Find all CallQueues with state=ACTIVE
-       - For each queue, check time windows and process Recipients
-    2. Process LEGACY Campaigns (backward compatibility):
-       - Find all Campaigns with state=ACTIVE
-       - Process QueueEntries
+    1. Find all CallQueues with state=ACTIVE
+    2. For each queue, check time windows and concurrency limits
+    3. Process ready Recipients (PENDING or ready for retry)
+    4. Initiate calls via Celery task
 
     Returns:
         Dict with processing summary
@@ -132,16 +127,13 @@ def process_campaign_queues(self):
         total_processed = 0
         queues_processed = 0
 
-        # =====================================================================
-        # NEW: Process CallQueues (Supervisor model)
-        # =====================================================================
+        # Process CallQueues
         try:
             from backend.app.models.call_queue import CallQueue
             from backend.app.models.recipient import Recipient
             from backend.app.models.call_record import CallRecord, CallTracking, ConversationState
             from backend.app.models.enums import QueueState, RecipientStatus
             from backend.app.services.recipient_service import recipient_service
-            from backend.app.services.call_queue_service import call_queue_service
             from backend.app.tasks.voice_call import initiate_patient_call
             from backend.app.core.config import settings
 
@@ -261,15 +253,6 @@ def process_campaign_queues(self):
                             recipient.updated_at = datetime.now(timezone.utc)
                             loop.run_until_complete(recipient.save())
 
-                    # Refresh queue stats after processing
-                    try:
-                        loop.run_until_complete(
-                            call_queue_service.refresh_queue_stats(str(queue.id))
-                        )
-                        logger.debug(f"Refreshed stats for queue {queue.id}")
-                    except Exception as e:
-                        logger.error(f"Failed to refresh stats for queue {queue.id}: {e}")
-
                     queues_processed += 1
 
                 except Exception as e:
@@ -282,135 +265,14 @@ def process_campaign_queues(self):
         except ImportError as e:
             logger.warning(f"CallQueue model not available: {e}", exc_info=True)
 
-        # =====================================================================
-        # LEGACY: Process Campaigns (backward compatibility)
-        # =====================================================================
-        campaigns_processed = 0
-
-        try:
-            from backend.app.models.campaign import Campaign, CampaignState
-            from backend.app.models.queue_entry import QueueEntry, QueueState as LegacyQueueState
-            from backend.app.services.queue_service import QueueService
-            from backend.app.tasks.voice_call import initiate_patient_call
-
-            # Find all active campaigns
-            active_campaigns = loop.run_until_complete(
-                Campaign.find(Campaign.state == CampaignState.ACTIVE).to_list()
-            )
-
-            if active_campaigns:
-                logger.info(f"Found {len(active_campaigns)} active Campaigns (legacy)")
-
-            for campaign in active_campaigns:
-                try:
-                    # Check time windows
-                    time_windows = []
-                    if campaign.config and campaign.config.time_windows:
-                        time_windows = [
-                            {
-                                "start_time": tw.start_time,
-                                "end_time": tw.end_time,
-                                "days_of_week": [d.value for d in tw.days_of_week]
-                            }
-                            for tw in campaign.config.time_windows
-                        ]
-
-                    if not is_within_time_window(time_windows):
-                        logger.debug(f"Campaign {campaign.id} outside time window, skipping")
-                        continue
-
-                    # Get max concurrent calls limit
-                    max_concurrent = (
-                        campaign.config.max_concurrent_calls
-                        if campaign.config else 10
-                    )
-
-                    # Count currently in-progress calls
-                    in_progress_count = loop.run_until_complete(
-                        QueueEntry.find(
-                            QueueEntry.campaign_id == str(campaign.id),
-                            QueueEntry.state == LegacyQueueState.CALLING
-                        ).count()
-                    )
-
-                    # Calculate available slots
-                    available_slots = max_concurrent - in_progress_count
-
-                    if available_slots <= 0:
-                        logger.debug(
-                            f"Campaign {campaign.id} at max capacity "
-                            f"({in_progress_count}/{max_concurrent}), skipping"
-                        )
-                        continue
-
-                    # Get ready-to-process entries
-                    ready_entries = loop.run_until_complete(
-                        QueueService.get_ready_to_process_entries(
-                            campaign_id=str(campaign.id),
-                            max_concurrent=available_slots
-                        )
-                    )
-
-                    if not ready_entries:
-                        logger.debug(f"No ready entries for campaign {campaign.id}")
-                        continue
-
-                    logger.info(
-                        f"Processing {len(ready_entries)} entries for campaign {campaign.id} "
-                        f"(slots: {available_slots})"
-                    )
-
-                    # Initiate calls for each entry
-                    for entry in ready_entries:
-                        try:
-                            # Update entry state to CALLING
-                            entry.state = LegacyQueueState.CALLING
-                            entry.updated_at = datetime.now(timezone.utc)
-                            loop.run_until_complete(entry.save())
-
-                            # Initiate call via Celery task
-                            initiate_patient_call.delay(
-                                campaign_id=str(campaign.id),
-                                patient_phone=entry.patient_phone,
-                                language=entry.language
-                            )
-
-                            total_processed += 1
-                            logger.info(
-                                f"Initiated call for queue entry {entry.id} "
-                                f"(patient: ...{entry.patient_phone[-4:]})"
-                            )
-
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to initiate call for entry {entry.id}: {e}",
-                                exc_info=True
-                            )
-                            # Revert entry state on failure
-                            entry.state = LegacyQueueState.PENDING
-                            loop.run_until_complete(entry.save())
-
-                    campaigns_processed += 1
-
-                except Exception as e:
-                    logger.error(
-                        f"Error processing campaign {campaign.id}: {e}",
-                        exc_info=True
-                    )
-                    continue
-
-        except ImportError:
-            logger.debug("Campaign model not available, skipping legacy processing")
-
         logger.info(
             f"Queue processor completed: {total_processed} calls initiated "
-            f"across {queues_processed} queues and {campaigns_processed} campaigns"
+            f"across {queues_processed} queues"
         )
 
         return {
             "processed": total_processed,
             "queues": queues_processed,
-            "campaigns": campaigns_processed,
         }
 
     except Exception as e:

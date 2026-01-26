@@ -141,6 +141,7 @@ def process_campaign_queues(self):
             from backend.app.models.call_record import CallRecord, CallTracking, ConversationState
             from backend.app.models.enums import QueueState, RecipientStatus
             from backend.app.services.recipient_service import recipient_service
+            from backend.app.services.call_queue_service import call_queue_service
             from backend.app.tasks.voice_call import initiate_patient_call
             from backend.app.core.config import settings
 
@@ -259,6 +260,15 @@ def process_campaign_queues(self):
                             recipient.status = RecipientStatus.PENDING
                             recipient.updated_at = datetime.now(timezone.utc)
                             loop.run_until_complete(recipient.save())
+
+                    # Refresh queue stats after processing
+                    try:
+                        loop.run_until_complete(
+                            call_queue_service.refresh_queue_stats(str(queue.id))
+                        )
+                        logger.debug(f"Refreshed stats for queue {queue.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to refresh stats for queue {queue.id}: {e}")
 
                     queues_processed += 1
 

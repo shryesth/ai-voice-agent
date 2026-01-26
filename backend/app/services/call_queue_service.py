@@ -491,6 +491,29 @@ class CallQueueService:
             Recipient.conversation_result.is_visit_confirmed == True,
         ).count()
 
+        # Calculate call statistics from CallRecord data
+        from backend.app.models.call_record import CallRecord
+        
+        # Total calls made
+        stats.total_calls_made = await CallRecord.find(
+            CallRecord.queue_id == queue_id
+        ).count()
+        
+        # Average call duration and last call time
+        call_records = await CallRecord.find(
+            CallRecord.queue_id == queue_id,
+            CallRecord.call_tracking.ended_at != None
+        ).to_list()
+        
+        if call_records:
+            completed_calls = [r for r in call_records if r.call_tracking and r.call_tracking.duration_seconds]
+            if completed_calls:
+                total_duration = sum(r.call_tracking.duration_seconds for r in completed_calls)
+                stats.avg_call_duration_seconds = total_duration / len(completed_calls)
+            
+            # Last call time
+            stats.last_call_at = max(r.call_tracking.ended_at for r in call_records if r.call_tracking and r.call_tracking.ended_at)
+
         queue.stats = stats
         queue.updated_at = datetime.now(timezone.utc)
         await queue.save()

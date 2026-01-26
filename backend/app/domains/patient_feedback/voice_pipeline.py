@@ -27,7 +27,7 @@ from pipecat.services.openai.realtime.events import (
     AudioConfiguration,
     AudioInput,
     InputAudioTranscription,
-    SemanticTurnDetection,
+    TurnDetection,  # Changed from SemanticTurnDetection
     InputAudioNoiseReduction
 )
 from pipecat.processors.aggregators.llm_response_universal import (
@@ -41,8 +41,7 @@ from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams
 )
 from pipecat.serializers.twilio import TwilioFrameSerializer
-from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.audio.vad.vad_analyzer import VADParams
+# Removed SileroVADAnalyzer and VADParams - using server-side VAD instead
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.turns.user_start import VADUserTurnStartStrategy
 from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
@@ -107,7 +106,7 @@ async def create_voice_pipeline(
         auth_token=settings.twilio_auth_token,
         params=TwilioFrameSerializer.InputParams(
             twilio_sample_rate=8000,  # Twilio µ-law sample rate
-            sample_rate=16000,         # OpenAI Realtime API sample rate
+            sample_rate=24000,         # OpenAI Realtime API sample rate (updated to 24kHz)
             auto_hang_up=True
         )
     )
@@ -119,7 +118,7 @@ async def create_voice_pipeline(
             audio_in_enabled=True,
             audio_out_enabled=True,
             add_wav_header=False,
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+            # vad_analyzer removed - using server-side VAD instead
             serializer=serializer  # TwilioFrameSerializer handles µ-law ↔ PCM
         )
     )
@@ -133,7 +132,7 @@ async def create_voice_pipeline(
         audio=AudioConfiguration(
             input=AudioInput(
                 transcription=InputAudioTranscription(),  # Enable transcription for user audio
-                turn_detection=SemanticTurnDetection(),   # Use semantic turn detection
+                turn_detection=TurnDetection(type="server_vad"),  # Use server-side VAD
                 noise_reduction=InputAudioNoiseReduction(type="near_field")  # Near-field noise reduction
             )
         )
@@ -259,7 +258,7 @@ async def create_voice_pipeline(
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
-            audio_in_sample_rate=16000,  # OpenAI Realtime API sample rate
+            audio_in_sample_rate=24000,  # OpenAI Realtime API sample rate (updated to 24kHz)
             audio_out_sample_rate=8000,  # Twilio transport expects 8kHz
             enable_metrics=True,
             enable_usage_metrics=True

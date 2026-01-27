@@ -2,7 +2,15 @@
 Celery task for syncing call results from CallRecord to Recipient.
 
 This task runs after a voice call completes to transfer conversation data
-from CallRecord to Recipient, enabling bidirectional Clarity sync.
+from CallRecord to Recipient. It does NOT trigger Clarity sync - that happens
+separately via the clarity_push task after recording is uploaded.
+
+Flow:
+1. Call completes -> sync_recipient_from_call runs
+2. Maps conversation data from CallRecord to Recipient
+3. Handles retry logic (RETRYING status) or marks as awaiting recording
+4. Recording upload completes -> recording_download sets READY_TO_SYNC
+5. Clarity push task picks up READY_TO_SYNC recipients
 """
 
 import asyncio
@@ -83,9 +91,19 @@ def sync_recipient_from_call(
 
     This task runs after a voice call completes to:
     1. Map conversation data from CallRecord to Recipient.conversation_result
-    2. Set Recipient status to terminal state (COMPLETED/FAILED/NOT_REACHABLE)
-    3. Populate Recipient.recording_url with presigned S3 URL
-    4. Set Recipient.sync_status = PENDING (ready for Clarity push)
+    2. Handle retry logic for failed calls
+    3. Copy transcript to Recipient for reference
+    4. Set sync_status = PENDING (ready for Clarity push when recording arrives)
+
+    NOTE: This task does NOT:
+    - Set terminal status (COMPLETED/FAILED) - that happens after Clarity sync
+    - Trigger Clarity sync - that happens via separate clarity_push task
+    - Generate recording URL - that happens in recording_download task
+
+    The flow is:
+    1. Call ends -> this task syncs data
+    2. Recording uploads -> recording_download sets READY_TO_SYNC
+    3. Clarity push task picks up READY_TO_SYNC recipients
 
     Args:
         call_record_id: CallRecord document ID
@@ -115,7 +133,7 @@ def sync_recipient_from_call(
         conversation_result = call_record.conversation_data.model_copy(deep=True)
 
         # Log conversation data fields for debugging null values
-        logger.debug(
+        logger.info(
             f"CallRecord {call_record_id} conversation_data: "
             f"is_visit_confirmed={call_record.conversation_data.is_visit_confirmed}, "
             f"is_service_confirmed={call_record.conversation_data.is_service_confirmed}, "
@@ -130,38 +148,15 @@ def sync_recipient_from_call(
             "current_stage": call_record.conversation_state.current_stage if call_record.conversation_state else None,
         })
 
-        # 4. Get presigned recording URL (if recording exists)
-        # NOTE: Recording may not be uploaded yet due to race condition between
-        # status webhook and recording webhook. If recording_url is null here,
-        # it will be updated by recording_download.py after successful S3 upload.
-        recording_url = None
-        if call_record.recording and call_record.recording.s3_object_key:
-            try:
-                from backend.app.infrastructure.storage.s3_storage import S3StorageClient
-                storage = S3StorageClient()
-                recording_url = storage.get_presigned_url(
-                    call_record.recording.s3_object_key,
-                    expiration=86400,  # 24 hours
-                )
-                logger.debug(f"Generated presigned URL for recording: {call_record.recording.s3_object_key}")
-            except Exception as e:
-                logger.error(
-                    f"Failed to get presigned URL for recording {call_record.recording.s3_object_key}: {e}",
-                    exc_info=True
-                )
-                # Continue without recording URL - will be updated when recording_download completes
-
-        # 5. Handle call completion and determine next status via retry logic
+        # 4. Get call outcome and handle retry logic
         outcome = call_record.call_tracking.outcome if call_record.call_tracking else None
-
-        # Map outcome to failure_reason using complete mapping
         failure_reason = _map_outcome_to_failure_reason(outcome)
-        
-        # Get additional call details
         duration_seconds = call_record.call_tracking.duration_seconds if call_record.call_tracking else None
         error_details = getattr(call_record.call_tracking, 'error_message', None) if call_record.call_tracking else None
-        
-        # Call handle_call_completion to manage retries and status
+
+        # Call handle_call_completion to manage retries
+        # This will set status to RETRYING if retry is needed, or keep as CALLING
+        # NOTE: We override terminal statuses below to use READY_TO_SYNC instead
         recipient = await recipient_service.handle_call_completion(
             recipient_id=str(recipient.id),
             call_record_id=call_record_id,
@@ -172,37 +167,51 @@ def sync_recipient_from_call(
             error_details=error_details,
         )
 
+        # 5. Override terminal statuses - don't go to terminal until Clarity sync
+        # If call was successful (COMPLETED) or max retries reached (NOT_REACHABLE/FAILED),
+        # we need to wait for recording before syncing to Clarity
+        if recipient.status in {
+            RecipientStatus.COMPLETED,
+            RecipientStatus.FAILED,
+            RecipientStatus.NOT_REACHABLE,
+        }:
+            # Check if recording is already available
+            if call_record.recording and call_record.recording.s3_object_key:
+                # Recording already uploaded, set READY_TO_SYNC
+                recipient.status = RecipientStatus.READY_TO_SYNC
+                logger.info(f"Recording available, setting recipient {recipient.id} to READY_TO_SYNC")
+            else:
+                # Recording not yet uploaded, keep intermediate status
+                # recording_download will set READY_TO_SYNC when done
+                # Use a marker status to indicate waiting for recording
+                # For now, keep the status but the recording_download will update it
+                logger.info(
+                    f"Recording not yet uploaded for recipient {recipient.id}, "
+                    f"status={recipient.status.value}. Will be updated by recording_download."
+                )
+
         # 6. Update additional Recipient fields
-        recipient.recording_url = recording_url
-        recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync
-        recipient.completed_at = call_record.call_tracking.ended_at if call_record.call_tracking else None
+        recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync when READY_TO_SYNC
         recipient.urgency_flagged = call_record.urgency_flagged
         recipient.updated_at = datetime.now(timezone.utc)
+
+        # Copy transcript reference for quick access
+        if call_record.transcript:
+            # Store transcript length for reference
+            conversation_result.extracted_data["transcript_turn_count"] = len(call_record.transcript)
 
         await recipient.save()
 
         logger.info(
             f"Synced Recipient {recipient.id} from CallRecord {call_record_id}: "
-            f"status={recipient.status.value}, has_conversation_data={bool(conversation_result.is_visit_confirmed)}, "
-            f"has_recording={bool(recording_url)}"
+            f"status={recipient.status.value}, "
+            f"is_visit_confirmed={conversation_result.is_visit_confirmed}, "
+            f"satisfaction_rating={conversation_result.satisfaction_rating}"
         )
 
-        # 7. Optionally trigger immediate Clarity sync
-        # (if queue has auto_push_results enabled)
-        try:
-            from backend.app.models.call_queue import CallQueue
-            from backend.app.models.geography import Geography
-
-            queue = await CallQueue.get(recipient.queue_id)
-            geography = await Geography.get(queue.geography_id) if queue else None
-
-            if geography and geography.clarity_config and geography.clarity_config.auto_push_results:
-                logger.info(f"Auto-triggering Clarity sync for geography {geography.id}")
-                from backend.app.tasks.clarity_sync import sync_results_to_clarity
-                sync_results_to_clarity.delay(str(geography.id))
-        except Exception as e:
-            logger.warning(f"Failed to trigger auto Clarity sync: {e}")
-            # Not critical - sync will happen on next scheduled run
+        # NOTE: We do NOT trigger Clarity sync here anymore
+        # The clarity_push task will pick up READY_TO_SYNC recipients on its schedule
+        # This prevents race conditions with recording upload
 
         return True
 

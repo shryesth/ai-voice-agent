@@ -332,14 +332,22 @@ async def _process_recording_upload(
 
 async def _update_recipient_recording_url(call_record: CallRecord) -> None:
     """
-    Update Recipient.recording_url with presigned S3 URL after successful upload.
+    Update Recipient with recording URL and set READY_TO_SYNC status.
 
-    This ensures the Recipient has the recording URL even if the initial sync
-    ran before the recording was uploaded (race condition fix).
+    This is the critical step that marks a recipient as ready for Clarity sync.
+    Recording URL + READY_TO_SYNC status ensures Clarity gets complete data.
+
+    Flow:
+    1. Generate presigned URL for recording
+    2. Update Recipient.recording_url
+    3. Set Recipient.status = READY_TO_SYNC (if call was successful)
+    4. clarity_push task will pick up the recipient
 
     Args:
         call_record: CallRecord with recording metadata
     """
+    from backend.app.models.enums import RecipientStatus, CallOutcome
+
     if not call_record.recipient_id:
         return
 
@@ -359,19 +367,49 @@ async def _update_recipient_recording_url(call_record: CallRecord) -> None:
         # Generate presigned URL
         from backend.app.infrastructure.storage.s3_storage import S3StorageClient
         storage = S3StorageClient()
-        recording_url = await storage.get_presigned_url(
+        recording_url = storage.get_presigned_url(
             call_record.recording.s3_object_key,
             expiration=86400,  # 24 hours
         )
 
-        # Update Recipient
+        # Update Recipient with recording URL
         recipient.recording_url = recording_url
         recipient.updated_at = datetime.now(timezone.utc)
-        await recipient.save()
 
-        logger.info(
-            f"Updated Recipient {recipient.id} recording_url from recording_download task"
-        )
+        # Determine if we should set READY_TO_SYNC status
+        # Only set READY_TO_SYNC if the call reached a conclusive state
+        should_set_ready = False
+
+        # Check call outcome
+        outcome = call_record.call_tracking.outcome if call_record.call_tracking else None
+        if outcome in {CallOutcome.COMPLETED_FULL, CallOutcome.COMPLETED_PARTIAL}:
+            should_set_ready = True
+        elif recipient.status in {
+            RecipientStatus.COMPLETED,
+            RecipientStatus.FAILED,
+            RecipientStatus.NOT_REACHABLE,
+        }:
+            # Already in a terminal-like state from recipient_sync, set READY_TO_SYNC
+            should_set_ready = True
+
+        # Don't override RETRYING status - those calls will be retried
+        if recipient.status == RecipientStatus.RETRYING:
+            should_set_ready = False
+            logger.info(
+                f"Recipient {recipient.id} is RETRYING, not setting READY_TO_SYNC"
+            )
+
+        if should_set_ready:
+            recipient.status = RecipientStatus.READY_TO_SYNC
+            logger.info(
+                f"Set Recipient {recipient.id} to READY_TO_SYNC with recording_url"
+            )
+        else:
+            logger.info(
+                f"Updated Recipient {recipient.id} recording_url, status remains {recipient.status.value}"
+            )
+
+        await recipient.save()
 
     except Exception as e:
         logger.error(

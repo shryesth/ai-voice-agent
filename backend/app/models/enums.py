@@ -71,10 +71,12 @@ class RecipientStatus(str, Enum):
     PENDING = "pending"  # Awaiting first attempt
     CALLING = "calling"  # Call in progress
     RETRYING = "retrying"  # Scheduled for retry
-    # Terminal states
-    COMPLETED = "completed"  # Call successful (-> Clarity VALID)
+    # Post-call states
+    READY_TO_SYNC = "ready_to_sync"  # Call complete, recording saved, ready for Clarity sync
+    # Terminal states (after Clarity sync or final disposition)
+    COMPLETED = "completed"  # Call successful, synced to Clarity (-> Clarity VALID)
     FAILED = "failed"  # Call failed, not verified (-> Clarity NOT_VALID)
-    NOT_REACHABLE = "not_reachable"  # Max retries (-> Clarity NOT_REACHABLE)
+    NOT_REACHABLE = "not_reachable"  # Max retries exhausted (-> Clarity NOT_REACHABLE)
     SKIPPED = "skipped"  # Manually skipped
     DLQ = "dlq"  # Dead letter queue
 

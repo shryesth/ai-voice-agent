@@ -1,24 +1,24 @@
 """
-Celery tasks for Clarity API synchronization.
+Celery tasks for Clarity API synchronization - PULL operations only.
 
 Tasks:
 - sync_clarity_subjects: Pull verification subjects from Clarity (FOREVER mode queues)
-- sync_results_to_clarity: Push completed call results to Clarity
+- sync_all_queues_from_clarity: Scheduled task to sync all queues
+
+NOTE: Push operations (syncing results TO Clarity) are handled by clarity_push.py
+to avoid race conditions with recording uploads.
 """
 
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from celery import shared_task
 from bson import ObjectId
 
 from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.models.enums import (
     QueueState,
     QueueMode,
-    RecipientStatus,
-    SyncStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,170 +108,9 @@ def sync_clarity_subjects(
     return loop.run_until_complete(_sync())
 
 
-@celery_app.task(
-    name="tasks.sync_results_to_clarity",
-    bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=300,
-    retry_jitter=True,
-    max_retries=3,
-)
-def sync_results_to_clarity(
-    self,
-    geography_id: Optional[str] = None,
-    max_count: int = 100,
-):
-    """
-    Push completed call results to Clarity.
-
-    This task finds Recipients with terminal status that haven't been
-    synced to Clarity yet and pushes their results.
-
-    Args:
-        geography_id: Optional filter by geography
-        max_count: Maximum recipients to push per run
-    """
-    import asyncio
-
-    async def _sync():
-        from backend.app.models.geography import Geography
-        from backend.app.models.recipient import Recipient
-        from backend.app.services.clarity_service import ClarityService
-        from backend.app.infrastructure.storage.s3_storage import S3StorageClient
-        from backend.app.models.call_record import CallRecord
-        from backend.app.core.config import settings
-
-        # Build query for unsyncedrecipients
-        query = {
-            "status": {"$in": [
-                RecipientStatus.COMPLETED.value,
-                RecipientStatus.FAILED.value,
-                RecipientStatus.NOT_REACHABLE.value,
-            ]},
-            "sync_status": SyncStatus.PENDING.value,
-            "external_source": "clarity",
-        }
-
-        # Find recipients to sync
-        recipients = await Recipient.find(query).limit(max_count).to_list()
-
-        if not recipients:
-            logger.debug("No recipients to sync to Clarity")
-            return 0
-
-        # Group by geography for efficient service creation
-        by_geography = {}
-        for recipient in recipients:
-            # Get queue to find geography
-            from backend.app.models.call_queue import CallQueue
-            queue = await CallQueue.get(recipient.queue_id)
-            if not queue:
-                continue
-
-            geo_id = str(queue.geography_id)
-            if geo_id not in by_geography:
-                by_geography[geo_id] = []
-            by_geography[geo_id].append(recipient)
-
-        synced_count = 0
-
-        for geo_id, geo_recipients in by_geography.items():
-            # Get geography and create Clarity service
-            geography = await Geography.get(ObjectId(geo_id))
-            if not geography or not geography.clarity_config.enabled:
-                continue
-
-            if not geography.clarity_config.auto_push_results:
-                continue
-
-            clarity_service = ClarityService(geography.clarity_config)
-
-            # Initialize storage client for recording URLs
-            storage_client = S3StorageClient()
-
-            for recipient in geo_recipients:
-                try:
-                    # Skip if already synced recently (within last 30 seconds) - prevents double-sync race condition
-                    if recipient.last_synced_at:
-                        time_since_sync = (datetime.now(timezone.utc) - recipient.last_synced_at).total_seconds()
-                        if time_since_sync < 30:
-                            logger.debug(
-                                f"Skipping recipient {recipient.id} - already synced {time_since_sync:.1f}s ago"
-                            )
-                            continue
-
-                    # Skip if sync not pending (may have been synced by auto-trigger)
-                    if recipient.sync_status != SyncStatus.PENDING:
-                        logger.debug(
-                            f"Skipping recipient {recipient.id} - sync_status={recipient.sync_status.value}"
-                        )
-                        continue
-
-                    # Get recording URL if available
-                    recording_url = None
-                    if geography.clarity_config.include_recording_url and recipient.current_call_record_id:
-                        call_record = await CallRecord.get(ObjectId(recipient.current_call_record_id))
-                        if call_record and call_record.recording and call_record.recording.s3_object_key:
-                            recording_url = storage_client.get_presigned_url(
-                                call_record.recording.s3_object_key,
-                                expiration=86400,  # 24 hours
-                            )
-
-                    # Log recipient details before push
-                    logger.info(
-                        f"Preparing to sync recipient {recipient.id} to Clarity - "
-                        f"Status: {recipient.status}, "
-                        f"External ID: {recipient.external_id}, "
-                        f"Has Recording URL: {recording_url is not None}"
-                    )
-                    logger.debug(
-                        f"Recipient conversation result: "
-                        f"visit_confirmed={recipient.conversation_result.is_visit_confirmed}, "
-                        f"service_confirmed={recipient.conversation_result.is_service_confirmed}, "
-                        f"satisfaction_rating={recipient.conversation_result.satisfaction_rating}, "
-                        f"has_side_effects={recipient.conversation_result.has_side_effects}"
-                    )
-
-                    # Optimistic locking: mark as synced immediately to prevent concurrent sync attempts
-                    recipient.sync_status = SyncStatus.SYNCED
-                    recipient.last_synced_at = datetime.now(timezone.utc)
-                    await recipient.save()
-
-                    # Push to Clarity
-                    try:
-                        success = await clarity_service.push_verification_result(
-                            recipient=recipient,
-                            recording_url=recording_url,
-                        )
-
-                        if success:
-                            synced_count += 1
-                        else:
-                            # Rollback on failure
-                            recipient.sync_status = SyncStatus.FAILED
-                            await recipient.save()
-                    except Exception as push_error:
-                        # Rollback on exception
-                        recipient.sync_status = SyncStatus.FAILED
-                        recipient.sync_error = str(push_error)
-                        recipient.updated_at = datetime.now(timezone.utc)
-                        await recipient.save()
-                        raise
-
-                except Exception as e:
-                    logger.error(f"Failed to push recipient {recipient.id} to Clarity: {e}")
-                    recipient.sync_status = SyncStatus.FAILED
-                    recipient.sync_error = str(e)
-                    recipient.updated_at = datetime.now(timezone.utc)
-                    await recipient.save()
-
-        logger.info(f"Synced {synced_count} recipients to Clarity")
-        return synced_count
-
-    # Run async function using worker's event loop
-    loop = get_worker_event_loop()
-    return loop.run_until_complete(_sync())
+# NOTE: sync_results_to_clarity has been REMOVED
+# Push operations are now handled by clarity_push.py -> push_ready_recipients_to_clarity
+# This prevents race conditions with recording uploads
 
 
 @celery_app.task(

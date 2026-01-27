@@ -41,6 +41,11 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
 )
 
+# Queue names for task routing
+QUEUE_CALLS = "calls"  # Call execution - initiate, handle, recording
+QUEUE_CLARITY = "clarity"  # Clarity sync - pull subjects, push results
+QUEUE_POSTPROCESSING = "postprocessing"  # Translation, analytics
+
 # Celery configuration
 celery_app.conf.update(
     # Task settings
@@ -69,6 +74,31 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,
     broker_connection_retry_on_startup=True,  # Retry broker connection on startup
 
+    # Queue configuration - separate queues for different concerns
+    task_queues={
+        QUEUE_CALLS: {"exchange": QUEUE_CALLS, "routing_key": QUEUE_CALLS},
+        QUEUE_CLARITY: {"exchange": QUEUE_CLARITY, "routing_key": QUEUE_CLARITY},
+        QUEUE_POSTPROCESSING: {"exchange": QUEUE_POSTPROCESSING, "routing_key": QUEUE_POSTPROCESSING},
+    },
+    task_default_queue=QUEUE_CALLS,
+
+    # Task routing - send tasks to appropriate queues
+    task_routes={
+        # Call execution tasks -> calls queue
+        "initiate_patient_call": {"queue": QUEUE_CALLS},
+        "update_call_from_webhook": {"queue": QUEUE_CALLS},
+        "download_twilio_recording": {"queue": QUEUE_CALLS},
+        "retry_recording_from_fallback": {"queue": QUEUE_CALLS},
+        "process_campaign_queues": {"queue": QUEUE_CALLS},
+        "tasks.sync_recipient_from_call": {"queue": QUEUE_CALLS},
+        # Clarity sync tasks -> clarity queue (separate from call execution)
+        "tasks.sync_clarity_subjects": {"queue": QUEUE_CLARITY},
+        "tasks.sync_all_queues_from_clarity": {"queue": QUEUE_CLARITY},
+        "tasks.push_ready_recipients_to_clarity": {"queue": QUEUE_CLARITY},
+        # Post-processing tasks -> postprocessing queue
+        "translate_transcript": {"queue": QUEUE_POSTPROCESSING},
+    },
+
     # Beat schedule for periodic tasks
     beat_schedule={
         "process-campaign-queues": {
@@ -76,6 +106,7 @@ celery_app.conf.update(
             "schedule": 30.0,  # Every 30 seconds
             "options": {
                 "expires": 25,  # Prevent overlap (30 - 5)
+                "queue": QUEUE_CALLS,
             },
         },
         "sync-clarity-queues": {
@@ -83,13 +114,15 @@ celery_app.conf.update(
             "schedule": 60.0,  # Every 60 seconds
             "options": {
                 "expires": 55,  # Prevent overlap
+                "queue": QUEUE_CLARITY,
             },
         },
-        "sync-clarity-results": {
-            "task": "tasks.sync_results_to_clarity",
-            "schedule": 60.0,  # Every 60 seconds
+        "push-clarity-results": {
+            "task": "tasks.push_ready_recipients_to_clarity",
+            "schedule": 45.0,  # Every 45 seconds - check for ready_to_sync recipients
             "options": {
-                "expires": 55,  # Prevent overlap
+                "expires": 40,  # Prevent overlap
+                "queue": QUEUE_CLARITY,
             },
         },
     },

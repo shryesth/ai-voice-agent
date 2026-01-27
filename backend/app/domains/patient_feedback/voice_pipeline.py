@@ -1,5 +1,5 @@
 """
-Pipecat v0.0.99 voice pipeline implementation for patient feedback calls.
+Pipecat v0.0.100 voice pipeline implementation for patient feedback calls.
 
 This module creates and runs the complete voice pipeline with:
 1. TwilioFrameSerializer - Handles ALL µ-law ↔ PCM audio conversion
@@ -8,7 +8,7 @@ This module creates and runs the complete voice pipeline with:
 4. OpenAIRealtimeLLMService - gpt-4o-realtime for conversational AI
 5. FlowManager - 6-stage conversation state machine
 
-Based on architecture from plan.md (Pipecat v0.0.99 patterns).
+Based on architecture from plan.md (Pipecat v0.0.100 patterns).
 """
 
 import asyncio
@@ -45,7 +45,8 @@ from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
 from pipecat.turns.user_start import TranscriptionUserTurnStartStrategy
 from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
-from pipecat.turns.mute import (
+# pipecat.turns.mute is deprecated in 0.0.100, use pipecat.turns.user_mute
+from pipecat.turns.user_mute import (
     MuteUntilFirstBotCompleteUserMuteStrategy,
     FunctionCallUserMuteStrategy
 )

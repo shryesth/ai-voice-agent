@@ -20,8 +20,8 @@ bcrypt==4.2.1
 celery==5.4.0
 redis==5.2.1
 
-# Voice Pipeline (Pipecat v0.0.99)
-pipecat-ai==0.0.99
+# Voice Pipeline (Pipecat v0.0.100)
+pipecat-ai==0.0.100
 pipecat-ai-flows==0.0.22
 
 # Twilio Integration

@@ -139,6 +139,18 @@ class SyncStatus(str, Enum):
     FAILED = "failed"  # Sync failed
 
 
+class DisconnectSource(str, Enum):
+    """Source of call disconnection."""
+
+    USER_HANGUP = "user_hangup"  # User hung up
+    AGENT_HANGUP = "agent_hangup"  # Agent ended call
+    TWILIO_BUSY = "twilio_busy"  # Twilio reported busy
+    TWILIO_NO_ANSWER = "twilio_no_answer"  # Twilio reported no answer
+    TWILIO_FAILED = "twilio_failed"  # Twilio reported failed
+    TIMEOUT = "timeout"  # Call timeout
+    ERROR = "error"  # Technical error
+
+
 class UserRole(str, Enum):
     """User roles for RBAC."""
 

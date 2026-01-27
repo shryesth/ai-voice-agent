@@ -266,7 +266,7 @@ class EnglishTranslationResponse(BaseModel):
 class CallRecordResponse(BaseModel):
     """Response schema for call record endpoints"""
     id: str
-    campaign_id: str
+    queue_id: Optional[str] = None
     patient_phone: str  # Hidden from User role in service layer
     language: str
     conversation_state: ConversationStateResponse
@@ -285,7 +285,7 @@ class CallRecordResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "id": "65c3d4e5f6g7h8i9j0k1l2m3",
-                "campaign_id": "65b2c3d4e5f6g7h8i9j0k1l2",
+                "queue_id": "65b2c3d4e5f6g7h8i9j0k1l2",
                 "patient_phone": "+12025551234",
                 "language": "en",
                 "conversation_state": {
@@ -335,7 +335,7 @@ class CallListResponse(BaseModel):
                 "items": [
                     {
                         "id": "65c3d4e5f6g7h8i9j0k1l2m3",
-                        "campaign_id": "65b2c3d4e5f6g7h8i9j0k1l2",
+                        "queue_id": "65b2c3d4e5f6g7h8i9j0k1l2",
                         "patient_phone": "+12025551234",
                         "language": "en",
                         "urgency_flagged": False,

@@ -81,7 +81,7 @@ def call_to_response(call, user_role: Optional[UserRole] = None) -> CallRecordRe
 
     return CallRecordResponse(
         id=str(call.id),
-        campaign_id=str(call.campaign_id),
+        queue_id=str(call.queue_id) if call.queue_id else None,
         patient_phone=patient_phone,
         language=call.language,
         conversation_state=ConversationStateResponse(

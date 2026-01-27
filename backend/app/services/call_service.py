@@ -218,7 +218,7 @@ class CallService:
 
         # Update feedback data from FlowManager fields
         if "satisfaction_rating" in pipeline_state:
-            call.conversation_data.overall_satisfaction = pipeline_state["satisfaction_rating"]
+            call.conversation_data.satisfaction_rating = pipeline_state["satisfaction_rating"]
 
         # Map has_side_effects to boolean field, side_effects_details to string field
         if "has_side_effects" in pipeline_state:
@@ -236,6 +236,14 @@ class CallService:
             extracted_data["satisfaction_feedback"] = pipeline_state["satisfaction_feedback"]
         if extracted_data:
             call.conversation_data.extracted_data = extracted_data
+
+        logger.debug(
+            f"conversation_data mapped: "
+            f"visit={call.conversation_data.is_visit_confirmed}, "
+            f"service={call.conversation_data.is_service_confirmed}, "
+            f"rating={call.conversation_data.satisfaction_rating}, "
+            f"side_effects={call.conversation_data.has_side_effects}"
+        )
 
         # Update urgency flags from severe side effects or explicit flag
         if pipeline_state.get("urgency_flagged") or pipeline_state.get("severe_side_effects"):

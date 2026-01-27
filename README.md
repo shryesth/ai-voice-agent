@@ -221,7 +221,7 @@ The Pipecat voice pipeline handles:
    - Completion
 
 2. **Voice Components**:
-   - **VAD**: Silero Voice Activity Detection (built-in)
+   - **VAD**: OpenAI Server-side Voice Activity Detection
    - **Speech-to-Text**: Automatic via OpenAI Realtime API
    - **LLM**: OpenAI gpt-4o-realtime-preview for conversations
    - **Text-to-Speech**: Automatic via OpenAI Realtime API

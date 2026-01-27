@@ -21,7 +21,7 @@ celery==5.4.0
 redis==5.2.1
 
 # Voice Pipeline (Pipecat v0.0.99)
-pipecat-ai[silero]==0.0.99
+pipecat-ai==0.0.99
 pipecat-ai-flows==0.0.22
 
 # Twilio Integration

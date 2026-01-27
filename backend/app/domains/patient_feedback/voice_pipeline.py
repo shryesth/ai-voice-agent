@@ -41,9 +41,9 @@ from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams
 )
 from pipecat.serializers.twilio import TwilioFrameSerializer
-# Removed SileroVADAnalyzer and VADParams - using server-side VAD instead
+# Using OpenAI server-side VAD with transcription-based turn detection
 from pipecat.turns.user_turn_strategies import UserTurnStrategies
-from pipecat.turns.user_start import VADUserTurnStartStrategy
+from pipecat.turns.user_start import TranscriptionUserTurnStartStrategy
 from pipecat.turns.user_stop import TranscriptionUserTurnStopStrategy
 from pipecat.turns.mute import (
     MuteUntilFirstBotCompleteUserMuteStrategy,
@@ -177,8 +177,8 @@ async def create_voice_pipeline(
         context=context,
         user_params=LLMUserAggregatorParams(
             user_turn_strategies=UserTurnStrategies(
-                start=[VADUserTurnStartStrategy()],           # Detect speech start via VAD
-                stop=[TranscriptionUserTurnStopStrategy()]     # Detect speech end via transcription
+                start=[TranscriptionUserTurnStartStrategy()],  # Detect turn start from transcription frames
+                stop=[TranscriptionUserTurnStopStrategy()]     # Detect turn end via transcription complete
             ),
             user_mute_strategies=[
                 MuteUntilFirstBotCompleteUserMuteStrategy(),  # Wait for bot's first response

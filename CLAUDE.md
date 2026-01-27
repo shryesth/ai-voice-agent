@@ -147,7 +147,7 @@ Privacy filtering: User role receives `[REDACTED]` for patient_phone fields.
 
 The voice system uses Pipecat framework with:
 - **OpenAI Realtime API**: gpt-realtime-mini-2025-10-06 model
-- **Silero VAD**: Voice activity detection for turn management
+- **Server-side VAD**: OpenAI Realtime server-side voice activity detection
 - **FunctionRegistry**: Pipecat-compatible handlers (FunctionCallParams + result_callback pattern)
 - **FlowManager**: 6-stage state machine with conversation data persistence
 - **Twilio**: Telephony integration via WebSocket (TwilioFrameSerializer)

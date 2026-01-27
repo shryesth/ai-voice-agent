@@ -245,7 +245,7 @@ def recipient_to_response(
         side_effects_reported=recipient.conversation_result.side_effects_reported,
         has_side_effects=recipient.conversation_result.has_side_effects,
         specific_concerns=recipient.conversation_result.specific_concerns,
-        additional_notes=recipient.conversation_result.additional_notes,
+        additional_notes=getattr(recipient.conversation_result, 'additional_notes', None),
         extracted_data=recipient.conversation_result.extracted_data,
     )
 

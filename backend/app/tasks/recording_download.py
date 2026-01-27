@@ -8,16 +8,20 @@ This module provides robust recording storage with:
 - Redis fallback storage for failures
 - Dead-letter queue for persistent failures
 - Automatic cleanup of Twilio recordings after successful upload
+- Recipient recording_url update after successful upload
 """
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
+from bson import ObjectId
 from twilio.rest import Client
 
 from backend.app.celery_app import celery_app, get_worker_event_loop
 from backend.app.core.config import settings
 from backend.app.models.call_record import CallRecord
+from backend.app.models.recipient import Recipient
 from backend.app.services.recording_service import RecordingService
 
 logger = logging.getLogger(__name__)
@@ -319,4 +323,59 @@ async def _process_recording_upload(
         metadata=metadata,
     )
 
+    # If upload succeeded and call has a recipient, update Recipient.recording_url
+    if success and call_record.recipient_id:
+        await _update_recipient_recording_url(call_record)
+
     return success
+
+
+async def _update_recipient_recording_url(call_record: CallRecord) -> None:
+    """
+    Update Recipient.recording_url with presigned S3 URL after successful upload.
+
+    This ensures the Recipient has the recording URL even if the initial sync
+    ran before the recording was uploaded (race condition fix).
+
+    Args:
+        call_record: CallRecord with recording metadata
+    """
+    if not call_record.recipient_id:
+        return
+
+    if not call_record.recording or not call_record.recording.s3_object_key:
+        logger.warning(
+            f"Cannot update Recipient recording_url: no s3_object_key for call {call_record.id}"
+        )
+        return
+
+    try:
+        # Get Recipient
+        recipient = await Recipient.get(ObjectId(call_record.recipient_id))
+        if not recipient:
+            logger.warning(f"Recipient not found: {call_record.recipient_id}")
+            return
+
+        # Generate presigned URL
+        from backend.app.infrastructure.storage.s3_storage import S3StorageClient
+        storage = S3StorageClient()
+        recording_url = await storage.get_presigned_url(
+            call_record.recording.s3_object_key,
+            expiration=86400,  # 24 hours
+        )
+
+        # Update Recipient
+        recipient.recording_url = recording_url
+        recipient.updated_at = datetime.now(timezone.utc)
+        await recipient.save()
+
+        logger.info(
+            f"Updated Recipient {recipient.id} recording_url from recording_download task"
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Failed to update Recipient recording_url for call {call_record.id}: {e}",
+            exc_info=True
+        )
+        # Don't fail the task - recording is still in S3

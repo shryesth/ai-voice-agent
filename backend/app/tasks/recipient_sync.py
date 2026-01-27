@@ -114,6 +114,15 @@ def sync_recipient_from_call(
         # 3. Map conversation results - direct copy since both use ConversationData now
         conversation_result = call_record.conversation_data.model_copy(deep=True)
 
+        # Log conversation data fields for debugging null values
+        logger.debug(
+            f"CallRecord {call_record_id} conversation_data: "
+            f"is_visit_confirmed={call_record.conversation_data.is_visit_confirmed}, "
+            f"is_service_confirmed={call_record.conversation_data.is_service_confirmed}, "
+            f"satisfaction_rating={call_record.conversation_data.satisfaction_rating}, "
+            f"has_side_effects={call_record.conversation_data.has_side_effects}"
+        )
+
         # Merge additional context into extracted_data
         conversation_result.extracted_data.update({
             "urgency_flagged": call_record.urgency_flagged,
@@ -122,18 +131,25 @@ def sync_recipient_from_call(
         })
 
         # 4. Get presigned recording URL (if recording exists)
+        # NOTE: Recording may not be uploaded yet due to race condition between
+        # status webhook and recording webhook. If recording_url is null here,
+        # it will be updated by recording_download.py after successful S3 upload.
         recording_url = None
         if call_record.recording and call_record.recording.s3_object_key:
             try:
-                from backend.app.infrastructure.storage.s3_storage import S3Storage
-                storage = S3Storage()
+                from backend.app.infrastructure.storage.s3_storage import S3StorageClient
+                storage = S3StorageClient()
                 recording_url = await storage.get_presigned_url(
                     call_record.recording.s3_object_key,
                     expiration=86400,  # 24 hours
                 )
+                logger.debug(f"Generated presigned URL for recording: {call_record.recording.s3_object_key}")
             except Exception as e:
-                logger.warning(f"Failed to get presigned URL for recording: {e}")
-                # Continue without recording URL
+                logger.error(
+                    f"Failed to get presigned URL for recording {call_record.recording.s3_object_key}: {e}",
+                    exc_info=True
+                )
+                # Continue without recording URL - will be updated when recording_download completes
 
         # 5. Handle call completion and determine next status via retry logic
         outcome = call_record.call_tracking.outcome if call_record.call_tracking else None

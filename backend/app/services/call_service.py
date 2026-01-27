@@ -258,7 +258,10 @@ class CallService:
         if pipeline_state.get("completed"):
             if not call.conversation_state.current_stage:
                 call.conversation_state.current_stage = "completed"
-            call.call_tracking.outcome = CallOutcome.COMPLETED_FULL
+            # Only set outcome if not already set by webhook (e.g., BUSY, NO_ANSWER)
+            # This prevents overwriting accurate outcomes from Twilio callbacks
+            if not call.call_tracking.outcome:
+                call.call_tracking.outcome = CallOutcome.COMPLETED_FULL
 
         # Store completion reason
         if "completion_reason" in pipeline_state:

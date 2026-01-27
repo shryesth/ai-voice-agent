@@ -289,18 +289,38 @@ class RecipientService:
         queue = await CallQueue.get(recipient.queue_id)
         max_retries = queue.retry_strategy.max_retries if queue else DEFAULT_MAX_RETRIES
 
-        # Create call attempt record
-        attempt = CallAttempt(
-            attempt_number=len(recipient.call_attempts) + 1,
-            call_record_id=call_record_id,
-            outcome=outcome,
-            failure_reason=failure_reason,
-            duration_seconds=duration_seconds,
-            started_at=recipient.first_attempted_at or datetime.now(timezone.utc),
-            ended_at=datetime.now(timezone.utc),
-            notes=error_details,
+        # Idempotency check: Check if call_record_id already exists in call_attempts
+        existing_attempt = next(
+            (a for a in recipient.call_attempts if a.call_record_id == call_record_id),
+            None
         )
-        recipient.call_attempts.append(attempt)
+
+        if existing_attempt:
+            # Update existing attempt instead of creating duplicate
+            logger.info(
+                f"CallAttempt already exists for call_record_id={call_record_id}, "
+                f"updating existing attempt #{existing_attempt.attempt_number}"
+            )
+            existing_attempt.outcome = outcome
+            existing_attempt.failure_reason = failure_reason
+            existing_attempt.duration_seconds = duration_seconds
+            existing_attempt.ended_at = datetime.now(timezone.utc)
+            if error_details:
+                existing_attempt.notes = error_details
+        else:
+            # Create new call attempt record
+            attempt = CallAttempt(
+                attempt_number=len(recipient.call_attempts) + 1,
+                call_record_id=call_record_id,
+                outcome=outcome,
+                failure_reason=failure_reason,
+                duration_seconds=duration_seconds,
+                started_at=recipient.first_attempted_at or datetime.now(timezone.utc),
+                ended_at=datetime.now(timezone.utc),
+                notes=error_details,
+            )
+            recipient.call_attempts.append(attempt)
+            logger.debug(f"Created CallAttempt #{attempt.attempt_number} for recipient {recipient_id}")
 
         # Update conversation result if provided
         if conversation_result:

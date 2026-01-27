@@ -199,11 +199,10 @@ def update_call_from_webhook(call_sid: str, status: str, duration: int = None):
         call_record.updated_at = datetime.now(timezone.utc)
         loop.run_until_complete(call_record.save())
 
-        # Trigger recipient sync for terminal call states
-        if status in ["completed", "busy", "no-answer", "failed", "canceled"]:
-            from backend.app.tasks.recipient_sync import sync_recipient_from_call
-            sync_recipient_from_call.delay(str(call_record.id))
-            logger.info(f"Triggered recipient sync for call record {call_record.id}")
+        # NOTE: Recipient sync is triggered from CallService.update_call_from_pipeline_state()
+        # which has complete conversation data. We don't trigger it here from the webhook
+        # to avoid race conditions and duplicate CallAttempts.
+        # The pipeline path saves CallRecord first, then queues sync with full data.
 
         logger.info(f"Updated call record {call_record.id} with status {status}")
 

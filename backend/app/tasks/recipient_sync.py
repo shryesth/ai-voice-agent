@@ -139,7 +139,7 @@ def sync_recipient_from_call(
             try:
                 from backend.app.infrastructure.storage.s3_storage import S3StorageClient
                 storage = S3StorageClient()
-                recording_url = await storage.get_presigned_url(
+                recording_url = storage.get_presigned_url(
                     call_record.recording.s3_object_key,
                     expiration=86400,  # 24 hours
                 )

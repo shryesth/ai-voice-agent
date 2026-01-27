@@ -234,12 +234,12 @@ class RecordingService:
         """
         Generate S3 object key for the recording.
 
-        Format: {s3_path_prefix}recordings/{geography_id}/{year}/{month:02d}/{call_id}_dual.{format}
+        Format: {s3_path_prefix}recordings/{geography_id}/{year}/{month:02d}/call_recording_{call_id}_dual.{format}
 
         Examples:
-        - Development: recordings/geo123/2026/01/call456_dual.mp3
-        - UAT: uat/recordings/geo123/2026/01/call456_dual.mp3
-        - Production: prod/recordings/geo123/2026/01/call456_dual.mp3
+        - Development: recordings/geo123/2026/01/call_recording_call456_dual.mp3
+        - UAT: uat/recordings/geo123/2026/01/call_recording_call456_dual.mp3
+        - Production: prod/recordings/geo123/2026/01/call_recording_call456_dual.mp3
 
         Uses geography_id as primary partition (always available).
 
@@ -258,8 +258,8 @@ class RecordingService:
         # Get call ID
         call_id = str(call_record.id)
 
-        # Build base path
-        base_path = f"recordings/{geography_id}/{now.year}/{now.month:02d}/{call_id}_dual.{format}"
+        # Build base path with call_recording_ prefix
+        base_path = f"recordings/{geography_id}/{now.year}/{now.month:02d}/call_recording_{call_id}_dual.{format}"
 
         # Add environment prefix if configured
         prefix = settings.s3_path_prefix

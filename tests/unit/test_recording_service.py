@@ -20,7 +20,7 @@ class TestRecordingService:
         """Create a mock CallRecord for testing."""
         mock = MagicMock()
         mock.id = "test-call-id-12345"
-        mock.campaign_id = "test-campaign-id"
+        mock.geography_id = "test-geography-id"
         mock.recording = None
         mock.updated_at = None
         mock.save = AsyncMock()
@@ -138,11 +138,11 @@ class TestRecordingService:
         """Test S3 object key generation."""
         object_key = recording_service._generate_object_key(mock_call_record)
 
-        # Verify key format: recordings/{campaign_id}/{year}/{month}/{call_id}.wav
+        # Verify key format: recordings/{geography_id}/{year}/{month}/call_recording_{call_id}_dual.wav
         assert object_key.startswith("recordings/")
-        assert str(mock_call_record.campaign_id) in object_key
-        assert str(mock_call_record.id) in object_key
-        assert object_key.endswith(".wav")
+        assert str(mock_call_record.geography_id) in object_key
+        assert f"call_recording_{mock_call_record.id}" in object_key
+        assert "_dual.wav" in object_key
 
     @pytest.mark.asyncio
     async def test_get_presigned_url(

@@ -236,7 +236,7 @@ class RecordingMetadata(BaseModel):
     )
     s3_object_key: Optional[str] = Field(
         None,
-        description="S3 object key for dual-channel recording (e.g., {call_id}_dual.mp3)"
+        description="S3 object key for dual-channel recording (e.g., call_recording_{call_id}_dual.mp3)"
     )
     duration_seconds: Optional[int] = Field(
         None,
@@ -294,15 +294,15 @@ class RecordingMetadata(BaseModel):
     # Split recordings (lazy-created on demand via /split-recording endpoint)
     caller_s3_key: Optional[str] = Field(
         None,
-        description="S3 object key for caller-only track (e.g., {call_id}_caller.mp3)"
+        description="S3 object key for caller-only track (e.g., call_recording_{call_id}_caller.mp3)"
     )
     callee_s3_key: Optional[str] = Field(
         None,
-        description="S3 object key for callee-only track (e.g., {call_id}_callee.mp3)"
+        description="S3 object key for callee-only track (e.g., call_recording_{call_id}_callee.mp3)"
     )
     mixed_s3_key: Optional[str] = Field(
         None,
-        description="S3 object key for mixed mono track (e.g., {call_id}_mixed.mp3)"
+        description="S3 object key for mixed mono track (e.g., call_recording_{call_id}_mixed.mp3)"
     )
     split_created_at: Optional[datetime] = Field(
         None,

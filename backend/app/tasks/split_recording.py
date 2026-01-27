@@ -8,6 +8,7 @@ Handles:
 - Updating CallRecord with split S3 keys (cache)
 """
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from io import BytesIO
@@ -98,8 +99,12 @@ def split_recording_task(self, call_id: str):
 
         logger.info("Exported split tracks to MP3")
 
-        # Generate S3 keys
-        base_key = dual_s3_key.replace("_dual.mp3", "")
+        # Generate S3 keys using regex for robustness
+        # Handles both old format ({call_id}_dual.mp3) and new format (call_recording_{call_id}_dual.mp3)
+        match = re.match(r"(.+)_dual\.mp3$", dual_s3_key)
+        if not match:
+            raise Exception(f"Invalid dual recording key format: {dual_s3_key}")
+        base_key = match.group(1)
         caller_s3_key = f"{base_key}_caller.mp3"
         callee_s3_key = f"{base_key}_callee.mp3"
         mixed_s3_key = f"{base_key}_mixed.mp3"

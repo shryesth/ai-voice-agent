@@ -135,8 +135,8 @@ class QueueDebugResponse(BaseModel):
     is_within_time_window: bool
     current_time_utc: str
     time_windows: List[Dict[str, Any]]
-    clarity_sync_enabled: bool
-    last_clarity_sync: Optional[str]
+    nexus_sync_enabled: bool
+    last_nexus_sync: Optional[str]
     pending_recipients: int
     calling_recipients: int
     retrying_recipients: int
@@ -158,8 +158,8 @@ class ForceProcessResponse(BaseModel):
     message: str
 
 
-class SyncClarityRequest(BaseModel):
-    """Request schema for manual Clarity sync."""
+class SyncNexusRequest(BaseModel):
+    """Request schema for manual Nexus sync."""
 
     direction: str = Field(
         default="both",
@@ -168,8 +168,8 @@ class SyncClarityRequest(BaseModel):
     max_count: int = Field(default=100, ge=1, le=1000)
 
 
-class SyncClarityResponse(BaseModel):
-    """Response schema for Clarity sync."""
+class SyncNexusResponse(BaseModel):
+    """Response schema for Nexus sync."""
 
     queue_id: str
     direction: str

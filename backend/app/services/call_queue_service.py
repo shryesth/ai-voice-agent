@@ -167,7 +167,7 @@ class CallQueueService:
         # Certain fields can only be updated in DRAFT/PAUSED states
         restricted_fields = {
             "name", "mode", "call_type", "max_concurrent_calls",
-            "time_windows", "retry_strategy", "clarity_sync",
+            "time_windows", "retry_strategy", "nexus_sync",
         }
 
         if queue.state not in (QueueState.DRAFT, QueueState.PAUSED):

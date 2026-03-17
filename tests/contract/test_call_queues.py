@@ -38,7 +38,7 @@ class TestCallQueueCreate:
                     "max_retries": 3,
                     "exponential_backoff": True
                 },
-                "clarity_sync": {
+                "nexus_sync": {
                     "enabled": False
                 }
             }
@@ -80,7 +80,7 @@ class TestCallQueueCreate:
                 "default_language": "en",
                 "max_concurrent_calls": 5,
                 "retry_strategy": {},
-                "clarity_sync": {}
+                "nexus_sync": {}
             }
         )
 
@@ -100,7 +100,7 @@ class TestCallQueueCreate:
                 "default_language": "en",
                 "max_concurrent_calls": 5,
                 "retry_strategy": {},
-                "clarity_sync": {}
+                "nexus_sync": {}
             }
         )
 

@@ -5,7 +5,7 @@ Tests model logic including state transitions, validation, and helper methods.
 """
 
 import pytest
-from backend.app.models.call_queue import CallQueue, TimeWindow, RetryStrategy, ClaritySyncConfig, can_transition_to
+from backend.app.models.call_queue import CallQueue, TimeWindow, RetryStrategy, NexusSyncConfig, can_transition_to
 from backend.app.models.enums import QueueState, QueueMode
 
 
@@ -168,42 +168,42 @@ class TestRetryStrategyValidation:
 
 
 @pytest.mark.unit
-class TestClaritySyncConfigValidation:
-    """Test ClaritySyncConfig validation"""
+class TestNexusSyncConfigValidation:
+    """Test NexusSyncConfig validation"""
 
-    def test_clarity_sync_disabled_by_default(self):
-        """Test Clarity sync is disabled by default"""
-        csc = ClaritySyncConfig()
+    def test_nexus_sync_disabled_by_default(self):
+        """Test Nexus sync is disabled by default"""
+        csc = NexusSyncConfig()
 
         assert csc.enabled is False
 
-    def test_clarity_sync_enabled(self):
-        """Test enabling Clarity sync"""
-        csc = ClaritySyncConfig(enabled=True)
+    def test_nexus_sync_enabled(self):
+        """Test enabling Nexus sync"""
+        csc = NexusSyncConfig(enabled=True)
 
         assert csc.enabled is True
 
-    def test_clarity_sync_interval_default(self):
+    def test_nexus_sync_interval_default(self):
         """Test default sync interval"""
-        csc = ClaritySyncConfig()
+        csc = NexusSyncConfig()
 
         assert csc.sync_interval_minutes == 5
 
-    def test_clarity_sync_interval_custom(self):
+    def test_nexus_sync_interval_custom(self):
         """Test custom sync interval"""
-        csc = ClaritySyncConfig(sync_interval_minutes=15)
+        csc = NexusSyncConfig(sync_interval_minutes=15)
 
         assert csc.sync_interval_minutes == 15
 
-    def test_clarity_sync_max_per_sync_default(self):
+    def test_nexus_sync_max_per_sync_default(self):
         """Test default max per sync"""
-        csc = ClaritySyncConfig()
+        csc = NexusSyncConfig()
 
         assert csc.max_per_sync == 100
 
-    def test_clarity_sync_max_per_sync_custom(self):
+    def test_nexus_sync_max_per_sync_custom(self):
         """Test custom max per sync"""
-        csc = ClaritySyncConfig(max_per_sync=500)
+        csc = NexusSyncConfig(max_per_sync=500)
 
         assert csc.max_per_sync == 500
 
@@ -280,26 +280,26 @@ class TestCallQueueCreation:
         assert queue.retry_strategy.max_retries == 5
 
     @pytest.mark.asyncio
-    async def test_call_queue_with_clarity_sync(self, seeded_geography):
-        """Test CallQueue with Clarity sync configuration"""
-        clarity_sync = ClaritySyncConfig(
+    async def test_call_queue_with_nexus_sync(self, seeded_geography):
+        """Test CallQueue with Nexus sync configuration"""
+        nexus_sync = NexusSyncConfig(
             enabled=True,
             sync_interval_minutes=10
         )
 
         queue = CallQueue(
-            name="Clarity Synced Queue",
+            name="Nexus Synced Queue",
             geography_id=seeded_geography.id,
             mode=QueueMode.FOREVER,
             state=QueueState.DRAFT,
             call_type="patient_feedback",
             default_language="en",
             max_concurrent_calls=5,
-            clarity_sync=clarity_sync
+            nexus_sync=nexus_sync
         )
 
-        assert queue.clarity_sync.enabled is True
-        assert queue.clarity_sync.sync_interval_minutes == 10
+        assert queue.nexus_sync.enabled is True
+        assert queue.nexus_sync.sync_interval_minutes == 10
 
 
 @pytest.mark.unit

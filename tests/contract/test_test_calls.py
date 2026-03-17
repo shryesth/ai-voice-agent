@@ -244,14 +244,14 @@ class TestForceProcessQueue:
 
 
 @pytest.mark.contract
-class TestSyncClarity:
-    """Test POST /api/v1/test-calls/queues/{queue_id}/sync-clarity"""
+class TestSyncNexus:
+    """Test POST /api/v1/test-calls/queues/{queue_id}/sync-nexus"""
 
     @pytest.mark.asyncio
-    async def test_sync_clarity_success(self, async_client: AsyncClient, auth_headers: dict, seeded_call_queue):
-        """Test manually triggering Clarity sync"""
+    async def test_sync_nexus_success(self, async_client: AsyncClient, auth_headers: dict, seeded_call_queue):
+        """Test manually triggering Nexus sync"""
         response = await async_client.post(
-            f"/api/v1/test-calls/queues/{seeded_call_queue.id}/sync-clarity",
+            f"/api/v1/test-calls/queues/{seeded_call_queue.id}/sync-nexus",
             headers=auth_headers,
             json={
                 "action": "pull"
@@ -267,10 +267,10 @@ class TestSyncClarity:
         assert "status" in data
 
     @pytest.mark.asyncio
-    async def test_sync_clarity_with_push_action(self, async_client: AsyncClient, auth_headers: dict, seeded_call_queue):
-        """Test Clarity sync with push action"""
+    async def test_sync_nexus_with_push_action(self, async_client: AsyncClient, auth_headers: dict, seeded_call_queue):
+        """Test Nexus sync with push action"""
         response = await async_client.post(
-            f"/api/v1/test-calls/queues/{seeded_call_queue.id}/sync-clarity",
+            f"/api/v1/test-calls/queues/{seeded_call_queue.id}/sync-nexus",
             headers=auth_headers,
             json={
                 "action": "push"
@@ -283,11 +283,11 @@ class TestSyncClarity:
         assert data["action"] in ["push", "both"]
 
     @pytest.mark.asyncio
-    async def test_sync_clarity_not_found(self, async_client: AsyncClient, auth_headers: dict):
-        """Test syncing Clarity for non-existent queue"""
+    async def test_sync_nexus_not_found(self, async_client: AsyncClient, auth_headers: dict):
+        """Test syncing Nexus for non-existent queue"""
         invalid_id = str(ObjectId())
         response = await async_client.post(
-            f"/api/v1/test-calls/queues/{invalid_id}/sync-clarity",
+            f"/api/v1/test-calls/queues/{invalid_id}/sync-nexus",
             headers=auth_headers,
             json={
                 "action": "pull"
@@ -297,10 +297,10 @@ class TestSyncClarity:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_sync_clarity_non_admin_forbidden(self, async_client: AsyncClient, user_auth_headers: dict, seeded_call_queue):
-        """Test that non-admin users cannot sync Clarity"""
+    async def test_sync_nexus_non_admin_forbidden(self, async_client: AsyncClient, user_auth_headers: dict, seeded_call_queue):
+        """Test that non-admin users cannot sync Nexus"""
         response = await async_client.post(
-            f"/api/v1/test-calls/queues/{seeded_call_queue.id}/sync-clarity",
+            f"/api/v1/test-calls/queues/{seeded_call_queue.id}/sync-nexus",
             headers=user_auth_headers,
             json={
                 "action": "pull"

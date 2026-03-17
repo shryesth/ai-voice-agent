@@ -1,7 +1,7 @@
 """
 Event Type Configuration for Patient Feedback Collection.
 
-This module defines how different Clarity event types are handled in the
+This module defines how different Nexus event types are handled in the
 patient feedback call flow. Each event type maps to:
 - A confirmation message key
 - Optional side effects stage
@@ -11,7 +11,7 @@ All event types use the same unified flow:
 1. GREETING → 2. CONFIRM_IDENTITY → 3. CONFIRM_VISIT → 4. CONFIRM_SERVICE →
 5. [SIDE_EFFECTS] → 6. [SATISFACTION] → 7. COMPLETION
 
-The event_type from Clarity determines which confirmation message to use.
+The event_type from Nexus determines which confirmation message to use.
 """
 
 from pydantic import BaseModel, Field
@@ -21,15 +21,15 @@ from backend.app.models.enums import EventCategory
 
 class EventTypeConfig(BaseModel):
     """
-    Configuration for how to handle a Clarity event type.
+    Configuration for how to handle a Nexus event type.
 
-    Maps a Clarity event type to flow behavior.
+    Maps a Nexus event type to flow behavior.
     """
 
     # Identity
-    clarity_event_type: str = Field(
+    nexus_event_type: str = Field(
         ...,
-        description="Raw event type from Clarity (e.g., 'Suivi des Enfants')",
+        description="Raw event type from Nexus (e.g., 'Suivi des Enfants')",
     )
     event_category: EventCategory = Field(
         ...,
@@ -56,7 +56,7 @@ class EventTypeConfig(BaseModel):
         description="Use child_name in prompts (for child health events)?",
     )
 
-    # Matching rules (to identify this event type from Clarity data)
+    # Matching rules (to identify this event type from Nexus data)
     vaccine_patterns: List[str] = Field(
         default_factory=list,
         description="Vaccine names to match (case-insensitive)",
@@ -88,7 +88,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # CHILD VACCINATION Events (requires_side_effects=True)
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_rr1",
         requires_side_effects=True,
@@ -97,7 +97,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Measles-Rubella dose 1",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_rr2",
         requires_side_effects=True,
@@ -106,7 +106,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Measles-Rubella dose 2",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_penta1",
         requires_side_effects=True,
@@ -115,7 +115,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Pentavalent dose 1",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_penta2",
         requires_side_effects=True,
@@ -124,7 +124,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Pentavalent dose 2",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_penta3",
         requires_side_effects=True,
@@ -133,7 +133,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Pentavalent dose 3",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_bcg",
         requires_side_effects=True,
@@ -142,7 +142,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - BCG",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_polio",
         requires_side_effects=True,
@@ -151,7 +151,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Polio",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_rotavirus",
         requires_side_effects=True,
@@ -160,7 +160,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Rotavirus",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_pneumo",
         requires_side_effects=True,
@@ -169,7 +169,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child vaccination - Pneumococcal",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_VACCINATION,
         confirmation_message_key="child_vaccination_generic",
         requires_side_effects=True,
@@ -182,7 +182,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # CHILD HEALTH Events (no side effects, requires_child_name=True)
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_HEALTH,
         confirmation_message_key="child_deworming",
         requires_side_effects=False,
@@ -191,7 +191,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child health - Deworming",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_HEALTH,
         confirmation_message_key="child_vitamin_a",
         requires_side_effects=False,
@@ -200,7 +200,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child health - Vitamin A supplementation",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_HEALTH,
         confirmation_message_key="child_malnutrition",
         requires_side_effects=False,
@@ -209,7 +209,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Child health - Malnutrition screening",
     ),
     EventTypeConfig(
-        clarity_event_type="Suivi des Enfants (moins de 5 ans)",
+        nexus_event_type="Suivi des Enfants (moins de 5 ans)",
         event_category=EventCategory.CHILD_HEALTH,
         confirmation_message_key="child_growth_monitoring",
         requires_side_effects=False,
@@ -222,7 +222,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # PRENATAL Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Prenatal",
+        nexus_event_type="Prenatal",
         event_category=EventCategory.PRENATAL,
         confirmation_message_key="prenatal_anc",
         requires_side_effects=False,
@@ -230,7 +230,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Prenatal - Antenatal care visit",
     ),
     EventTypeConfig(
-        clarity_event_type="Prenatal",
+        nexus_event_type="Prenatal",
         event_category=EventCategory.PRENATAL,
         confirmation_message_key="prenatal_first_trimester",
         requires_side_effects=False,
@@ -239,7 +239,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Prenatal - First trimester ANC",
     ),
     EventTypeConfig(
-        clarity_event_type="Prenatal",
+        nexus_event_type="Prenatal",
         event_category=EventCategory.PRENATAL,
         confirmation_message_key="prenatal_td_vaccine",
         requires_side_effects=True,  # TD vaccine may have side effects
@@ -252,7 +252,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # MATERNITY Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Maternité",
+        nexus_event_type="Maternité",
         event_category=EventCategory.MATERNITY,
         confirmation_message_key="maternity_delivery",
         requires_side_effects=False,
@@ -261,7 +261,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Maternity - Normal delivery",
     ),
     EventTypeConfig(
-        clarity_event_type="Maternité",
+        nexus_event_type="Maternité",
         event_category=EventCategory.MATERNITY,
         confirmation_message_key="maternity_csection",
         requires_side_effects=False,
@@ -270,7 +270,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Maternity - C-section delivery",
     ),
     EventTypeConfig(
-        clarity_event_type="Maternité",
+        nexus_event_type="Maternité",
         event_category=EventCategory.MATERNITY,
         confirmation_message_key="maternity_delivery",
         requires_side_effects=False,
@@ -283,7 +283,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # POSTNATAL Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Postnatal",
+        nexus_event_type="Postnatal",
         event_category=EventCategory.POSTNATAL,
         confirmation_message_key="postnatal_visit",
         requires_side_effects=False,
@@ -291,7 +291,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Postnatal - Postnatal checkup",
     ),
     EventTypeConfig(
-        clarity_event_type="Postnatal",
+        nexus_event_type="Postnatal",
         event_category=EventCategory.POSTNATAL,
         confirmation_message_key="postnatal_within_3_days",
         requires_side_effects=False,
@@ -304,7 +304,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # CURATIVE Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Morbidité",
+        nexus_event_type="Morbidité",
         event_category=EventCategory.CURATIVE,
         confirmation_message_key="curative_morbidity",
         requires_side_effects=False,
@@ -312,7 +312,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="Curative - New consultation",
     ),
     EventTypeConfig(
-        clarity_event_type="Consultation Nouvelle",
+        nexus_event_type="Consultation Nouvelle",
         event_category=EventCategory.CURATIVE,
         confirmation_message_key="curative_consultation",
         requires_side_effects=False,
@@ -324,7 +324,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # REFERRAL Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Référence Institutionnelle",
+        nexus_event_type="Référence Institutionnelle",
         event_category=EventCategory.REFERRAL,
         confirmation_message_key="referral_institutional",
         requires_side_effects=False,
@@ -336,7 +336,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # FAMILY PLANNING Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Planning Familial",
+        nexus_event_type="Planning Familial",
         event_category=EventCategory.FAMILY_PLANNING,
         confirmation_message_key="family_planning",
         requires_side_effects=False,
@@ -348,7 +348,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # NO_CALL Events (data only, no calls made)
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="Cas de Tuberculose",
+        nexus_event_type="Cas de Tuberculose",
         event_category=EventCategory.TB,
         confirmation_message_key="",  # No call made
         requires_side_effects=False,
@@ -357,7 +357,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
         description="TB - Data only, no calls",
     ),
     EventTypeConfig(
-        clarity_event_type="HIV/ARV",
+        nexus_event_type="HIV/ARV",
         event_category=EventCategory.HIV,
         confirmation_message_key="",  # No call made
         requires_side_effects=False,
@@ -370,7 +370,7 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
     # DEFAULT/OTHER Events
     # -------------------------------------------------------------------------
     EventTypeConfig(
-        clarity_event_type="*",  # Wildcard for unmatched events
+        nexus_event_type="*",  # Wildcard for unmatched events
         event_category=EventCategory.OTHER,
         confirmation_message_key="generic_visit",
         requires_side_effects=False,
@@ -385,17 +385,17 @@ EVENT_TYPE_CONFIGS: List[EventTypeConfig] = [
 # ============================================================================
 
 def get_event_type_config(
-    clarity_event_type: str,
+    nexus_event_type: str,
     vaccines: List[Dict[str, Any]] = None,
     attributes: Dict[str, Any] = None,
 ) -> EventTypeConfig:
     """
-    Get the event type configuration for a Clarity event.
+    Get the event type configuration for a Nexus event.
 
     Args:
-        clarity_event_type: Raw event type from Clarity
-        vaccines: List of vaccine info from Clarity
-        attributes: Additional attributes from Clarity
+        nexus_event_type: Raw event type from Nexus
+        vaccines: List of vaccine info from Nexus
+        attributes: Additional attributes from Nexus
 
     Returns:
         EventTypeConfig for the event, or default OTHER config
@@ -405,10 +405,10 @@ def get_event_type_config(
     vaccines = vaccines or []
     attributes = attributes or {}
 
-    # First, try exact match on clarity_event_type
+    # First, try exact match on nexus_event_type
     matching_configs = [
         config for config in EVENT_TYPE_CONFIGS
-        if config.clarity_event_type == clarity_event_type or config.clarity_event_type == "*"
+        if config.nexus_event_type == nexus_event_type or config.nexus_event_type == "*"
     ]
 
     if not matching_configs:
@@ -420,7 +420,7 @@ def get_event_type_config(
 
     for config in matching_configs:
         # Skip wildcard unless it's the only option
-        if config.clarity_event_type == "*":
+        if config.nexus_event_type == "*":
             continue
 
         # Check vaccine patterns
@@ -445,7 +445,7 @@ def get_event_type_config(
             return config
 
     # Return wildcard config or default
-    wildcard_configs = [c for c in matching_configs if c.clarity_event_type == "*"]
+    wildcard_configs = [c for c in matching_configs if c.nexus_event_type == "*"]
     if wildcard_configs:
         return wildcard_configs[0]
 
@@ -455,7 +455,7 @@ def get_event_type_config(
 def _get_default_config() -> EventTypeConfig:
     """Return the default event type config for unknown events."""
     return EventTypeConfig(
-        clarity_event_type="unknown",
+        nexus_event_type="unknown",
         event_category=EventCategory.OTHER,
         confirmation_message_key="generic_visit",
         requires_side_effects=False,
@@ -503,29 +503,29 @@ def get_confirmation_message(
         return message
 
 
-def is_callable_event(clarity_event_type: str) -> bool:
+def is_callable_event(nexus_event_type: str) -> bool:
     """
     Check if an event type should trigger a call.
 
     Some events like TB and HIV are data-only and should not trigger calls.
     """
-    config = get_event_type_config(clarity_event_type)
+    config = get_event_type_config(nexus_event_type)
     return config.is_callable
 
 
 def get_all_callable_event_types() -> List[str]:
-    """Get list of all Clarity event types that should trigger calls."""
+    """Get list of all Nexus event types that should trigger calls."""
     return [
-        config.clarity_event_type
+        config.nexus_event_type
         for config in EVENT_TYPE_CONFIGS
-        if config.is_callable and config.clarity_event_type != "*"
+        if config.is_callable and config.nexus_event_type != "*"
     ]
 
 
 def get_skip_event_types() -> List[str]:
-    """Get list of Clarity event types that should NOT trigger calls."""
+    """Get list of Nexus event types that should NOT trigger calls."""
     return [
-        config.clarity_event_type
+        config.nexus_event_type
         for config in EVENT_TYPE_CONFIGS
         if not config.is_callable
     ]

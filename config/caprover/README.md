@@ -6,46 +6,46 @@ This folder contains environment variable templates for deploying to CapRover.
 
 | File | CapRover App | Project |
 |------|--------------|---------|
-| `.env.caprover.prod.backend` | `shifo-supervisor-backend` | `shifo-supervisor` |
-| `.env.caprover.prod.worker` | `shifo-supervisor-worker` | `shifo-supervisor` |
-| `.env.caprover.prod.beat` | `shifo-supervisor-beat` | `shifo-supervisor` |
-| `.env.caprover.uat.backend` | `shifo-supervisor-uat-backend` | `shifo-supervisor-uat` |
-| `.env.caprover.uat.worker` | `shifo-supervisor-uat-worker` | `shifo-supervisor-uat` |
-| `.env.caprover.uat.beat` | `shifo-supervisor-uat-beat` | `shifo-supervisor-uat` |
+| `.env.caprover.prod.backend` | `acme-supervisor-backend` | `acme-supervisor` |
+| `.env.caprover.prod.worker` | `acme-supervisor-worker` | `acme-supervisor` |
+| `.env.caprover.prod.beat` | `acme-supervisor-beat` | `acme-supervisor` |
+| `.env.caprover.uat.backend` | `acme-supervisor-uat-backend` | `acme-supervisor-uat` |
+| `.env.caprover.uat.worker` | `acme-supervisor-uat-worker` | `acme-supervisor-uat` |
+| `.env.caprover.uat.beat` | `acme-supervisor-uat-beat` | `acme-supervisor-uat` |
 
 ## How to Use
 
 ### 1. Create CapRover Projects
 
 In CapRover Dashboard → Projects:
-- Create `shifo-supervisor` (Production)
-- Create `shifo-supervisor-uat` (UAT)
+- Create `acme-supervisor` (Production)
+- Create `acme-supervisor-uat` (UAT)
 
 ### 2. Create Apps in Each Project
 
-**Production Project (`shifo-supervisor`):**
+**Production Project (`acme-supervisor`):**
 ```
-shifo-supervisor-mongodb     (One-Click MongoDB)
-shifo-supervisor-redis       (One-Click Redis)
-shifo-supervisor-backend     (App, Port 3000)
-shifo-supervisor-worker      (App, No HTTP)
-shifo-supervisor-beat        (App, No HTTP)
+acme-supervisor-mongodb     (One-Click MongoDB)
+acme-supervisor-redis       (One-Click Redis)
+acme-supervisor-backend     (App, Port 3000)
+acme-supervisor-worker      (App, No HTTP)
+acme-supervisor-beat        (App, No HTTP)
 ```
 
-**UAT Project (`shifo-supervisor-uat`):**
+**UAT Project (`acme-supervisor-uat`):**
 ```
-shifo-supervisor-uat-mongodb     (One-Click MongoDB)
-shifo-supervisor-uat-redis       (One-Click Redis)
-shifo-supervisor-uat-minio       (One-Click MinIO)
-shifo-supervisor-uat-backend     (App, Port 3000)
-shifo-supervisor-uat-worker      (App, No HTTP)
-shifo-supervisor-uat-beat        (App, No HTTP)
+acme-supervisor-uat-mongodb     (One-Click MongoDB)
+acme-supervisor-uat-redis       (One-Click Redis)
+acme-supervisor-uat-minio       (One-Click MinIO)
+acme-supervisor-uat-backend     (App, Port 3000)
+acme-supervisor-uat-worker      (App, No HTTP)
+acme-supervisor-uat-beat        (App, No HTTP)
 ```
 
 ### 3. Configure Environment Variables
 
 1. Open CapRover Dashboard
-2. Go to the app (e.g., `shifo-supervisor-backend`)
+2. Go to the app (e.g., `acme-supervisor-backend`)
 3. Click **App Configs** tab
 4. Scroll to **Environment Variables**
 5. Click **Bulk Edit**
@@ -82,20 +82,20 @@ srv-captain--{app-name}
 ```
 
 **Production:**
-- MongoDB: `srv-captain--shifo-supervisor-mongodb:27017`
-- Redis: `srv-captain--shifo-supervisor-redis:6379`
+- MongoDB: `srv-captain--acme-supervisor-mongodb:27017`
+- Redis: `srv-captain--acme-supervisor-redis:6379`
 
 **UAT:**
-- MongoDB: `srv-captain--shifo-supervisor-uat-mongodb:27017`
-- Redis: `srv-captain--shifo-supervisor-uat-redis:6379`
-- MinIO: `srv-captain--shifo-supervisor-uat-minio:9000`
+- MongoDB: `srv-captain--acme-supervisor-uat-mongodb:27017`
+- Redis: `srv-captain--acme-supervisor-uat-redis:6379`
+- MinIO: `srv-captain--acme-supervisor-uat-minio:9000`
 
 ## Storage Configuration
 
 | Environment | Storage | Endpoint |
 |-------------|---------|----------|
 | Production | Hetzner S3 | `https://fsn1.your-objectstorage.com` (external) |
-| UAT | MinIO | `http://srv-captain--shifo-supervisor-uat-minio:9000` (internal) |
+| UAT | MinIO | `http://srv-captain--acme-supervisor-uat-minio:9000` (internal) |
 
 ## Important Notes
 

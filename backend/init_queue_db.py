@@ -42,7 +42,7 @@ async def init_queue_database():
 
     # Connect to MongoDB
     mongodb_url = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-    database_name = os.getenv("MONGODB_DB_NAME", "shifo-supervisor")
+    database_name = os.getenv("MONGODB_DB_NAME", "acme-supervisor")
 
     print(f"MongoDB URL: {mongodb_url}")
     print(f"Database: {database_name}")

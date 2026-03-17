@@ -1,44 +1,44 @@
 """
-Clarity HMIS Integration Module
+Nexus HMIS Integration Module
 
-Provides integration with Clarity HMIS for automated vaccination verification calls.
+Provides integration with Nexus HMIS for automated vaccination verification calls.
 """
 
-from backend.app.integrations.clarity.models import (
-    ClarityAttribute,
-    ClarityVaccineDose,
-    ClaritySptDocument,
-    ClarityEventInfo,
-    ClarityVerification,
-    ClarityPaginatedResponse,
-    ClarityVerificationUpdate,
+from backend.app.integrations.nexus.models import (
+    NexusAttribute,
+    NexusVaccineDose,
+    NexusSptDocument,
+    NexusEventInfo,
+    NexusVerification,
+    NexusPaginatedResponse,
+    NexusVerificationUpdate,
 )
-from backend.app.integrations.clarity.client import (
-    ClarityClient,
-    ClarityClientError,
-    ClarityAuthenticationError,
-    ClarityNotFoundError,
-    ClarityForbiddenError,
-    create_clarity_client,
+from backend.app.integrations.nexus.client import (
+    NexusClient,
+    NexusClientError,
+    NexusAuthenticationError,
+    NexusNotFoundError,
+    NexusForbiddenError,
+    create_nexus_client,
 )
-from backend.app.integrations.clarity.sync_service import ClaritySyncService
+from backend.app.integrations.nexus.sync_service import NexusSyncService
 
 __all__ = [
     # Models
-    "ClarityAttribute",
-    "ClarityVaccineDose",
-    "ClaritySptDocument",
-    "ClarityEventInfo",
-    "ClarityVerification",
-    "ClarityPaginatedResponse",
-    "ClarityVerificationUpdate",
+    "NexusAttribute",
+    "NexusVaccineDose",
+    "NexusSptDocument",
+    "NexusEventInfo",
+    "NexusVerification",
+    "NexusPaginatedResponse",
+    "NexusVerificationUpdate",
     # Client
-    "ClarityClient",
-    "ClarityClientError",
-    "ClarityAuthenticationError",
-    "ClarityNotFoundError",
-    "ClarityForbiddenError",
-    "create_clarity_client",
+    "NexusClient",
+    "NexusClientError",
+    "NexusAuthenticationError",
+    "NexusNotFoundError",
+    "NexusForbiddenError",
+    "create_nexus_client",
     # Sync Service
-    "ClaritySyncService",
+    "NexusSyncService",
 ]

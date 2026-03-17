@@ -45,7 +45,7 @@ def geography_to_response(geography) -> GeographyResponse:
         timezone=geography.timezone,
         default_language=geography.default_language,
         supported_languages=geography.supported_languages,
-        clarity_config=geography.clarity_config,
+        nexus_config=geography.nexus_config,
         retention_policy=geography.retention_policy,
         metadata=geography.metadata,
         created_at=geography.created_at,

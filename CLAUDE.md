@@ -115,19 +115,19 @@ Test environment overrides:
 - `recording_download.py` - `download_twilio_recording` - Download & upload recordings to S3
 - `split_recording.py` - `split_recording_task` - Audio file processing
 - `transcript_translation.py` - `translate_transcript` - OpenAI-based translation for non-English calls
-- `clarity_sync.py` - `sync_clarity_subjects`, `sync_results_to_clarity`, `sync_all_queues_from_clarity` - Clarity integration (Beat: every 60s)
+- `nexus_sync.py` - `sync_nexus_subjects`, `sync_results_to_nexus`, `sync_all_queues_from_nexus` - Nexus integration (Beat: every 60s)
 - `recipient_sync.py` - `sync_recipient_from_call` - Sync call results to recipient records
 
 ### Celery Beat Schedule
 - `process-campaign-queues`: Every 30s - Process call queues
-- `sync-clarity-queues`: Every 60s - Pull subjects from Clarity
-- `sync-clarity-results`: Every 60s - Push results to Clarity
+- `sync-nexus-queues`: Every 60s - Pull subjects from Nexus
+- `sync-nexus-results`: Every 60s - Push results to Nexus
 
 ## Database
 
 MongoDB with Beanie async ODM. Key collections (models in `models/`):
 - `users` - Admin/User accounts with RBAC
-- `geographies` - Regional organizations with Clarity config and retention policies
+- `geographies` - Regional organizations with Nexus config and retention policies
 - `call_queues` - Queue definitions with time windows and retry strategies
 - `recipients` - Queue recipients with call attempts and conversation results
 - `call_records` - Call data with conversation transcripts and recording metadata

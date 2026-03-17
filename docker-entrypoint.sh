@@ -11,7 +11,7 @@ set -e
 MODE="${RUN_MODE:-api}"
 
 echo "=========================================="
-echo "Shifo Supervisor Backend"
+echo "Acme Supervisor Backend"
 echo "Run mode: $MODE"
 echo "Queue enabled: ${QUEUE_ENABLED:-false}"
 echo "=========================================="

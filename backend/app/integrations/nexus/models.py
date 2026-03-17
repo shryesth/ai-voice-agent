@@ -1,7 +1,7 @@
 """
-Clarity HMIS API Models
+Nexus HMIS API Models
 
-Pydantic models for Clarity HMIS API requests and responses.
+Pydantic models for Nexus HMIS API requests and responses.
 """
 
 from datetime import datetime
@@ -10,47 +10,47 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
-class ClarityAttribute(BaseModel):
-    """Attribute key-value pair from Clarity eventInfo."""
+class NexusAttribute(BaseModel):
+    """Attribute key-value pair from Nexus eventInfo."""
 
     name: str
     value: str
 
 
-class ClarityVaccineDose(BaseModel):
-    """Vaccine dose information from Clarity eventInfo."""
+class NexusVaccineDose(BaseModel):
+    """Vaccine dose information from Nexus eventInfo."""
 
     name: str = Field(..., description="Vaccine name")
     administered: bool = Field(default=True, description="Whether dose was administered")
 
 
-class ClaritySptDocument(BaseModel):
-    """SPT document reference from Clarity eventInfo."""
+class NexusSptDocument(BaseModel):
+    """SPT document reference from Nexus eventInfo."""
 
     name: str = Field(..., description="Document name")
     url: Optional[str] = Field(None, description="Document URL")
     image: Optional[str] = Field(None, description="Base64 encoded image")
 
 
-class ClarityEventInfo(BaseModel):
-    """Event information from Clarity verification."""
+class NexusEventInfo(BaseModel):
+    """Event information from Nexus verification."""
 
     event_date: str = Field(..., alias="eventDate", description="Event date (YYYY-MM-DD)")
     event_facility: str = Field(..., alias="eventFacility", description="Facility name")
     event_type: str = Field(..., alias="eventType", description="Event type (e.g., vaccination)")
-    attributes: List[ClarityAttribute] = Field(default_factory=list)
-    vaccine_doses: List[ClarityVaccineDose] = Field(
+    attributes: List[NexusAttribute] = Field(default_factory=list)
+    vaccine_doses: List[NexusVaccineDose] = Field(
         default_factory=list, alias="vaccineDoses"
     )
-    spt_document_ids: List[ClaritySptDocument] = Field(
+    spt_document_ids: List[NexusSptDocument] = Field(
         default_factory=list, alias="sptDocumentIds"
     )
 
     model_config = {"populate_by_name": True}
 
 
-class ClarityVerification(BaseModel):
-    """Single verification record from Clarity API."""
+class NexusVerification(BaseModel):
+    """Single verification record from Nexus API."""
 
     id: int = Field(..., description="Unique verification ID")
     status: int = Field(..., description="Status code (999 = pending)")
@@ -60,7 +60,7 @@ class ClarityVerification(BaseModel):
     contact_gender: Optional[str] = Field(None, alias="contactGender", description="Gender: male, female")
     contact_phones: List[str] = Field(default_factory=list, alias="contactPhones")
     contact_phone_owner_name: Optional[str] = Field(None, alias="contactPhoneOwnerName")
-    event_info: ClarityEventInfo = Field(..., alias="eventInfo")
+    event_info: NexusEventInfo = Field(..., alias="eventInfo")
     recording_url: Optional[str] = Field(None, alias="recordingUrl")
     is_visit_confirmed: Optional[bool] = Field(None, alias="isVisitConfirmed")
 
@@ -91,10 +91,10 @@ class ClarityVerification(BaseModel):
         return ", ".join(names[:-1]) + " and " + names[-1]
 
 
-class ClarityPaginatedResponse(BaseModel):
-    """Paginated response from Clarity API."""
+class NexusPaginatedResponse(BaseModel):
+    """Paginated response from Nexus API."""
 
-    items: List[ClarityVerification] = Field(default_factory=list)
+    items: List[NexusVerification] = Field(default_factory=list)
     total: int = Field(default=0, description="Total number of items")
     page: int = Field(default=1, description="Current page number")
     page_size: int = Field(default=50, description="Items per page")
@@ -105,8 +105,8 @@ class ClarityPaginatedResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class ClarityVerificationUpdate(BaseModel):
-    """Request body for updating verification in Clarity."""
+class NexusVerificationUpdate(BaseModel):
+    """Request body for updating verification in Nexus."""
 
     status: int = Field(..., description="New status code (1=verified, 2=failed)")
     recording_url: Optional[str] = Field(None, alias="recordingUrl", description="URL to call recording")
@@ -115,15 +115,15 @@ class ClarityVerificationUpdate(BaseModel):
     model_config = {"populate_by_name": True, "by_alias": True}
 
 
-class ClarityQueueMetadata(BaseModel):
-    """Schema for Clarity queue metadata stored in QueueConfig.metadata."""
+class NexusQueueMetadata(BaseModel):
+    """Schema for Nexus queue metadata stored in QueueConfig.metadata."""
 
-    queue_type: str = Field(default="clarity", description="Must be 'clarity'")
+    queue_type: str = Field(default="nexus", description="Must be 'nexus'")
 
-    # Clarity API Configuration
-    clarity_api_url: str = Field(..., description="Clarity API base URL")
-    clarity_api_key: str = Field(..., description="Bearer token for authentication")
-    clarity_environment: str = Field(..., description="Environment name: staging, haiti, honduras")
+    # Nexus API Configuration
+    nexus_api_url: str = Field(..., description="Nexus API base URL")
+    nexus_api_key: str = Field(..., description="Bearer token for authentication")
+    nexus_environment: str = Field(..., description="Environment name: staging, haiti, honduras")
 
     # Sync Configuration
     sync_interval_seconds: int = Field(default=300, description="Sync frequency in seconds")
@@ -138,10 +138,10 @@ class ClarityQueueMetadata(BaseModel):
     last_sync_at: Optional[datetime] = Field(None, description="Last successful sync timestamp")
     last_sync_status: Optional[str] = Field(None, description="Last sync status: success, error")
     last_sync_error: Optional[str] = Field(None, description="Last sync error message")
-    total_synced_items: int = Field(default=0, description="Total items synced from Clarity")
+    total_synced_items: int = Field(default=0, description="Total items synced from Nexus")
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ClarityQueueMetadata":
+    def from_dict(cls, data: Dict[str, Any]) -> "NexusQueueMetadata":
         """Create from queue metadata dictionary."""
         return cls(**data)
 

@@ -1,11 +1,11 @@
-# Clarity HMIS Integration
+# Nexus HMIS Integration
 
-This document describes the integration between Shifo Supervisor and Clarity HMIS for automated vaccination verification calls.
+This document describes the integration between Acme Supervisor and Nexus HMIS for automated vaccination verification calls.
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Clarity API Specification](#clarity-api-specification)
+2. [Nexus API Specification](#nexus-api-specification)
 3. [Architecture](#architecture)
 4. [Queue Configuration](#queue-configuration)
 5. [Data Flow](#data-flow)
@@ -17,16 +17,16 @@ This document describes the integration between Shifo Supervisor and Clarity HMI
 
 ## Overview
 
-The Clarity integration enables automated vaccination verification calls by:
+The Nexus integration enables automated vaccination verification calls by:
 
-1. **Pulling** pending verifications from Clarity HMIS
+1. **Pulling** pending verifications from Nexus HMIS
 2. **Processing** them through the managed queue system
 3. **Making** verification calls via Twilio
-4. **Pushing** results back to Clarity
+4. **Pushing** results back to Nexus
 
 ### Multi-Environment Support
 
-Each Clarity environment (staging, haiti, honduras) operates as a separate queue with:
+Each Nexus environment (staging, haiti, honduras) operates as a separate queue with:
 - Independent API credentials
 - Separate time windows
 - Isolated retry strategies
@@ -34,15 +34,15 @@ Each Clarity environment (staging, haiti, honduras) operates as a separate queue
 
 ---
 
-## Clarity API Specification
+## Nexus API Specification
 
 ### Base URLs
 
 | Environment | Base URL |
 |-------------|----------|
-| Staging | `https://clarity-staging.shifo.org/api/v1` |
-| Haiti | `https://clarity.hti.shifo.org/api/v1` |
-| Honduras | `https://clarity.hnd.shifo.org/api/v1` |
+| Staging | `https://nexus-staging.acme.org/api/v1` |
+| Haiti | `https://nexus.hti.acme.org/api/v1` |
+| Honduras | `https://nexus.hnd.acme.org/api/v1` |
 
 ### Authentication
 
@@ -177,21 +177,21 @@ Returns the updated verification object (same schema as GET response item).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           SHIFO SUPERVISOR                                   │
+│                           ACME SUPERVISOR                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐    │
-│  │ Clarity Router   │     │ Queue Admin      │     │ Queue Mgmt       │    │
-│  │ /api/clarity/*   │     │ Router           │     │ Router           │    │
+│  │ Nexus Router   │     │ Queue Admin      │     │ Queue Mgmt       │    │
+│  │ /api/nexus/*   │     │ Router           │     │ Router           │    │
 │  └────────┬─────────┘     └──────────────────┘     └────────┬─────────┘    │
 │           │                                                  │              │
 │           ▼                                                  ▼              │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                        Clarity Integration Module                     │  │
+│  │                        Nexus Integration Module                     │  │
 │  │  ┌─────────────┐  ┌─────────────────┐  ┌────────────────────────┐   │  │
 │  │  │ Client      │  │ Sync Service    │  │ Models                  │   │  │
-│  │  │ - fetch()   │  │ - pull from     │  │ - ClarityVerification   │   │  │
-│  │  │ - update()  │  │   Clarity       │  │ - ClarityEventInfo      │   │  │
+│  │  │ - fetch()   │  │ - pull from     │  │ - NexusVerification   │   │  │
+│  │  │ - update()  │  │   Nexus       │  │ - NexusEventInfo      │   │  │
 │  │  │             │  │ - push results  │  │ - PaginatedResponse     │   │  │
 │  │  └─────────────┘  └─────────────────┘  └────────────────────────┘   │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
@@ -218,7 +218,7 @@ Returns the updated verification object (same schema as GET response item).
                     │ Pull verifications           │ Push results
                     ▼                              │
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           CLARITY HMIS                                       │
+│                           NEXUS HMIS                                       │
 │  ┌─────────────┐  ┌─────────────────┐  ┌────────────────────────────────┐  │
 │  │ Staging     │  │ Haiti           │  │ Honduras                        │  │
 │  │ Environment │  │ Environment     │  │ Environment                     │  │
@@ -229,40 +229,40 @@ Returns the updated verification object (same schema as GET response item).
 ### Module Structure
 
 ```
-backend/app/integrations/clarity/
+backend/app/integrations/nexus/
 ├── __init__.py           # Module exports
 ├── models.py             # Pydantic models for API responses
-├── client.py             # ClarityClient HTTP client
+├── client.py             # NexusClient HTTP client
 └── sync_service.py       # Bidirectional sync logic
 
 backend/app/services/queue/
-├── clarity_tasks.py      # Celery tasks for sync
+├── nexus_tasks.py      # Celery tasks for sync
 
 backend/app/routers/
-├── clarity_router.py     # REST API endpoints
+├── nexus_router.py     # REST API endpoints
 ```
 
 ---
 
 ## Queue Configuration
 
-### Creating a Clarity Queue
+### Creating a Nexus Queue
 
-Each Clarity environment requires a dedicated queue with:
+Each Nexus environment requires a dedicated queue with:
 
 ```python
 {
     # Queue identification
-    "queue_id": "clarity_honduras_abc123",
+    "queue_id": "nexus_honduras_abc123",
     "name": "Honduras Vaccination Verifications",
     "domain": "vaccination",
 
-    # Clarity API configuration (stored in metadata)
+    # Nexus API configuration (stored in metadata)
     "metadata": {
-        "queue_type": "clarity",
-        "clarity_api_url": "https://clarity.hnd.shifo.org/api/v1",
-        "clarity_api_key": "bearer-token-here",
-        "clarity_environment": "honduras",
+        "queue_type": "nexus",
+        "nexus_api_url": "https://nexus.hnd.acme.org/api/v1",
+        "nexus_api_key": "bearer-token-here",
+        "nexus_environment": "honduras",
 
         # Sync settings
         "sync_interval_seconds": 300,  # 5 minutes
@@ -301,10 +301,10 @@ Each Clarity environment requires a dedicated queue with:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `queue_type` | string | Yes | Must be "clarity" |
-| `clarity_api_url` | string | Yes | Base URL for Clarity API |
-| `clarity_api_key` | string | Yes | Bearer token for authentication |
-| `clarity_environment` | string | Yes | Environment name (staging/haiti/honduras) |
+| `queue_type` | string | Yes | Must be "nexus" |
+| `nexus_api_url` | string | Yes | Base URL for Nexus API |
+| `nexus_api_key` | string | Yes | Bearer token for authentication |
+| `nexus_environment` | string | Yes | Environment name (staging/haiti/honduras) |
 | `sync_interval_seconds` | integer | No | Sync frequency (default: 300) |
 | `date_from` | string | No | Fixed start date filter (YYYY-MM-DD) |
 | `date_to` | string | No | End date filter (null = today) |
@@ -315,18 +315,18 @@ Each Clarity environment requires a dedicated queue with:
 
 ## Data Flow
 
-### 1. Sync from Clarity (Pull)
+### 1. Sync from Nexus (Pull)
 
 ```
 Celery Beat (every 5 min)
     │
     ▼
-sync_clarity_queues task
+sync_nexus_queues task
     │
-    ├─► For each ACTIVE queue with queue_type="clarity":
+    ├─► For each ACTIVE queue with queue_type="nexus":
     │       │
     │       ▼
-    │   ClarityClient.fetch_pending_verifications()
+    │   NexusClient.fetch_pending_verifications()
     │       │
     │       ├─► GET /hmis/client-visits/verification
     │       │   (with date filters from queue metadata)
@@ -334,14 +334,14 @@ sync_clarity_queues task
     │       ▼
     │   For each verification:
     │       │
-    │       ├─► Check if entry exists (by clarity_verification_id)
+    │       ├─► Check if entry exists (by nexus_verification_id)
     │       │   └─► Skip if already processed
     │       │
     │       ├─► Create CallEntry with:
     │       │   - phone_number = verification.contactPhones[0]
     │       │   - call_data = patient info for voice prompt
-    │       │   - metadata.source = "clarity"
-    │       │   - metadata.clarity_verification_id = verification.id
+    │       │   - metadata.source = "nexus"
+    │       │   - metadata.nexus_verification_id = verification.id
     │       │   - status = PENDING
     │       │
     │       └─► Add state history entry
@@ -379,7 +379,7 @@ For each ACTIVE queue:
         Call completes → status_callback
 ```
 
-### 3. Sync to Clarity (Push)
+### 3. Sync to Nexus (Push)
 
 ```
 status_callback receives Twilio webhook
@@ -390,12 +390,12 @@ Update CallEntry status:
     - FAILED/RETRY_SCHEDULED/DEAD_LETTER (otherwise)
     │
     ▼
-Check if entry.metadata.source == "clarity"
+Check if entry.metadata.source == "nexus"
     │
-    ├─► Yes: Trigger sync_clarity_result task
+    ├─► Yes: Trigger sync_nexus_result task
     │           │
     │           ▼
-    │       ClarityClient.update_verification()
+    │       NexusClient.update_verification()
     │           │
     │           ├─► PUT /hmis/client-visits/verification/{id}
     │           │   {
@@ -413,19 +413,19 @@ Check if entry.metadata.source == "clarity"
 
 ## API Reference
 
-### Clarity Router Endpoints
+### Nexus Router Endpoints
 
-#### POST /api/clarity/queues
+#### POST /api/nexus/queues
 
-Create a new Clarity-synced queue.
+Create a new Nexus-synced queue.
 
 **Request:**
 ```json
 {
   "name": "Honduras Vaccination Verifications",
-  "clarity_api_url": "https://clarity.hnd.shifo.org/api/v1",
-  "clarity_api_key": "secret-bearer-token",
-  "clarity_environment": "honduras",
+  "nexus_api_url": "https://nexus.hnd.acme.org/api/v1",
+  "nexus_api_key": "secret-bearer-token",
+  "nexus_environment": "honduras",
   "sync_interval_seconds": 300,
   "date_from": "2025-01-01",
   "date_to": null,
@@ -443,36 +443,36 @@ Create a new Clarity-synced queue.
 **Response (201):**
 ```json
 {
-  "queue_id": "clarity_honduras_abc123",
+  "queue_id": "nexus_honduras_abc123",
   "name": "Honduras Vaccination Verifications",
   "state": "active",
-  "clarity_environment": "honduras",
+  "nexus_environment": "honduras",
   "total_synced_items": 0,
   "last_sync_at": null,
   "last_sync_status": null,
-  "message": "Clarity queue created for honduras. Sync will begin automatically."
+  "message": "Nexus queue created for honduras. Sync will begin automatically."
 }
 ```
 
 ---
 
-#### GET /api/clarity/queues
+#### GET /api/nexus/queues
 
-List all Clarity-synced queues.
+List all Nexus-synced queues.
 
 **Query Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `environment` | string | Filter by Clarity environment |
+| `environment` | string | Filter by Nexus environment |
 
 **Response (200):**
 ```json
 [
   {
-    "queue_id": "clarity_honduras_abc123",
+    "queue_id": "nexus_honduras_abc123",
     "name": "Honduras Vaccination Verifications",
     "state": "active",
-    "clarity_environment": "honduras",
+    "nexus_environment": "honduras",
     "total_synced_items": 150,
     "last_sync_at": "2025-01-15T10:30:00Z",
     "last_sync_status": "success",
@@ -483,15 +483,15 @@ List all Clarity-synced queues.
 
 ---
 
-#### POST /api/clarity/queues/{queue_id}/sync
+#### POST /api/nexus/queues/{queue_id}/sync
 
-Manually trigger a sync for a Clarity queue.
+Manually trigger a sync for a Nexus queue.
 
 **Response (200):**
 ```json
 {
   "success": true,
-  "queue_id": "clarity_honduras_abc123",
+  "queue_id": "nexus_honduras_abc123",
   "created": 25,
   "updated": 0,
   "skipped": 125,
@@ -502,15 +502,15 @@ Manually trigger a sync for a Clarity queue.
 
 ---
 
-#### GET /api/clarity/queues/{queue_id}/sync-status
+#### GET /api/nexus/queues/{queue_id}/sync-status
 
-Get sync status for a Clarity queue.
+Get sync status for a Nexus queue.
 
 **Response (200):**
 ```json
 {
-  "queue_id": "clarity_honduras_abc123",
-  "clarity_environment": "honduras",
+  "queue_id": "nexus_honduras_abc123",
+  "nexus_environment": "honduras",
   "last_sync_at": "2025-01-15T10:30:00Z",
   "last_sync_status": "success",
   "last_sync_error": null,
@@ -547,7 +547,7 @@ Get sync status for a Clarity queue.
 
 ### Environment Variables
 
-No new environment variables required. Clarity credentials are stored per-queue in MongoDB.
+No new environment variables required. Nexus credentials are stored per-queue in MongoDB.
 
 ### Celery Beat Schedule
 
@@ -555,8 +555,8 @@ The sync task runs every 5 minutes (configurable per-queue):
 
 ```python
 beat_schedule = {
-    "sync-clarity-queues": {
-        "task": "sync_clarity_queues",
+    "sync-nexus-queues": {
+        "task": "sync_nexus_queues",
         "schedule": 300,  # 5 minutes
     },
 }
@@ -567,15 +567,15 @@ beat_schedule = {
 Recordings are stored with queue-specific prefixes:
 
 ```
-s3://bucket/clarity_honduras_abc123/recordings/2025-01-15/CA123.mp3
-s3://bucket/clarity_haiti_xyz789/recordings/2025-01-15/CA456.mp3
+s3://bucket/nexus_honduras_abc123/recordings/2025-01-15/CA123.mp3
+s3://bucket/nexus_haiti_xyz789/recordings/2025-01-15/CA456.mp3
 ```
 
 ### Monitoring
 
 Monitor these metrics:
-- `clarity_sync_duration_seconds` - Time to complete sync
-- `clarity_sync_items_created` - New entries per sync
-- `clarity_sync_errors` - Errors per sync
-- `clarity_result_sync_success` - Successful result pushes
-- `clarity_result_sync_failures` - Failed result pushes
+- `nexus_sync_duration_seconds` - Time to complete sync
+- `nexus_sync_items_created` - New entries per sync
+- `nexus_sync_errors` - Errors per sync
+- `nexus_result_sync_success` - Successful result pushes
+- `nexus_result_sync_failures` - Failed result pushes

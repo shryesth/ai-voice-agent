@@ -293,7 +293,7 @@ class CallService:
                 logger.warning(f"Failed to queue translation task: {e}")
 
         # Trigger recipient sync task to transfer CallRecord data to Recipient
-        # This enables bidirectional Clarity sync
+        # This enables bidirectional Nexus sync
         if call.recipient_id:
             try:
                 from backend.app.tasks.recipient_sync import sync_recipient_from_call

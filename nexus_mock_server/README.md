@@ -1,6 +1,6 @@
 # Client Visit Verification Mock Server
 
-A standalone FastAPI mock server that mimics Clarity's client visit verification API endpoints for development and testing purposes.
+A standalone FastAPI mock server that mimics Nexus's client visit verification API endpoints for development and testing purposes.
 
 ## Setup
 

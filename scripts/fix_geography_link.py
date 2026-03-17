@@ -1,7 +1,7 @@
 """
-Fix geography_id in call_queues collection and add clarity_config to geography.
+Fix geography_id in call_queues collection and add nexus_config to geography.
 
-Updates the geography_id to be a proper ObjectId reference and adds Clarity configuration.
+Updates the geography_id to be a proper ObjectId reference and adds Nexus configuration.
 """
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -16,7 +16,7 @@ load_dotenv(env_path)
 
 
 async def fix_geography():
-    """Fix geography_id in call_queues and add clarity_config to geography."""
+    """Fix geography_id in call_queues and add nexus_config to geography."""
     # Connect to MongoDB
     mongo_uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
     print(f"Connecting to MongoDB...")
@@ -36,10 +36,10 @@ async def fix_geography():
         db = client["voice_agent"]  # Default
         print(f"Using default database: voice_agent")
     
-    # Update the geography with clarity_config
+    # Update the geography with nexus_config
     geography_id = "6970018ce0be6bf822c23d35"
     
-    clarity_config = {
+    nexus_config = {
         "enabled": True,
         "api_url": "http://localhost:8002/api/v1/hmis",
         "api_key": "mock-api-key-12345",
@@ -53,7 +53,7 @@ async def fix_geography():
     
     result = await db.geographies.update_one(
         {"_id": ObjectId(geography_id)},
-        {"$set": {"clarity_config": clarity_config}}
+        {"$set": {"nexus_config": nexus_config}}
     )
     
     print(f"Updated {result.modified_count} geography document(s)")
@@ -70,8 +70,8 @@ async def fix_geography():
         client.close()
         return
         
-    print(f"Clarity config enabled: {geography.get('clarity_config', {}).get('enabled')}")
-    print(f"Clarity API URL: {geography.get('clarity_config', {}).get('api_url')}")
+    print(f"Nexus config enabled: {geography.get('nexus_config', {}).get('enabled')}")
+    print(f"Nexus API URL: {geography.get('nexus_config', {}).get('api_url')}")
     
     # Also fix the queue's geography_id if needed
     queue_id = "697001c2e0be6bf822c23d36"

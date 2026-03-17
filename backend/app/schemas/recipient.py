@@ -19,10 +19,10 @@ from backend.app.models.enums import (
 )
 
 
-class ClarityEventInfoSchema(BaseModel):
-    """Event info from Clarity."""
+class NexusEventInfoSchema(BaseModel):
+    """Event info from Nexus."""
 
-    clarity_verification_id: str
+    nexus_verification_id: str
     event_type: str
     event_category: str
     confirmation_message_key: str
@@ -73,7 +73,7 @@ class RecipientCreate(BaseModel):
     patient_relation: Optional[str] = Field(default=None, max_length=100)
     patient_age: Optional[int] = Field(default=None, ge=0, le=150)
     priority: int = Field(default=0)
-    event_info: Optional[ClarityEventInfoSchema] = None
+    event_info: Optional[NexusEventInfoSchema] = None
 
     @field_validator("contact_phone")
     @classmethod
@@ -128,7 +128,7 @@ class RecipientResponse(BaseModel):
     patient_name: Optional[str]
     patient_relation: Optional[str]
     patient_age: Optional[int]
-    event_info: Optional[ClarityEventInfoSchema]
+    event_info: Optional[NexusEventInfoSchema]
     status: str
     priority: int
     retry_count: int
@@ -208,8 +208,8 @@ def recipient_to_response(
     # Convert event_info
     event_info = None
     if recipient.event_info:
-        event_info = ClarityEventInfoSchema(
-            clarity_verification_id=recipient.event_info.clarity_verification_id,
+        event_info = NexusEventInfoSchema(
+            nexus_verification_id=recipient.event_info.nexus_verification_id,
             event_type=recipient.event_info.event_type,
             event_category=recipient.event_info.event_category.value if hasattr(recipient.event_info.event_category, 'value') else str(recipient.event_info.event_category),
             confirmation_message_key=recipient.event_info.confirmation_message_key,

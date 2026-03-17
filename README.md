@@ -7,7 +7,7 @@ An AI-powered voice agent system for automated patient feedback collection via p
 - Automated AI voice calls (Twilio + OpenAI Realtime)
 - Multilingual support (en, es, fr, ht)
 - Flexible queue modes: Forever, Batch, Manual
-- Clarity integration for subject sync
+- Nexus integration for subject sync
 
 # AI Voice Agent (FastAPI)
 
@@ -39,7 +39,7 @@ backend/app/
 
 - `split_recording.py` - Audio file processing
 - `transcript_translation.py` - Translate transcripts
-- `clarity_sync.py` - Clarity subject/result sync (every 60s)
+- `nexus_sync.py` - Nexus subject/result sync (every 60s)
 - `recipients` - Queue recipients
 - `call_records` - Call data, transcripts
 - `recording_dlq` - Failed S3 uploads
@@ -197,7 +197,7 @@ pytest tests/ -v -s
 
 ## 📄 License
 
-Proprietary - All rights reserved
+MIT License
 
 ## 🆘 Support
 

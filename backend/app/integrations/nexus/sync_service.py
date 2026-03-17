@@ -1,7 +1,7 @@
 """
-Clarity Sync Service
+Nexus Sync Service
 
-Handles bidirectional sync between Clarity API and managed queue system.
+Handles bidirectional sync between Nexus API and managed queue system.
 """
 
 import logging
@@ -9,14 +9,14 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from backend.app.integrations.clarity.client import (
-    ClarityClient,
-    ClarityClientError,
-    ClarityForbiddenError,
-    ClarityNotFoundError,
-    create_clarity_client,
+from backend.app.integrations.nexus.client import (
+    NexusClient,
+    NexusClientError,
+    NexusForbiddenError,
+    NexusNotFoundError,
+    create_nexus_client,
 )
-from backend.app.integrations.clarity.models import ClarityVerification
+from backend.app.integrations.nexus.models import NexusVerification
 from backend.app.models.queue_models import (
     QueueConfig,
     CallEntry,
@@ -27,14 +27,14 @@ from backend.app.models.queue_models import (
 logger = logging.getLogger(__name__)
 
 
-class ClaritySyncService:
+class NexusSyncService:
     """
-    Service for syncing between Clarity API and managed queue.
+    Service for syncing between Nexus API and managed queue.
 
     Responsibilities:
-    1. Pull pending verifications from Clarity
+    1. Pull pending verifications from Nexus
     2. Create/update CallEntry records for each verification
-    3. Push completed call results back to Clarity
+    3. Push completed call results back to Nexus
     """
 
     def __init__(
@@ -52,12 +52,12 @@ class ClaritySyncService:
         self.queue_repo = queue_repo
         self.call_entry_repo = call_entry_repo
 
-    async def sync_queue_from_clarity(self, queue: QueueConfig) -> Dict[str, int]:
+    async def sync_queue_from_nexus(self, queue: QueueConfig) -> Dict[str, int]:
         """
-        Fetch pending verifications from Clarity and create CallEntry records.
+        Fetch pending verifications from Nexus and create CallEntry records.
 
         Args:
-            queue: Queue configuration with Clarity metadata
+            queue: Queue configuration with Nexus metadata
 
         Returns:
             Dict with sync statistics: created, updated, skipped, errors
@@ -65,15 +65,15 @@ class ClaritySyncService:
         metadata = queue.metadata
         stats = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
 
-        if metadata.get("queue_type") != "clarity":
-            logger.warning(f"Queue {queue.queue_id} is not a Clarity queue, skipping sync")
+        if metadata.get("queue_type") != "nexus":
+            logger.warning(f"Queue {queue.queue_id} is not a Nexus queue, skipping sync")
             return stats
 
         # Create client from queue metadata
         try:
-            client = create_clarity_client(metadata)
+            client = create_nexus_client(metadata)
         except ValueError as e:
-            logger.error(f"Failed to create Clarity client for queue {queue.queue_id}: {e}")
+            logger.error(f"Failed to create Nexus client for queue {queue.queue_id}: {e}")
             await self._update_sync_status(queue.queue_id, status="error", error=str(e))
             stats["errors"] += 1
             return stats
@@ -87,7 +87,7 @@ class ClaritySyncService:
                 )
 
                 logger.info(
-                    f"[Clarity:{queue.queue_id}] Fetched {len(verifications)} verifications"
+                    f"[Nexus:{queue.queue_id}] Fetched {len(verifications)} verifications"
                 )
 
                 # Process each verification
@@ -110,8 +110,8 @@ class ClaritySyncService:
 
                 return stats
 
-        except ClarityClientError as e:
-            logger.error(f"[Clarity:{queue.queue_id}] Sync failed: {e}")
+        except NexusClientError as e:
+            logger.error(f"[Nexus:{queue.queue_id}] Sync failed: {e}")
             await self._update_sync_status(
                 queue.queue_id, status="error", error=str(e)
             )
@@ -120,20 +120,20 @@ class ClaritySyncService:
     async def _process_verification(
         self,
         queue: QueueConfig,
-        verification: ClarityVerification,
+        verification: NexusVerification,
     ) -> str:
         """
         Process a single verification - create or update CallEntry.
 
         Returns: "created", "updated", or "skipped"
         """
-        clarity_id = verification.id
+        nexus_id = verification.id
 
         # Check if entry already exists for this verification
         existing = await self.call_entry_repo.find_by_external_id(
             queue_id=queue.queue_id,
-            external_id_field="metadata.clarity_verification_id",
-            external_id_value=clarity_id,
+            external_id_field="metadata.nexus_verification_id",
+            external_id_value=nexus_id,
         )
 
         if existing:
@@ -151,14 +151,14 @@ class ClaritySyncService:
         # Skip if no phone numbers
         if not verification.contact_phones:
             logger.warning(
-                f"Verification {clarity_id} has no phone numbers, skipping"
+                f"Verification {nexus_id} has no phone numbers, skipping"
             )
             return "skipped"
 
         # Skip if verification cannot be changed
         if not verification.can_be_changed:
             logger.info(
-                f"Verification {clarity_id} cannot be changed, skipping"
+                f"Verification {nexus_id} cannot be changed, skipping"
             )
             return "skipped"
 
@@ -185,23 +185,23 @@ class ClaritySyncService:
 
         # Build metadata
         entry_metadata = {
-            "source": "clarity",
-            "clarity_verification_id": clarity_id,
-            "clarity_environment": queue.metadata.get("clarity_environment"),
-            "clarity_event_type": verification.event_info.event_type,
-            "clarity_event_facility": verification.event_info.event_facility,
-            "clarity_event_date": verification.event_info.event_date,
-            "clarity_vaccine_doses": verification.vaccine_names,
+            "source": "nexus",
+            "nexus_verification_id": nexus_id,
+            "nexus_environment": queue.metadata.get("nexus_environment"),
+            "nexus_event_type": verification.event_info.event_type,
+            "nexus_event_facility": verification.event_info.event_facility,
+            "nexus_event_date": verification.event_info.event_date,
+            "nexus_vaccine_doses": verification.vaccine_names,
             "contact_name": verification.contact_name,
             "contact_gender": verification.contact_gender,
             "contact_phones": verification.contact_phones,
             "sync_status": "pending",
-            "synced_from_clarity_at": datetime.utcnow().isoformat(),
+            "synced_from_nexus_at": datetime.utcnow().isoformat(),
         }
 
         # Create entry
         entry = CallEntry(
-            entry_id=f"clarity_{uuid.uuid4().hex[:12]}",
+            entry_id=f"nexus_{uuid.uuid4().hex[:12]}",
             queue_id=queue.queue_id,
             phone_number=phone_number,
             call_type="vaccination",
@@ -217,19 +217,19 @@ class ClaritySyncService:
                 entry_id=entry.entry_id,
                 from_state=None,
                 to_state=CallEntryStatus.PENDING,
-                reason=f"Synced from Clarity verification {clarity_id}",
+                reason=f"Synced from Nexus verification {nexus_id}",
             )
             logger.info(
-                f"Created CallEntry {entry.entry_id} for Clarity verification {clarity_id}"
+                f"Created CallEntry {entry.entry_id} for Nexus verification {nexus_id}"
             )
             return "created"
 
-        logger.error(f"Failed to create CallEntry for verification {clarity_id}")
+        logger.error(f"Failed to create CallEntry for verification {nexus_id}")
         return "errors"
 
-    async def sync_result_to_clarity(self, entry: CallEntry) -> bool:
+    async def sync_result_to_nexus(self, entry: CallEntry) -> bool:
         """
-        Push call result back to Clarity API.
+        Push call result back to Nexus API.
 
         Called after a call completes (success or final failure).
 
@@ -241,35 +241,35 @@ class ClaritySyncService:
         """
         metadata = entry.metadata
 
-        # Only sync Clarity-sourced entries
-        if metadata.get("source") != "clarity":
+        # Only sync Nexus-sourced entries
+        if metadata.get("source") != "nexus":
             return True
 
-        clarity_id = metadata.get("clarity_verification_id")
-        if not clarity_id:
-            logger.warning(f"Entry {entry.entry_id} has no clarity_verification_id")
+        nexus_id = metadata.get("nexus_verification_id")
+        if not nexus_id:
+            logger.warning(f"Entry {entry.entry_id} has no nexus_verification_id")
             return False
 
-        # Get queue for Clarity credentials
+        # Get queue for Nexus credentials
         queue = await self.queue_repo.get_queue(entry.queue_id)
         if not queue:
             logger.error(f"Queue {entry.queue_id} not found")
             return False
 
         try:
-            client = create_clarity_client(queue.metadata)
+            client = create_nexus_client(queue.metadata)
         except ValueError as e:
-            logger.error(f"Failed to create Clarity client: {e}")
+            logger.error(f"Failed to create Nexus client: {e}")
             return False
 
         try:
             async with client:
-                # Determine status to send to Clarity
+                # Determine status to send to Nexus
                 if entry.status == CallEntryStatus.SUCCESS:
-                    clarity_status = 1  # Verified
+                    nexus_status = 1  # Verified
                     is_confirmed = True
                 else:
-                    clarity_status = 2  # Failed
+                    nexus_status = 2  # Failed
                     is_confirmed = False
 
                 # Get recording URL if available
@@ -277,10 +277,10 @@ class ClaritySyncService:
                 if entry.storage and entry.storage.recording_url:
                     recording_url = entry.storage.recording_url
 
-                # Update Clarity
+                # Update Nexus
                 success = await client.update_verification(
-                    verification_id=clarity_id,
-                    status=clarity_status,
+                    verification_id=nexus_id,
+                    status=nexus_status,
                     recording_url=recording_url,
                     is_visit_confirmed=is_confirmed,
                 )
@@ -292,7 +292,7 @@ class ClaritySyncService:
                     {
                         "metadata.sync_status": sync_status,
                         "metadata.last_sync_attempt": datetime.utcnow().isoformat(),
-                        "metadata.synced_to_clarity_at": datetime.utcnow().isoformat()
+                        "metadata.synced_to_nexus_at": datetime.utcnow().isoformat()
                         if success
                         else None,
                     },
@@ -300,23 +300,23 @@ class ClaritySyncService:
 
                 return success
 
-        except ClarityForbiddenError as e:
+        except NexusForbiddenError as e:
             logger.warning(
-                f"Cannot update Clarity verification {clarity_id}: {e}"
+                f"Cannot update Nexus verification {nexus_id}: {e}"
             )
             await self._mark_sync_failed(entry.entry_id, str(e))
             return False
 
-        except ClarityNotFoundError as e:
+        except NexusNotFoundError as e:
             logger.warning(
-                f"Clarity verification {clarity_id} not found: {e}"
+                f"Nexus verification {nexus_id} not found: {e}"
             )
             await self._mark_sync_failed(entry.entry_id, str(e))
             return False
 
-        except ClarityClientError as e:
+        except NexusClientError as e:
             logger.error(
-                f"Failed to sync result to Clarity for entry {entry.entry_id}: {e}"
+                f"Failed to sync result to Nexus for entry {entry.entry_id}: {e}"
             )
             await self._mark_sync_failed(entry.entry_id, str(e))
             raise

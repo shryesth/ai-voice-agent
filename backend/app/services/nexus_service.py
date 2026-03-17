@@ -1,8 +1,8 @@
 """
-Clarity Service for bidirectional sync with Clarity API.
+Nexus Service for bidirectional sync with Nexus API.
 
 This service handles:
-- Pull: Fetching verification subjects from Clarity to create Recipients
+- Pull: Fetching verification subjects from Nexus to create Recipients
 - Push: Updating verification status after calls complete
 """
 
@@ -19,11 +19,11 @@ from backend.app.models.enums import (
     RecipientStatus,
     SyncStatus,
 )
-from backend.app.models.geography import Geography, ClarityConfig
+from backend.app.models.geography import Geography, NexusConfig
 from backend.app.models.call_queue import CallQueue
 from backend.app.models.recipient import (
     Recipient,
-    ClarityEventInfo,
+    NexusEventInfo,
     determine_contact_type,
 )
 from backend.app.domains.supervisor.event_type_config import (
@@ -34,34 +34,34 @@ from backend.app.domains.supervisor.event_type_config import (
 logger = logging.getLogger(__name__)
 
 
-class ClarityService:
+class NexusService:
     """
-    Service for integrating with Clarity API.
+    Service for integrating with Nexus API.
 
     Supports bidirectional sync:
     - Pull: GET /api/v1/hmis/client-visits/verification?status=IN_PROGRESS
     - Push: PUT /api/v1/hmis/client-visits/verification/{id}
     """
 
-    # Clarity verification status codes
-    CLARITY_STATUS_IN_PROGRESS = 1
-    CLARITY_STATUS_VALID = 2
-    CLARITY_STATUS_NOT_VALID = 3
-    CLARITY_STATUS_NOT_REACHABLE = 4
+    # Nexus verification status codes
+    NEXUS_STATUS_IN_PROGRESS = 1
+    NEXUS_STATUS_VALID = 2
+    NEXUS_STATUS_NOT_VALID = 3
+    NEXUS_STATUS_NOT_REACHABLE = 4
 
-    def __init__(self, clarity_config: ClarityConfig):
+    def __init__(self, nexus_config: NexusConfig):
         """
-        Initialize the Clarity service.
+        Initialize the Nexus service.
 
         Args:
-            clarity_config: Clarity API configuration from Geography
+            nexus_config: Nexus API configuration from Geography
         """
-        self.config = clarity_config
-        self.base_url = clarity_config.api_url.rstrip("/")
-        self.api_key = clarity_config.api_key
+        self.config = nexus_config
+        self.base_url = nexus_config.api_url.rstrip("/")
+        self.api_key = nexus_config.api_key
         self.timeout = httpx.Timeout(30.0, connect=10.0)
         self._client: Optional[httpx.AsyncClient] = None
-        self._semaphore = Semaphore(10)  # Max 10 concurrent requests to Clarity API
+        self._semaphore = Semaphore(10)  # Max 10 concurrent requests to Nexus API
 
     @property
     def headers(self) -> Dict[str, str]:
@@ -71,7 +71,7 @@ class ClarityService:
             "Accept": "application/json",
         }
         if self.api_key:
-            # Use X-API-Key header (as expected by Clarity mock server)
+            # Use X-API-Key header (as expected by Nexus mock server)
             headers["X-API-Key"] = self.api_key
         return headers
 
@@ -101,7 +101,7 @@ class ClarityService:
         event_type_filter: List[str] = None,
     ) -> List[Recipient]:
         """
-        Pull verification subjects from Clarity and create Recipients.
+        Pull verification subjects from Nexus and create Recipients.
 
         Args:
             queue: CallQueue to add recipients to
@@ -112,7 +112,7 @@ class ClarityService:
             List of created Recipient documents
         """
         if not self.config.enabled:
-            logger.warning("Clarity sync is not enabled")
+            logger.warning("Nexus sync is not enabled")
             return []
 
         # Get subjects with IN_PROGRESS status
@@ -130,7 +130,7 @@ class ClarityService:
                 data = response.json()
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch verification subjects: {e}")
-            raise ClarityAPIError(f"Failed to fetch from Clarity: {e}")
+            raise NexusAPIError(f"Failed to fetch from Nexus: {e}")
 
         # Process subjects and create recipients
         # Mock server returns: {"items": [...], "page": 1, "pageSize": 50, "total": 5, "pages": 1}
@@ -150,7 +150,7 @@ class ClarityService:
                 logger.error(f"Failed to create recipient from subject: {e}")
                 continue
 
-        logger.info(f"Pulled {len(recipients)} recipients from Clarity for queue {queue.id}")
+        logger.info(f"Pulled {len(recipients)} recipients from Nexus for queue {queue.id}")
         return recipients
 
     async def _create_recipient_from_subject(
@@ -160,11 +160,11 @@ class ClarityService:
         event_type_filter: List[str] = None,
     ) -> Optional[Recipient]:
         """
-        Create a Recipient from a Clarity verification subject.
+        Create a Recipient from a Nexus verification subject.
 
         Args:
             queue: CallQueue to add recipient to
-            subject: Raw subject data from Clarity API
+            subject: Raw subject data from Nexus API
             event_type_filter: Optional event type filter
 
         Returns:
@@ -282,9 +282,9 @@ class ClarityService:
             except (ValueError, AttributeError):
                 pass
 
-        # Create ClarityEventInfo
-        event_info = ClarityEventInfo(
-            clarity_verification_id=str(verification_id),
+        # Create NexusEventInfo
+        event_info = NexusEventInfo(
+            nexus_verification_id=str(verification_id),
             event_type=event_type,
             event_category=event_config.event_category,
             confirmation_message_key=event_config.confirmation_message_key,
@@ -303,11 +303,11 @@ class ClarityService:
         # Check if recipient already exists (for upsert logic)
         existing = await Recipient.find_one(
             Recipient.external_id == str(verification_id),
-            Recipient.external_source == ExternalSource.CLARITY,
+            Recipient.external_source == ExternalSource.NEXUS,
         )
 
         if existing:
-            # Update existing recipient with latest data from Clarity
+            # Update existing recipient with latest data from Nexus
             # Only update if status is still PENDING or NOT_REACHABLE (not yet processed)
             if existing.status in [RecipientStatus.PENDING, RecipientStatus.NOT_REACHABLE, RecipientStatus.FAILED]:
                 existing.queue_id = queue.id
@@ -339,7 +339,7 @@ class ClarityService:
         # Create new recipient (just use queue.id for the Link field)
         recipient = Recipient(
             queue_id=queue.id,  # Link field accepts document ID
-            external_source=ExternalSource.CLARITY,
+            external_source=ExternalSource.NEXUS,
             external_id=str(verification_id),
             contact_phone=phone,
             contact_name=contact_name,
@@ -396,7 +396,7 @@ class ClarityService:
         recording_url: Optional[str] = None,
     ) -> bool:
         """
-        Push verification result to Clarity.
+        Push verification result to Nexus.
 
         Args:
             recipient: Recipient with completed call
@@ -406,19 +406,19 @@ class ClarityService:
             True if push was successful
         """
         if not self.config.enabled:
-            logger.warning("Clarity sync is not enabled")
+            logger.warning("Nexus sync is not enabled")
             return False
 
-        if not recipient.external_id or recipient.external_source != ExternalSource.CLARITY:
-            logger.warning(f"Recipient {recipient.id} is not from Clarity, skipping push")
+        if not recipient.external_id or recipient.external_source != ExternalSource.NEXUS:
+            logger.warning(f"Recipient {recipient.id} is not from Nexus, skipping push")
             return False
 
-        # Map recipient status to Clarity status
-        clarity_status = self._map_status_to_clarity(recipient.status)
+        # Map recipient status to Nexus status
+        nexus_status = self._map_status_to_nexus(recipient.status)
 
         # Build payload
         payload = {
-            "status": clarity_status,
+            "status": nexus_status,
             "is_visit_confirmed": recipient.conversation_result.is_visit_confirmed,
             "is_service_confirmed": recipient.conversation_result.is_service_confirmed,
             "satisfaction_rating": recipient.conversation_result.satisfaction_rating,
@@ -440,14 +440,14 @@ class ClarityService:
         # Make API call
         url = f"{self.base_url}/api/v1/hmis/client-visits/verification/{recipient.external_id}"
 
-        # Log the complete payload being sent to Clarity
+        # Log the complete payload being sent to Nexus
         logger.info(
-            f"Pushing verification result to Clarity - "
+            f"Pushing verification result to Nexus - "
             f"Recipient ID: {recipient.id}, "
             f"External ID: {recipient.external_id}, "
             f"URL: {url}"
         )
-        logger.info(f"Clarity Push Payload: {payload}")
+        logger.info(f"Nexus Push Payload: {payload}")
 
         try:
             async with self._semaphore:
@@ -457,7 +457,7 @@ class ClarityService:
 
             # Log successful response
             logger.info(
-                f"Successfully pushed result to Clarity - "
+                f"Successfully pushed result to Nexus - "
                 f"Recipient: {recipient.id}, "
                 f"HTTP Status: {response.status_code}, "
                 f"Response: {response.text[:200]}"  # Limit response to 200 chars
@@ -470,14 +470,14 @@ class ClarityService:
             recipient.updated_at = datetime.now(timezone.utc)
             await recipient.save()
 
-            logger.info(f"Pushed result for recipient {recipient.id} to Clarity")
+            logger.info(f"Pushed result for recipient {recipient.id} to Nexus")
             return True
 
         except httpx.HTTPError as e:
             # Log detailed error information
             error_details = f"HTTP {e.response.status_code}: {e.response.text}" if hasattr(e, 'response') else str(e)
             logger.error(
-                f"Failed to push result to Clarity - "
+                f"Failed to push result to Nexus - "
                 f"Recipient: {recipient.id}, "
                 f"Error: {error_details}, "
                 f"Payload: {payload}"
@@ -488,19 +488,19 @@ class ClarityService:
             await recipient.save()
             return False
 
-    def _map_status_to_clarity(self, status: RecipientStatus) -> int:
-        """Map RecipientStatus to Clarity verification status."""
+    def _map_status_to_nexus(self, status: RecipientStatus) -> int:
+        """Map RecipientStatus to Nexus verification status."""
         mapping = {
-            RecipientStatus.COMPLETED: self.CLARITY_STATUS_VALID,
-            RecipientStatus.FAILED: self.CLARITY_STATUS_NOT_VALID,
-            RecipientStatus.NOT_REACHABLE: self.CLARITY_STATUS_NOT_REACHABLE,
-            RecipientStatus.DLQ: self.CLARITY_STATUS_NOT_REACHABLE,
-            RecipientStatus.SKIPPED: self.CLARITY_STATUS_NOT_VALID,
+            RecipientStatus.COMPLETED: self.NEXUS_STATUS_VALID,
+            RecipientStatus.FAILED: self.NEXUS_STATUS_NOT_VALID,
+            RecipientStatus.NOT_REACHABLE: self.NEXUS_STATUS_NOT_REACHABLE,
+            RecipientStatus.DLQ: self.NEXUS_STATUS_NOT_REACHABLE,
+            RecipientStatus.SKIPPED: self.NEXUS_STATUS_NOT_VALID,
         }
-        return mapping.get(status, self.CLARITY_STATUS_NOT_REACHABLE)
+        return mapping.get(status, self.NEXUS_STATUS_NOT_REACHABLE)
 
     async def test_connection(self) -> bool:
-        """Test connection to Clarity API."""
+        """Test connection to Nexus API."""
         if not self.config.enabled:
             return False
 
@@ -514,21 +514,21 @@ class ClarityService:
             return False
 
 
-class ClarityAPIError(Exception):
-    """Exception raised for Clarity API errors."""
+class NexusAPIError(Exception):
+    """Exception raised for Nexus API errors."""
     pass
 
 
-# Factory function to get ClarityService from Geography
-async def get_clarity_service(geography_id: str) -> Optional[ClarityService]:
+# Factory function to get NexusService from Geography
+async def get_nexus_service(geography_id: str) -> Optional[NexusService]:
     """
-    Get a ClarityService for a geography.
+    Get a NexusService for a geography.
 
     Args:
         geography_id: Geography document ID
 
     Returns:
-        ClarityService if Clarity is configured, None otherwise
+        NexusService if Nexus is configured, None otherwise
 
     Note:
         The returned service maintains a reusable HTTP client for connection pooling.
@@ -541,7 +541,7 @@ async def get_clarity_service(geography_id: str) -> Optional[ClarityService]:
     if not geography:
         return None
 
-    if not geography.clarity_config.enabled:
+    if not geography.nexus_config.enabled:
         return None
 
-    return ClarityService(geography.clarity_config)
+    return NexusService(geography.nexus_config)

@@ -27,14 +27,14 @@ from backend.app.models.enums import (
 
 # Import in dependency order: Geography -> CallQueue -> Recipient -> CallRecord
 from backend.app.models.user import User
-from backend.app.models.geography import Geography, RetentionPolicy, ClarityConfig
+from backend.app.models.geography import Geography, RetentionPolicy, NexusConfig
 
 # CallQueue model
 from backend.app.models.call_queue import (
     CallQueue,
     TimeWindow,
     RetryStrategy,
-    ClaritySyncConfig,
+    NexusSyncConfig,
     QueueStats,
     can_transition_to,
 )
@@ -42,7 +42,7 @@ from backend.app.models.call_queue import (
 # Recipient model
 from backend.app.models.recipient import (
     Recipient,
-    ClarityEventInfo,
+    NexusEventInfo,
     CallAttempt,
     ConversationResult,
     determine_contact_type,
@@ -89,17 +89,17 @@ __all__ = [
     # Geography
     "Geography",
     "RetentionPolicy",
-    "ClarityConfig",
+    "NexusConfig",
     # CallQueue
     "CallQueue",
     "TimeWindow",
     "RetryStrategy",
-    "ClaritySyncConfig",
+    "NexusSyncConfig",
     "QueueStats",
     "can_transition_to",
     # Recipient
     "Recipient",
-    "ClarityEventInfo",
+    "NexusEventInfo",
     "CallAttempt",
     "ConversationResult",
     "determine_contact_type",

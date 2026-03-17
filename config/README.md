@@ -124,8 +124,8 @@ curl https://your-app.caprover-domain.com/api/v1/health/ready
 | Environment | Storage Backend | Endpoint | Bucket | Access |
 |-------------|----------------|----------|--------|--------|
 | **Local** | MinIO (Docker) | `http://minio:9000` (in container) or `http://localhost:9000` (from host) | `voice-recordings` | minioadmin/minioadmin |
-| **UAT** | MinIO (Docker, default) or Hetzner | `http://minio:9000` (Docker) or `https://nbg1.your-objectstorage.com` (Hetzner) | `voice-recordings-uat` or `shifo-supervisor-uat` | minioadmin/minioadmin (Docker) or Hetzner credentials |
-| **Production** | Hetzner Object Storage (external) | `https://nbg1.your-objectstorage.com` | `shifo-supervisor` | Hetzner credentials |
+| **UAT** | MinIO (Docker, default) or Hetzner | `http://minio:9000` (Docker) or `https://nbg1.your-objectstorage.com` (Hetzner) | `voice-recordings-uat` or `acme-supervisor-uat` | minioadmin/minioadmin (Docker) or Hetzner credentials |
+| **Production** | Hetzner Object Storage (external) | `https://nbg1.your-objectstorage.com` | `acme-supervisor` | Hetzner credentials |
 
 **MinIO Setup (Local & UAT with docker-compose):**
 - MinIO Console (Web UI) accessible at `http://localhost:9001`

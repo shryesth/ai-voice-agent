@@ -49,7 +49,7 @@ class GeographyService:
             raise ValueError(f"Geography with name '{data.name}' already exists")
 
         # Create new geography
-        # Build geography kwargs, conditionally including clarity_config
+        # Build geography kwargs, conditionally including nexus_config
         geography_kwargs = {
             "name": data.name,
             "description": data.description,
@@ -63,9 +63,9 @@ class GeographyService:
             "updated_at": datetime.now(timezone.utc)
         }
 
-        # Only include clarity_config if provided (let default_factory handle None case)
-        if data.clarity_config is not None:
-            geography_kwargs["clarity_config"] = data.clarity_config.model_dump()
+        # Only include nexus_config if provided (let default_factory handle None case)
+        if data.nexus_config is not None:
+            geography_kwargs["nexus_config"] = data.nexus_config.model_dump()
 
         geography = Geography(**geography_kwargs)
 
@@ -178,9 +178,9 @@ class GeographyService:
             if field == "retention_policy" and value is not None:
                 # value is already a dict from model_dump(), just use it directly
                 setattr(geography, field, value if isinstance(value, dict) else value.model_dump())
-            elif field == "clarity_config" and value is not None:
-                # Handle clarity_config the same way as retention_policy
-                logger.info(f"Setting clarity_config to: {value}")
+            elif field == "nexus_config" and value is not None:
+                # Handle nexus_config the same way as retention_policy
+                logger.info(f"Setting nexus_config to: {value}")
                 setattr(geography, field, value if isinstance(value, dict) else value.model_dump())
             else:
                 setattr(geography, field, value)

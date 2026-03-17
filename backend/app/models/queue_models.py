@@ -33,7 +33,7 @@ class QueueState(str, Enum):
 class QueueType(str, Enum):
     """Queue type for distinguishing sync behavior"""
     MANUAL = "manual"      # Calls added manually via API
-    CLARITY = "clarity"    # Auto-synced from Clarity API
+    NEXUS = "nexus"    # Auto-synced from Nexus API
 
 
 class CallEntryStatus(str, Enum):

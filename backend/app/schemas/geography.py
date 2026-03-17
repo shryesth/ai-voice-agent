@@ -41,8 +41,8 @@ class RetentionPolicyResponse(RetentionPolicyCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ClarityConfigCreate(BaseModel):
-    """Clarity API integration configuration"""
+class NexusConfigCreate(BaseModel):
+    """Nexus API integration configuration"""
     enabled: bool = Field(default=False)
     api_url: str = Field(default="")
     api_key: Optional[str] = None
@@ -64,8 +64,8 @@ class ClarityConfigCreate(BaseModel):
         }
 
 
-class ClarityConfigResponse(ClarityConfigCreate):
-    """Clarity config in API responses (same as create)"""
+class NexusConfigResponse(NexusConfigCreate):
+    """Nexus config in API responses (same as create)"""
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -77,7 +77,7 @@ class GeographyCreate(BaseModel):
     timezone: str = Field(default="UTC")
     default_language: str = Field(default="en")
     supported_languages: List[str] = Field(default_factory=lambda: ["en"])
-    clarity_config: Optional[ClarityConfigCreate] = Field(default=None)
+    nexus_config: Optional[NexusConfigCreate] = Field(default=None)
     retention_policy: RetentionPolicyCreate = Field(default_factory=RetentionPolicyCreate)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -107,7 +107,7 @@ class GeographyUpdate(BaseModel):
     timezone: Optional[str] = None
     default_language: Optional[str] = None
     supported_languages: Optional[List[str]] = None
-    clarity_config: Optional[ClarityConfigCreate] = None
+    nexus_config: Optional[NexusConfigCreate] = None
     retention_policy: Optional[RetentionPolicyCreate] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -134,7 +134,7 @@ class GeographyResponse(BaseModel):
     timezone: Optional[str] = None
     default_language: Optional[str] = None
     supported_languages: Optional[List[str]] = None
-    clarity_config: Optional[ClarityConfigResponse] = None
+    nexus_config: Optional[NexusConfigResponse] = None
     retention_policy: RetentionPolicyResponse
     metadata: Dict[str, Any]
     created_at: datetime

@@ -6,7 +6,7 @@ Tests model logic including status validation, retry scheduling, and DLQ criteri
 
 import pytest
 from datetime import datetime, timedelta
-from backend.app.models.recipient import Recipient, ClarityEventInfo, CallAttempt
+from backend.app.models.recipient import Recipient, NexusEventInfo, CallAttempt
 from backend.app.models.enums import RecipientStatus, CallOutcome, ContactType, FailureReason
 
 
@@ -447,10 +447,10 @@ class TestRecipientPatientInfo:
 class TestRecipientEventInfo:
     """Test Recipient event information"""
 
-    def test_recipient_with_clarity_event_info(self, seeded_call_queue):
-        """Test recipient with Clarity event information"""
-        event_info = ClarityEventInfo(
-            clarity_verification_id="test-123",
+    def test_recipient_with_nexus_event_info(self, seeded_call_queue):
+        """Test recipient with Nexus event information"""
+        event_info = NexusEventInfo(
+            nexus_verification_id="test-123",
             event_type="Suivi des Enfants",
             event_category="child_vaccination",
             confirmation_message_key="child_vaccination_rr1",
@@ -469,7 +469,7 @@ class TestRecipientEventInfo:
         )
 
         assert recipient.event_info is not None
-        assert recipient.event_info.clarity_verification_id == "test-123"
+        assert recipient.event_info.nexus_verification_id == "test-123"
         assert recipient.event_info.event_type == "Suivi des Enfants"
 
     def test_recipient_without_event_info(self, seeded_call_queue):

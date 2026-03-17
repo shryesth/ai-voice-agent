@@ -10,10 +10,10 @@ from backend.app.tasks.voice_call import initiate_patient_call, update_call_from
 from backend.app.tasks.recording_download import download_twilio_recording
 from backend.app.tasks.split_recording import split_recording_task
 from backend.app.tasks.transcript_translation import translate_transcript
-from backend.app.tasks.clarity_sync import (
-    sync_clarity_subjects,
-    sync_results_to_clarity,
-    sync_all_queues_from_clarity,
+from backend.app.tasks.nexus_sync import (
+    sync_nexus_subjects,
+    sync_results_to_nexus,
+    sync_all_queues_from_nexus,
 )
 from backend.app.tasks.recipient_sync import sync_recipient_from_call
 
@@ -24,8 +24,8 @@ __all__ = [
     "download_twilio_recording",
     "split_recording_task",
     "translate_transcript",
-    "sync_clarity_subjects",
-    "sync_results_to_clarity",
-    "sync_all_queues_from_clarity",
+    "sync_nexus_subjects",
+    "sync_results_to_nexus",
+    "sync_all_queues_from_nexus",
     "sync_recipient_from_call",
 ]

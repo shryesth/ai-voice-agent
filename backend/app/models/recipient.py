@@ -3,9 +3,9 @@ Recipient model for call queue entries.
 
 Replaces QueueEntry with richer context including:
 - Contact type handling (patient, guardian, caregiver)
-- Event info from Clarity
+- Event info from Nexus
 - Detailed call timeline tracking
-- Clarity sync status
+- Nexus sync status
 """
 
 from __future__ import annotations
@@ -28,21 +28,21 @@ from backend.app.models.enums import (
 from backend.app.models.call_record import ConversationData
 
 
-class ClarityEventInfo(BaseModel):
+class NexusEventInfo(BaseModel):
     """
-    Event info from Clarity - determines confirmation message.
+    Event info from Nexus - determines confirmation message.
 
-    The event_type from Clarity is mapped to an EventCategory which
+    The event_type from Nexus is mapped to an EventCategory which
     determines which confirmation message to use in the call flow.
     """
 
-    clarity_verification_id: str = Field(
+    nexus_verification_id: str = Field(
         ...,
-        description="Unique ID from Clarity for this verification",
+        description="Unique ID from Nexus for this verification",
     )
     event_type: str = Field(
         ...,
-        description="Raw event type from Clarity (e.g., 'Suivi des Enfants')",
+        description="Raw event type from Nexus (e.g., 'Suivi des Enfants')",
     )
     event_category: EventCategory = Field(
         default=EventCategory.OTHER,
@@ -62,11 +62,11 @@ class ClarityEventInfo(BaseModel):
     )
     facility_id: Optional[str] = Field(
         default=None,
-        description="Clarity ID of the health facility",
+        description="Nexus ID of the health facility",
     )
     attributes: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional attributes from Clarity",
+        description="Additional attributes from Nexus",
     )
     vaccines: List[Dict[str, Any]] = Field(
         default_factory=list,
@@ -84,7 +84,7 @@ class ClarityEventInfo(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "clarity_verification_id": "cv-12345",
+                "nexus_verification_id": "cv-12345",
                 "event_type": "Suivi des Enfants (moins de 5 ans)",
                 "event_category": "child_vaccination",
                 "confirmation_message_key": "child_vaccination_rr1",
@@ -148,9 +148,9 @@ class Recipient(Document):
 
     Replaces QueueEntry with richer context including:
     - Contact type (patient, guardian, caregiver)
-    - Event info from Clarity
+    - Event info from Nexus
     - Detailed call timeline
-    - Clarity sync status
+    - Nexus sync status
 
     Supports multiple call attempts with detailed tracking.
     """
@@ -164,7 +164,7 @@ class Recipient(Document):
     external_source: ExternalSource = Field(default=ExternalSource.MANUAL)
     external_id: Optional[str] = Field(
         default=None,
-        description="External identifier (clarity_verification_id for Clarity)",
+        description="External identifier (nexus_verification_id for Nexus)",
     )
 
     # Contact information
@@ -200,8 +200,8 @@ class Recipient(Document):
         description="Patient's age in years",
     )
 
-    # Event context (from Clarity or manual)
-    event_info: Optional[ClarityEventInfo] = Field(
+    # Event context (from Nexus or manual)
+    event_info: Optional[NexusEventInfo] = Field(
         default=None,
         description="Event context for patient feedback calls",
     )
@@ -249,7 +249,7 @@ class Recipient(Document):
     )
     dlq_moved_at: Optional[datetime] = None
 
-    # Conversation results (for Clarity sync)
+    # Conversation results (for Nexus sync)
     conversation_result: ConversationData = Field(
         default_factory=ConversationData,
     )
@@ -265,7 +265,7 @@ class Recipient(Document):
         max_length=500,
     )
 
-    # Clarity sync status
+    # Nexus sync status
     sync_status: SyncStatus = Field(default=SyncStatus.PENDING)
     last_synced_at: Optional[datetime] = None
     sync_error: Optional[str] = Field(
@@ -273,7 +273,7 @@ class Recipient(Document):
         max_length=500,
     )
 
-    # Recording URL (for Clarity sync)
+    # Recording URL (for Nexus sync)
     recording_url: Optional[str] = Field(
         default=None,
         description="Presigned URL for call recording",
@@ -334,12 +334,12 @@ class Recipient(Document):
                 "language": "ht",
                 "patient_name": "Jean Joseph",
                 "patient_relation": "Mother",
-                "external_source": "clarity",
+                "external_source": "nexus",
                 "external_id": "cv-12345",
                 "status": "pending",
                 "priority": 0,
                 "event_info": {
-                    "clarity_verification_id": "cv-12345",
+                    "nexus_verification_id": "cv-12345",
                     "event_type": "Suivi des Enfants",
                     "event_category": "child_vaccination",
                     "confirmation_message_key": "child_vaccination_rr1",

@@ -72,11 +72,11 @@ class RecipientStatus(str, Enum):
     CALLING = "calling"  # Call in progress
     RETRYING = "retrying"  # Scheduled for retry
     # Post-call states
-    READY_TO_SYNC = "ready_to_sync"  # Call complete, recording saved, ready for Clarity sync
-    # Terminal states (after Clarity sync or final disposition)
-    COMPLETED = "completed"  # Call successful, synced to Clarity (-> Clarity VALID)
-    FAILED = "failed"  # Call failed, not verified (-> Clarity NOT_VALID)
-    NOT_REACHABLE = "not_reachable"  # Max retries exhausted (-> Clarity NOT_REACHABLE)
+    READY_TO_SYNC = "ready_to_sync"  # Call complete, recording saved, ready for Nexus sync
+    # Terminal states (after Nexus sync or final disposition)
+    COMPLETED = "completed"  # Call successful, synced to Nexus (-> Nexus VALID)
+    FAILED = "failed"  # Call failed, not verified (-> Nexus NOT_VALID)
+    NOT_REACHABLE = "not_reachable"  # Max retries exhausted (-> Nexus NOT_REACHABLE)
     SKIPPED = "skipped"  # Manually skipped
     DLQ = "dlq"  # Dead letter queue
 
@@ -128,13 +128,13 @@ class FailureReason(str, Enum):
 class ExternalSource(str, Enum):
     """Where recipients come from."""
 
-    CLARITY = "clarity"
+    NEXUS = "nexus"
     MANUAL = "manual"
     CSV_IMPORT = "csv_import"
 
 
 class SyncStatus(str, Enum):
-    """Clarity sync status for recipients."""
+    """Nexus sync status for recipients."""
 
     PENDING = "pending"  # Not yet synced
     SYNCED = "synced"  # Successfully synced

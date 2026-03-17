@@ -84,9 +84,9 @@ class RetryStrategy(BaseModel):
         }
 
 
-class ClaritySyncConfig(BaseModel):
+class NexusSyncConfig(BaseModel):
     """
-    Configuration for forever-running queues syncing from Clarity.
+    Configuration for forever-running queues syncing from Nexus.
 
     Only applicable when queue mode is FOREVER.
     """
@@ -96,7 +96,7 @@ class ClaritySyncConfig(BaseModel):
         default=5,
         ge=1,
         le=60,
-        description="How often to poll Clarity for new subjects",
+        description="How often to poll Nexus for new subjects",
     )
     max_per_sync: int = Field(
         default=100,
@@ -106,7 +106,7 @@ class ClaritySyncConfig(BaseModel):
     )
     event_type_filter: List[str] = Field(
         default_factory=list,
-        description="Clarity event types to pull (empty = all types)",
+        description="Nexus event types to pull (empty = all types)",
     )
     last_sync_at: Optional[datetime] = Field(
         default=None,
@@ -160,7 +160,7 @@ class CallQueue(Document):
     Queue of calls to process.
 
     Can be:
-    - FOREVER mode: Continuously pulls from Clarity
+    - FOREVER mode: Continuously pulls from Nexus
     - BATCH mode: One-time batch, completes when done
     - MANUAL mode: Recipients added via API only
 
@@ -203,8 +203,8 @@ class CallQueue(Document):
     )
     retry_strategy: RetryStrategy = Field(default_factory=RetryStrategy)
 
-    # Clarity sync (for FOREVER mode)
-    clarity_sync: ClaritySyncConfig = Field(default_factory=ClaritySyncConfig)
+    # Nexus sync (for FOREVER mode)
+    nexus_sync: NexusSyncConfig = Field(default_factory=NexusSyncConfig)
 
     # Statistics (updated by queue processor)
     stats: QueueStats = Field(default_factory=QueueStats)
@@ -254,7 +254,7 @@ class CallQueue(Document):
                         "days_of_week": [0, 1, 2, 3, 4],
                     }
                 ],
-                "clarity_sync": {
+                "nexus_sync": {
                     "enabled": True,
                     "sync_interval_minutes": 5,
                     "event_type_filter": [],

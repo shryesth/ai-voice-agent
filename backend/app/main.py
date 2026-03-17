@@ -153,7 +153,7 @@ def create_app() -> FastAPI:
     """
     # OpenAPI metadata
     description = """
-## Shifo Supervisor
+## Acme Supervisor
 
 AI-powered voice agent system for patient feedback collection and other calling use cases.
 
@@ -162,7 +162,7 @@ AI-powered voice agent system for patient feedback collection and other calling 
 * **🤖 AI Voice Calls**: Automated outreach via Twilio + OpenAI Realtime API
 * **🌍 Multilingual**: English, Spanish, French, Haitian Creole support
 * **📞 Multiple Queue Modes**: Forever (continuous), Batch (one-time), Manual
-* **🔗 Clarity Integration**: Bidirectional sync for verification subjects
+* **🔗 Nexus Integration**: Bidirectional sync for verification subjects
 * **⚠️ Urgency Detection**: Automatic flagging of emergency keywords
 * **🔄 Smart Retry Logic**: Intelligent retry with failure-specific delays
 * **📊 Call Queue Management**: Multiple queues per geography
@@ -192,7 +192,7 @@ One unified flow for all health event types:
 1. Greeting → 2. Confirm Identity → 3. Confirm Visit → 4. Confirm Service →
 5. [Side Effects] → 6. [Satisfaction] → 7. Completion
 
-Event type from Clarity determines which confirmation message to use.
+Event type from Nexus determines which confirmation message to use.
 
 ### Authentication
 
@@ -219,7 +219,7 @@ All endpoints except webhooks require JWT authentication.
         },
         {
             "name": "Geographies",
-            "description": "Regional organization with Clarity integration and retention policies",
+            "description": "Regional organization with Nexus integration and retention policies",
         },
         {
             "name": "Call Queues",
@@ -231,7 +231,7 @@ All endpoints except webhooks require JWT authentication.
         },
         {
             "name": "Test Calls",
-            "description": "Test call endpoints, queue debugging, and Clarity sync",
+            "description": "Test call endpoints, queue debugging, and Nexus sync",
         },
         {
             "name": "Calls & Webhooks",
@@ -248,7 +248,7 @@ All endpoints except webhooks require JWT authentication.
     ]
 
     app = FastAPI(
-        title="Shifo Supervisor",
+        title="Acme Supervisor",
         description=description,
         version="1.0.0",
         lifespan=lifespan,

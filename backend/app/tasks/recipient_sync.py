@@ -2,15 +2,15 @@
 Celery task for syncing call results from CallRecord to Recipient.
 
 This task runs after a voice call completes to transfer conversation data
-from CallRecord to Recipient. It does NOT trigger Clarity sync - that happens
-separately via the clarity_push task after recording is uploaded.
+from CallRecord to Recipient. It does NOT trigger Nexus sync - that happens
+separately via the nexus_push task after recording is uploaded.
 
 Flow:
 1. Call completes -> sync_recipient_from_call runs
 2. Maps conversation data from CallRecord to Recipient
 3. Handles retry logic (RETRYING status) or marks as awaiting recording
 4. Recording upload completes -> recording_download sets READY_TO_SYNC
-5. Clarity push task picks up READY_TO_SYNC recipients
+5. Nexus push task picks up READY_TO_SYNC recipients
 """
 
 import asyncio
@@ -93,17 +93,17 @@ def sync_recipient_from_call(
     1. Map conversation data from CallRecord to Recipient.conversation_result
     2. Handle retry logic for failed calls
     3. Copy transcript to Recipient for reference
-    4. Set sync_status = PENDING (ready for Clarity push when recording arrives)
+    4. Set sync_status = PENDING (ready for Nexus push when recording arrives)
 
     NOTE: This task does NOT:
-    - Set terminal status (COMPLETED/FAILED) - that happens after Clarity sync
-    - Trigger Clarity sync - that happens via separate clarity_push task
+    - Set terminal status (COMPLETED/FAILED) - that happens after Nexus sync
+    - Trigger Nexus sync - that happens via separate nexus_push task
     - Generate recording URL - that happens in recording_download task
 
     The flow is:
     1. Call ends -> this task syncs data
     2. Recording uploads -> recording_download sets READY_TO_SYNC
-    3. Clarity push task picks up READY_TO_SYNC recipients
+    3. Nexus push task picks up READY_TO_SYNC recipients
 
     Args:
         call_record_id: CallRecord document ID
@@ -167,9 +167,9 @@ def sync_recipient_from_call(
             error_details=error_details,
         )
 
-        # 5. Override terminal statuses - don't go to terminal until Clarity sync
+        # 5. Override terminal statuses - don't go to terminal until Nexus sync
         # If call was successful (COMPLETED) or max retries reached (NOT_REACHABLE/FAILED),
-        # we need to wait for recording before syncing to Clarity
+        # we need to wait for recording before syncing to Nexus
         if recipient.status in {
             RecipientStatus.COMPLETED,
             RecipientStatus.FAILED,
@@ -191,7 +191,7 @@ def sync_recipient_from_call(
                 )
 
         # 6. Update additional Recipient fields
-        recipient.sync_status = SyncStatus.PENDING  # Ready for Clarity sync when READY_TO_SYNC
+        recipient.sync_status = SyncStatus.PENDING  # Ready for Nexus sync when READY_TO_SYNC
         recipient.urgency_flagged = call_record.urgency_flagged
         recipient.updated_at = datetime.now(timezone.utc)
 
@@ -209,8 +209,8 @@ def sync_recipient_from_call(
             f"satisfaction_rating={conversation_result.satisfaction_rating}"
         )
 
-        # NOTE: We do NOT trigger Clarity sync here anymore
-        # The clarity_push task will pick up READY_TO_SYNC recipients on its schedule
+        # NOTE: We do NOT trigger Nexus sync here anymore
+        # The nexus_push task will pick up READY_TO_SYNC recipients on its schedule
         # This prevents race conditions with recording upload
 
         return True

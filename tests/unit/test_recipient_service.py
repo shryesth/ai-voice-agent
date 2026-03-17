@@ -37,7 +37,7 @@ class TestRecipientServiceCreate:
     async def test_create_recipient_with_event_info(self, seeded_call_queue):
         """Test creating recipient with event information"""
         event_info = {
-            "clarity_verification_id": "test-123",
+            "nexus_verification_id": "test-123",
             "event_type": "Suivi des Enfants",
             "event_category": "child_vaccination",
             "confirmation_message_key": "child_vaccination_rr1",
@@ -55,7 +55,7 @@ class TestRecipientServiceCreate:
         )
 
         assert recipient.event_info is not None
-        assert recipient.event_info.clarity_verification_id == "test-123"
+        assert recipient.event_info.nexus_verification_id == "test-123"
 
     @pytest.mark.asyncio
     async def test_create_recipient_invalid_queue(self):

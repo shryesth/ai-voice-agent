@@ -46,8 +46,8 @@ class RetryStrategySchema(BaseModel):
     failed_delay: int = Field(default=900, description="15 min")
 
 
-class ClaritySyncConfigSchema(BaseModel):
-    """Configuration for Clarity sync."""
+class NexusSyncConfigSchema(BaseModel):
+    """Configuration for Nexus sync."""
 
     enabled: bool = Field(default=False)
     sync_interval_minutes: int = Field(default=5, ge=1, le=60)
@@ -87,7 +87,7 @@ class CallQueueCreate(BaseModel):
     max_concurrent_calls: int = Field(default=10, ge=1, le=100)
     time_windows: List[TimeWindowSchema] = Field(default_factory=list)
     retry_strategy: RetryStrategySchema = Field(default_factory=RetryStrategySchema)
-    clarity_sync: ClaritySyncConfigSchema = Field(default_factory=ClaritySyncConfigSchema)
+    nexus_sync: NexusSyncConfigSchema = Field(default_factory=NexusSyncConfigSchema)
 
 
 class CallQueueUpdate(BaseModel):
@@ -100,7 +100,7 @@ class CallQueueUpdate(BaseModel):
     max_concurrent_calls: Optional[int] = Field(default=None, ge=1, le=100)
     time_windows: Optional[List[TimeWindowSchema]] = None
     retry_strategy: Optional[RetryStrategySchema] = None
-    clarity_sync: Optional[ClaritySyncConfigSchema] = None
+    nexus_sync: Optional[NexusSyncConfigSchema] = None
 
 
 # Response schemas
@@ -119,7 +119,7 @@ class CallQueueResponse(BaseModel):
     max_concurrent_calls: int
     time_windows: List[TimeWindowSchema]
     retry_strategy: RetryStrategySchema
-    clarity_sync: ClaritySyncConfigSchema
+    nexus_sync: NexusSyncConfigSchema
     stats: QueueStatsSchema
     created_at: datetime
     updated_at: datetime
@@ -165,13 +165,13 @@ class CallQueueStateChangeResponse(BaseModel):
 
 
 class CallQueueSyncResponse(BaseModel):
-    """Response schema for manual Clarity sync."""
+    """Response schema for manual Nexus sync."""
 
     queue_id: str
     queue_name: str
     synced_count: int = Field(
         ...,
-        description="Number of new recipients synced from Clarity"
+        description="Number of new recipients synced from Nexus"
     )
     last_sync_at: Optional[datetime] = Field(
         default=None,
@@ -216,7 +216,7 @@ def queue_to_response(queue, include_stats: bool = True) -> CallQueueResponse:
             TimeWindowSchema(**tw.model_dump()) for tw in queue.time_windows
         ],
         retry_strategy=RetryStrategySchema(**queue.retry_strategy.model_dump()),
-        clarity_sync=ClaritySyncConfigSchema(**queue.clarity_sync.model_dump()),
+        nexus_sync=NexusSyncConfigSchema(**queue.nexus_sync.model_dump()),
         stats=QueueStatsSchema(**queue.stats.model_dump()) if include_stats else QueueStatsSchema(),
         created_at=queue.created_at,
         updated_at=queue.updated_at,

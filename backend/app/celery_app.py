@@ -43,7 +43,7 @@ celery_app = Celery(
 
 # Queue names for task routing
 QUEUE_CALLS = "calls"  # Call execution - initiate, handle, recording
-QUEUE_CLARITY = "clarity"  # Clarity sync - pull subjects, push results
+QUEUE_NEXUS = "nexus"  # Nexus sync - pull subjects, push results
 QUEUE_POSTPROCESSING = "postprocessing"  # Translation, analytics
 
 # Celery configuration
@@ -77,7 +77,7 @@ celery_app.conf.update(
     # Queue configuration - separate queues for different concerns
     task_queues={
         QUEUE_CALLS: {"exchange": QUEUE_CALLS, "routing_key": QUEUE_CALLS},
-        QUEUE_CLARITY: {"exchange": QUEUE_CLARITY, "routing_key": QUEUE_CLARITY},
+        QUEUE_NEXUS: {"exchange": QUEUE_NEXUS, "routing_key": QUEUE_NEXUS},
         QUEUE_POSTPROCESSING: {"exchange": QUEUE_POSTPROCESSING, "routing_key": QUEUE_POSTPROCESSING},
     },
     task_default_queue=QUEUE_CALLS,
@@ -91,10 +91,10 @@ celery_app.conf.update(
         "retry_recording_from_fallback": {"queue": QUEUE_CALLS},
         "process_campaign_queues": {"queue": QUEUE_CALLS},
         "tasks.sync_recipient_from_call": {"queue": QUEUE_CALLS},
-        # Clarity sync tasks -> clarity queue (separate from call execution)
-        "tasks.sync_clarity_subjects": {"queue": QUEUE_CLARITY},
-        "tasks.sync_all_queues_from_clarity": {"queue": QUEUE_CLARITY},
-        "tasks.push_ready_recipients_to_clarity": {"queue": QUEUE_CLARITY},
+        # Nexus sync tasks -> nexus queue (separate from call execution)
+        "tasks.sync_nexus_subjects": {"queue": QUEUE_NEXUS},
+        "tasks.sync_all_queues_from_nexus": {"queue": QUEUE_NEXUS},
+        "tasks.push_ready_recipients_to_nexus": {"queue": QUEUE_NEXUS},
         # Post-processing tasks -> postprocessing queue
         "translate_transcript": {"queue": QUEUE_POSTPROCESSING},
     },
@@ -109,20 +109,20 @@ celery_app.conf.update(
                 "queue": QUEUE_CALLS,
             },
         },
-        "sync-clarity-queues": {
-            "task": "tasks.sync_all_queues_from_clarity",
+        "sync-nexus-queues": {
+            "task": "tasks.sync_all_queues_from_nexus",
             "schedule": 60.0,  # Every 60 seconds
             "options": {
                 "expires": 55,  # Prevent overlap
-                "queue": QUEUE_CLARITY,
+                "queue": QUEUE_NEXUS,
             },
         },
-        "push-clarity-results": {
-            "task": "tasks.push_ready_recipients_to_clarity",
+        "push-nexus-results": {
+            "task": "tasks.push_ready_recipients_to_nexus",
             "schedule": 45.0,  # Every 45 seconds - check for ready_to_sync recipients
             "options": {
                 "expires": 40,  # Prevent overlap
-                "queue": QUEUE_CLARITY,
+                "queue": QUEUE_NEXUS,
             },
         },
     },

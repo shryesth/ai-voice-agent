@@ -37,8 +37,8 @@ from backend.app.schemas.test_call import (
     QueueDebugResponse,
     ForceProcessRequest,
     ForceProcessResponse,
-    SyncClarityRequest,
-    SyncClarityResponse,
+    SyncNexusRequest,
+    SyncNexusResponse,
     TriggerCallRequest,
     TriggerCallResponse,
 )
@@ -278,8 +278,8 @@ async def get_queue_debug(
         is_within_time_window=is_within,
         current_time_utc=datetime.now(timezone.utc).strftime("%H:%M"),
         time_windows=[tw.model_dump() for tw in queue.time_windows],
-        clarity_sync_enabled=queue.clarity_sync.enabled,
-        last_clarity_sync=queue.clarity_sync.last_sync_at.isoformat() if queue.clarity_sync.last_sync_at else None,
+        nexus_sync_enabled=queue.nexus_sync.enabled,
+        last_nexus_sync=queue.nexus_sync.last_sync_at.isoformat() if queue.nexus_sync.last_sync_at else None,
         pending_recipients=pending,
         calling_recipients=calling,
         retrying_recipients=retrying,
@@ -375,18 +375,18 @@ async def force_process_queue(
     )
 
 
-@router.post("/queues/{queue_id}/sync-clarity", response_model=SyncClarityResponse)
-async def sync_clarity(
+@router.post("/queues/{queue_id}/sync-nexus", response_model=SyncNexusResponse)
+async def sync_nexus(
     queue_id: str,
-    data: SyncClarityRequest = None,
+    data: SyncNexusRequest = None,
     current_user=Depends(require_admin),
 ):
     """
-    Force Clarity sync for a queue.
+    Force Nexus sync for a queue.
 
     Admin only.
     """
-    from backend.app.services.clarity_service import get_clarity_service
+    from backend.app.services.nexus_service import get_nexus_service
 
     queue = await call_queue_service.get_queue_by_id(queue_id)
     if not queue:
@@ -395,32 +395,32 @@ async def sync_clarity(
     direction = data.direction if data else "both"
     max_count = data.max_count if data else 100
 
-    # Get Clarity service
+    # Get Nexus service
     geography = await Geography.get(queue.geography_id)
-    if not geography or not geography.clarity_config.enabled:
-        raise HTTPException(status_code=400, detail="Clarity not configured for this geography")
+    if not geography or not geography.nexus_config.enabled:
+        raise HTTPException(status_code=400, detail="Nexus not configured for this geography")
 
-    clarity_service = await get_clarity_service(str(geography.id))
-    if not clarity_service:
-        raise HTTPException(status_code=400, detail="Failed to initialize Clarity service")
+    nexus_service = await get_nexus_service(str(geography.id))
+    if not nexus_service:
+        raise HTTPException(status_code=400, detail="Failed to initialize Nexus service")
 
     pulled_count = 0
     pushed_count = 0
     errors = []
 
-    # Pull from Clarity
+    # Pull from Nexus
     if direction in ("pull", "both"):
         try:
-            recipients = await clarity_service.pull_verification_subjects(
+            recipients = await nexus_service.pull_verification_subjects(
                 queue=queue,
                 max_count=max_count,
-                event_type_filter=queue.clarity_sync.event_type_filter,
+                event_type_filter=queue.nexus_sync.event_type_filter,
             )
             pulled_count = len(recipients)
         except Exception as e:
             errors.append(f"Pull failed: {e}")
 
-    # Push to Clarity
+    # Push to Nexus
     if direction in ("push", "both"):
         try:
             # Find completed recipients not yet synced
@@ -436,7 +436,7 @@ async def sync_clarity(
 
             for recipient in completed:
                 try:
-                    await clarity_service.push_verification_result(recipient)
+                    await nexus_service.push_verification_result(recipient)
                     pushed_count += 1
                 except Exception as e:
                     errors.append(f"Push failed for {recipient.id}: {e}")
@@ -444,7 +444,7 @@ async def sync_clarity(
         except Exception as e:
             errors.append(f"Push query failed: {e}")
 
-    return SyncClarityResponse(
+    return SyncNexusResponse(
         queue_id=queue_id,
         direction=direction,
         pulled_count=pulled_count,

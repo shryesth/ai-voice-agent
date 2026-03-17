@@ -187,9 +187,9 @@ class CallEntryRepository:
             await self.collection.create_index("scheduled_for")
             await self.collection.create_index("retry_scheduled_at")
             await self.collection.create_index([("queue_id", 1), ("status", 1)])
-            # Index for Clarity verification ID lookups (sparse to only index docs with this field)
+            # Index for Nexus verification ID lookups (sparse to only index docs with this field)
             await self.collection.create_index(
-                [("queue_id", 1), ("metadata.clarity_verification_id", 1)],
+                [("queue_id", 1), ("metadata.nexus_verification_id", 1)],
                 sparse=True,
             )
             logger.info(f"Created indexes for {self.COLLECTION_NAME} collection")
@@ -250,11 +250,11 @@ class CallEntryRepository:
         external_id_value: Any,
     ) -> Optional[CallEntry]:
         """
-        Find a call entry by external ID (e.g., Clarity verification ID).
+        Find a call entry by external ID (e.g., Nexus verification ID).
 
         Args:
             queue_id: Queue ID to search within
-            external_id_field: Dot-notation field path (e.g., "metadata.clarity_verification_id")
+            external_id_field: Dot-notation field path (e.g., "metadata.nexus_verification_id")
             external_id_value: Value to match
 
         Returns:

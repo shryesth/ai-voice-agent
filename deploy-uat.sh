@@ -1,6 +1,6 @@
 #!/bin/bash
 # UAT Deployment Script for CapRover
-# Deploys backend, worker, and beat services to shifo-supervisor-uat project
+# Deploys backend, worker, and beat services to acme-supervisor-uat project
 
 set -e
 
@@ -42,16 +42,16 @@ EOF
 }
 
 # Deploy Backend
-deploy_service "Backend" "shifo-supervisor-uat-backend" "./docker/Dockerfile.api"
+deploy_service "Backend" "acme-supervisor-uat-backend" "./docker/Dockerfile.api"
 
 # Deploy Worker
-deploy_service "Worker" "shifo-supervisor-uat-worker" "./docker/Dockerfile.worker"
+deploy_service "Worker" "acme-supervisor-uat-worker" "./docker/Dockerfile.worker"
 
 # Deploy Beat
-deploy_service "Beat" "shifo-supervisor-uat-beat" "./docker/Dockerfile.beat"
+deploy_service "Beat" "acme-supervisor-uat-beat" "./docker/Dockerfile.beat"
 
 echo ""
 echo "=========================================="
 echo "UAT DEPLOYMENT COMPLETE!"
-echo "Backend: https://shifo-supervisor-uat-backend.ss-apps.shifo.org"
+echo "Backend: https://acme-supervisor-uat-backend.ss-apps.acme.org"
 echo "=========================================="

@@ -1,10 +1,10 @@
 """
-Geography model with RetentionPolicy and ClarityConfig for regional organization.
+Geography model with RetentionPolicy and NexusConfig for regional organization.
 
 This model represents geographic regions or operational units that contain call queues.
 Each geography can have:
 - Configurable data retention policies for compliance
-- Clarity API integration configuration
+- Nexus API integration configuration
 - Timezone and language settings
 """
 
@@ -52,35 +52,35 @@ class RetentionPolicy(BaseModel):
         }
 
 
-class ClarityConfig(BaseModel):
+class NexusConfig(BaseModel):
     """
-    Clarity API integration configuration for this geography.
+    Nexus API integration configuration for this geography.
 
-    Enables bidirectional sync with Clarity:
+    Enables bidirectional sync with Nexus:
     - Pull: Fetch verification subjects to call
     - Push: Update verification status after calls
     """
 
     enabled: bool = Field(
         default=False,
-        description="Whether Clarity integration is enabled",
+        description="Whether Nexus integration is enabled",
     )
     api_url: str = Field(
         default="",
-        description="Clarity API base URL",
+        description="Nexus API base URL",
     )
     api_key: Optional[str] = Field(
         default=None,
-        description="Clarity API key (stored securely)",
+        description="Nexus API key (stored securely)",
     )
     organization_id: Optional[str] = Field(
         default=None,
-        description="Clarity organization ID",
+        description="Nexus organization ID",
     )
     # Event type to CallType mapping
     event_type_mapping: Dict[str, str] = Field(
         default_factory=dict,
-        description="Map Clarity event types to CallType values",
+        description="Map Nexus event types to CallType values",
     )
     # Which event types to skip (NO_CALL events like TB, HIV)
     skip_event_types: List[str] = Field(
@@ -90,11 +90,11 @@ class ClarityConfig(BaseModel):
     # Sync settings
     auto_push_results: bool = Field(
         default=True,
-        description="Automatically push results to Clarity after calls",
+        description="Automatically push results to Nexus after calls",
     )
     include_recording_url: bool = Field(
         default=True,
-        description="Include recording URL in Clarity push",
+        description="Include recording URL in Nexus push",
     )
     default_country_code: str = Field(
         default="509",
@@ -105,7 +105,7 @@ class ClarityConfig(BaseModel):
         json_schema_extra = {
             "example": {
                 "enabled": True,
-                "api_url": "https://clarity.shifo.org/api/v1",
+                "api_url": "https://nexus.acme.org/api/v1",
                 "organization_id": "haiti-moh",
                 "event_type_mapping": {
                     "Suivi des Enfants": "patient_feedback",
@@ -125,7 +125,7 @@ class Geography(Document):
 
     Each geography represents a deployment region (e.g., Haiti, Honduras)
     with its own configuration for:
-    - Clarity integration
+    - Nexus integration
     - Data retention
     - Timezone and language settings
 
@@ -161,10 +161,10 @@ class Geography(Document):
         description="List of supported language codes",
     )
 
-    # Clarity integration configuration
-    clarity_config: ClarityConfig = Field(
-        default_factory=ClarityConfig,
-        description="Clarity API integration settings",
+    # Nexus integration configuration
+    nexus_config: NexusConfig = Field(
+        default_factory=NexusConfig,
+        description="Nexus API integration settings",
     )
 
     # Configurable retention policy
@@ -210,9 +210,9 @@ class Geography(Document):
                 "timezone": "America/Port-au-Prince",
                 "default_language": "ht",
                 "supported_languages": ["ht", "fr", "en"],
-                "clarity_config": {
+                "nexus_config": {
                     "enabled": True,
-                    "api_url": "https://clarity.shifo.org/api/v1",
+                    "api_url": "https://nexus.acme.org/api/v1",
                     "organization_id": "haiti-moh",
                     "auto_push_results": True,
                 },
@@ -223,7 +223,7 @@ class Geography(Document):
                     "compliance_notes": "HIPAA requires 7-year retention"
                 },
                 "metadata": {
-                    "contact_email": "ops-haiti@shifo.org"
+                    "contact_email": "ops-haiti@acme.org"
                 }
             }
         }

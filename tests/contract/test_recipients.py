@@ -27,7 +27,7 @@ class TestRecipientCreate:
                 "language": "en",
                 "priority": 0,
                 "event_info": {
-                    "clarity_verification_id": "test-123",
+                    "nexus_verification_id": "test-123",
                     "event_type": "Suivi des Enfants",
                     "event_category": "child_vaccination",
                     "confirmation_message_key": "child_vaccination_rr1",

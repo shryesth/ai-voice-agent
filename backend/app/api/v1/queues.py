@@ -61,7 +61,7 @@ async def create_queue(
             max_concurrent_calls=data.max_concurrent_calls,
             time_windows=[tw.model_dump() for tw in data.time_windows],
             retry_strategy=data.retry_strategy.model_dump(),
-            clarity_sync=data.clarity_sync.model_dump(),
+            nexus_sync=data.nexus_sync.model_dump(),
         )
         return queue_to_response(queue)
     except ValueError as e:
@@ -299,8 +299,8 @@ async def refresh_queue_stats(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.post("/{queue_id}/sync-clarity", response_model=CallQueueSyncResponse)
-async def sync_queue_from_clarity(
+@router.post("/{queue_id}/sync-nexus", response_model=CallQueueSyncResponse)
+async def sync_queue_from_nexus(
     queue_id: str,
     max_count: Optional[int] = Query(
         default=None,
@@ -311,7 +311,7 @@ async def sync_queue_from_clarity(
     current_user=Depends(require_admin),
 ):
     """
-    Manually trigger Clarity sync for a queue.
+    Manually trigger Nexus sync for a queue.
 
     This endpoint allows immediate sync regardless of sync_interval_minutes.
     Useful for testing or when urgent sync is needed.
@@ -322,11 +322,11 @@ async def sync_queue_from_clarity(
     if not queue:
         raise HTTPException(status_code=404, detail="Queue not found")
 
-    # Verify queue is configured for Clarity sync
-    if not queue.clarity_sync.enabled:
+    # Verify queue is configured for Nexus sync
+    if not queue.nexus_sync.enabled:
         raise HTTPException(
             status_code=400,
-            detail="Clarity sync is not enabled for this queue"
+            detail="Nexus sync is not enabled for this queue"
         )
 
     # Verify queue is ACTIVE or PAUSED
@@ -337,8 +337,8 @@ async def sync_queue_from_clarity(
         )
 
     # Trigger sync task
-    from backend.app.tasks.clarity_sync import sync_clarity_subjects
-    task = sync_clarity_subjects.delay(queue_id, max_count)
+    from backend.app.tasks.nexus_sync import sync_nexus_subjects
+    task = sync_nexus_subjects.delay(queue_id, max_count)
 
     # Wait for result (with timeout)
     try:
@@ -351,12 +351,12 @@ async def sync_queue_from_clarity(
             queue_id=str(queue.id),
             queue_name=queue.name,
             synced_count=result_count,
-            last_sync_at=queue.clarity_sync.last_sync_at,
-            last_sync_count=queue.clarity_sync.last_sync_count,
+            last_sync_at=queue.nexus_sync.last_sync_at,
+            last_sync_count=queue.nexus_sync.last_sync_count,
             task_id=task.id,
         )
     except Exception as e:
-        logger.error(f"Clarity sync failed for queue {queue_id}: {e}")
+        logger.error(f"Nexus sync failed for queue {queue_id}: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Sync failed: {str(e)}"

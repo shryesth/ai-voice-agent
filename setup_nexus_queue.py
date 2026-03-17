@@ -1,17 +1,17 @@
 """
 Setup script to:
-1. Create a geography with Clarity mock server integration
+1. Create a geography with Nexus mock server integration
 2. Create a 24x7 FOREVER queue
-3. Sync data from Clarity
+3. Sync data from Nexus
 4. Activate queue and trigger initial sync
 
 Prerequisites:
 - API server running at http://localhost:3000
-- Clarity mock server running at http://localhost:8001
+- Nexus mock server running at http://localhost:8001
 - MongoDB, Redis, and Celery worker running
 - Admin user exists (default: admin@example.com / admin123)
 
-Note: The Clarity API key must match the one in clarity_mock_server/main.py (VALID_API_KEY).
+Note: The Nexus API key must match the one in nexus_mock_server/main.py (VALID_API_KEY).
 """
 
 import asyncio
@@ -21,10 +21,10 @@ from datetime import datetime
 # Configuration
 BASE_URL = "http://localhost:3000"
 # Use host.docker.internal for Docker containers to access host machine
-CLARITY_URL_EXTERNAL = "http://localhost:8001/api/v1/hmis"  # For external access
-CLARITY_URL_DOCKER = "http://host.docker.internal:8001/api/v1/hmis"  # For Docker containers
-# API key must match the one in clarity_mock_server/main.py (VALID_API_KEY)
-CLARITY_API_KEY = "mock-api-key-12345"
+NEXUS_URL_EXTERNAL = "http://localhost:8001/api/v1/hmis"  # For external access
+NEXUS_URL_DOCKER = "http://host.docker.internal:8001/api/v1/hmis"  # For Docker containers
+# API key must match the one in nexus_mock_server/main.py (VALID_API_KEY)
+NEXUS_API_KEY = "mock-api-key-12345"
 
 # Admin credentials (default bootstrap admin)
 ADMIN_EMAIL = "admin@local.com"
@@ -44,23 +44,23 @@ async def login() -> str:
 
 
 async def create_geography(token: str) -> str:
-    """Create a geography with Clarity config."""
+    """Create a geography with Nexus config."""
     headers = {"Authorization": f"Bearer {token}"}
 
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
     geography_data = {
-        "name": f"Test Geography - Clarity {timestamp}",
-        "description": "Test geography with Clarity mock server integration",
+        "name": f"Test Geography - Nexus {timestamp}",
+        "description": "Test geography with Nexus mock server integration",
         "region_code": "TEST",
         "timezone": "UTC",
         "default_language": "en",
         "supported_languages": ["en", "es", "fr", "ht"],
-        "clarity_config": {
+        "nexus_config": {
             "enabled": True,
-            "api_url": CLARITY_URL_DOCKER,  # Use Docker-accessible URL
-            "api_key": CLARITY_API_KEY,
+            "api_url": NEXUS_URL_DOCKER,  # Use Docker-accessible URL
+            "api_key": NEXUS_API_KEY,
             "organization_id": "test-org",
             "event_type_mapping": {},
             "skip_event_types": [],
@@ -89,12 +89,12 @@ async def create_geography(token: str) -> str:
 
 
 async def create_forever_queue(token: str, geography_id: str) -> str:
-    """Create a 24x7 FOREVER queue with Clarity sync."""
+    """Create a 24x7 FOREVER queue with Nexus sync."""
     headers = {"Authorization": f"Bearer {token}"}
 
     queue_data = {
-        "name": "24x7 Forever Queue - Clarity Sync",
-        "description": "Continuous queue syncing from Clarity mock server",
+        "name": "24x7 Forever Queue - Nexus Sync",
+        "description": "Continuous queue syncing from Nexus mock server",
         "mode": "forever",  # FOREVER mode for continuous operation
         "call_type": "patient_feedback",
         "default_language": "en",
@@ -107,7 +107,7 @@ async def create_forever_queue(token: str, geography_id: str) -> str:
             "busy_delay": 3600,
             "voicemail_delay": 7200,
         },
-        "clarity_sync": {
+        "nexus_sync": {
             "enabled": True,
             "sync_interval_minutes": 5,  # Sync every 5 minutes
             "max_per_sync": 100,
@@ -156,18 +156,18 @@ async def activate_queue(token: str, queue_id: str):
         print(f"✓ Queue activated: {result['new_state']}")
 
 
-async def trigger_clarity_sync(token: str, queue_id: str):
-    """Manually trigger a Clarity sync."""
+async def trigger_nexus_sync(token: str, queue_id: str):
+    """Manually trigger a Nexus sync."""
     headers = {"Authorization": f"Bearer {token}"}
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{BASE_URL}/api/v1/{queue_id}/sync-clarity",
+            f"{BASE_URL}/api/v1/{queue_id}/sync-nexus",
             headers=headers,
         )
         response.raise_for_status()
         result = response.json()
-        print(f"✓ Clarity sync triggered: {result['synced_count']} recipients synced")
+        print(f"✓ Nexus sync triggered: {result['synced_count']} recipients synced")
         print(f"  Task ID: {result['task_id']}")
         return result
 
@@ -217,50 +217,50 @@ async def list_recipients(token: str, queue_id: str):
                 print(f"    Event: {recipient['event_info'].get('event_type', 'N/A')}")
 
 
-async def check_clarity_mock_server():
-    """Verify Clarity mock server is running and API key is valid."""
+async def check_nexus_mock_server():
+    """Verify Nexus mock server is running and API key is valid."""
     try:
         async with httpx.AsyncClient() as client:
             # Check health endpoint
-            response = await client.get(f"{CLARITY_URL_EXTERNAL}/health")
+            response = await client.get(f"{NEXUS_URL_EXTERNAL}/health")
             response.raise_for_status()
-            print(f"✓ Clarity mock server is running at {CLARITY_URL_EXTERNAL}")
+            print(f"✓ Nexus mock server is running at {NEXUS_URL_EXTERNAL}")
 
             # Verify API key works
-            headers = {"X-API-Key": CLARITY_API_KEY}
+            headers = {"X-API-Key": NEXUS_API_KEY}
             response = await client.get(
-                f"{CLARITY_URL_EXTERNAL}/api/v1/hmis/client-visits/verification",
+                f"{NEXUS_URL_EXTERNAL}/api/v1/hmis/client-visits/verification",
                 headers=headers,
                 params={"page": 1, "pageSize": 1}
             )
             response.raise_for_status()
-            print(f"✓ Clarity mock server is running at {CLARITY_URL_EXTERNAL}")
-            print(f"✓ Clarity API key is valid: {CLARITY_API_KEY}")
+            print(f"✓ Nexus mock server is running at {NEXUS_URL_EXTERNAL}")
+            print(f"✓ Nexus API key is valid: {NEXUS_API_KEY}")
             return True
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 401:
-            print(f"✗ Clarity API key is invalid!")
-            print(f"  Current key: {CLARITY_API_KEY}")
-            print(f"  Expected key in clarity_mock_server/main.py: mock-api-key-12345")
+            print(f"✗ Nexus API key is invalid!")
+            print(f"  Current key: {NEXUS_API_KEY}")
+            print(f"  Expected key in nexus_mock_server/main.py: mock-api-key-12345")
         else:
-            print(f"✗ Clarity mock server error: {e}")
+            print(f"✗ Nexus mock server error: {e}")
         return False
     except Exception as e:
-        print(f"✗ Clarity mock server is not accessible: {e}")
-        print(f"  Please start it with: python clarity_mock_server/main.py")
+        print(f"✗ Nexus mock server is not accessible: {e}")
+        print(f"  Please start it with: python nexus_mock_server/main.py")
         return False
 
 
 async def main():
     """Main setup flow."""
     print("=" * 60)
-    print("🚀 Setting up Clarity-integrated 24x7 Forever Queue")
+    print("🚀 Setting up Nexus-integrated 24x7 Forever Queue")
     print("=" * 60)
     print()
 
-    # Step 0: Check Clarity mock server
-    print("Step 0: Verifying Clarity mock server...")
-    if not await check_clarity_mock_server():
+    # Step 0: Check Nexus mock server
+    print("Step 0: Verifying Nexus mock server...")
+    if not await check_nexus_mock_server():
         return
     print()
 
@@ -278,7 +278,7 @@ async def main():
     print()
 
     # Step 2: Create geography
-    print("Step 2: Creating geography with Clarity config...")
+    print("Step 2: Creating geography with Nexus config...")
     try:
         geography_id = await create_geography(token)
     except Exception as e:
@@ -304,12 +304,12 @@ async def main():
         return
     print()
 
-    # Step 5: Trigger Clarity sync
-    print("Step 5: Triggering Clarity sync...")
+    # Step 5: Trigger Nexus sync
+    print("Step 5: Triggering Nexus sync...")
     try:
-        sync_result = await trigger_clarity_sync(token, queue_id)
+        sync_result = await trigger_nexus_sync(token, queue_id)
     except Exception as e:
-        print(f"✗ Failed to sync from Clarity: {e}")
+        print(f"✗ Failed to sync from Nexus: {e}")
         import traceback
         traceback.print_exc()
         print("\nNote: Sync failed but queue is active. Celery Beat will retry automatically every 5 minutes.")
@@ -346,20 +346,20 @@ async def main():
     print("=" * 60)
     print(f"Geography ID: {geography_id}")
     print(f"Queue ID: {queue_id}")
-    print(f"Clarity URL (external): {CLARITY_URL_EXTERNAL}")
-    print(f"Clarity URL (Docker): {CLARITY_URL_DOCKER}")
+    print(f"Nexus URL (external): {NEXUS_URL_EXTERNAL}")
+    print(f"Nexus URL (Docker): {NEXUS_URL_DOCKER}")
     print(f"API URL: {BASE_URL}")
     print()
     print("The queue is now active and will:")
     print("  • Run 24x7 (no time window restrictions)")
-    print("  • Sync from Clarity every 5 minutes automatically")
+    print("  • Sync from Nexus every 5 minutes automatically")
     print("  • Process up to 5 concurrent calls")
     print("  • Retry failed calls with exponential backoff")
     print()
     print("Monitor the queue:")
     print(f"  • Queue status: GET {BASE_URL}/api/v1/{queue_id}/status")
     print(f"  • Recipients: GET {BASE_URL}/api/v1/recipients/queues/{queue_id}/recipients")
-    print(f"  • Manual sync: POST {BASE_URL}/api/v1/{queue_id}/sync-clarity")
+    print(f"  • Manual sync: POST {BASE_URL}/api/v1/{queue_id}/sync-nexus")
     print()
 
 

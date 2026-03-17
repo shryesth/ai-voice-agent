@@ -1,31 +1,31 @@
 """
-Unit tests for ClarityService.
+Unit tests for NexusService.
 
-Tests service logic for Clarity API integration and bidirectional sync.
+Tests service logic for Nexus API integration and bidirectional sync.
 """
 
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
-from backend.app.services.clarity_service import ClarityService
+from backend.app.services.nexus_service import NexusService
 from backend.app.models.enums import RecipientStatus
 
 
 @pytest.mark.unit
-class TestClarityServiceConnection:
-    """Test Clarity API connection"""
+class TestNexusServiceConnection:
+    """Test Nexus API connection"""
 
     @pytest.mark.asyncio
-    async def test_clarity_service_initialization(self):
-        """Test ClarityService initialization"""
-        # ClarityService should be properly initialized
-        service = ClarityService()
+    async def test_nexus_service_initialization(self):
+        """Test NexusService initialization"""
+        # NexusService should be properly initialized
+        service = NexusService()
         assert service is not None
 
     @pytest.mark.asyncio
     async def test_test_connection_success(self):
-        """Test successful Clarity connection test"""
-        service = ClarityService()
+        """Test successful Nexus connection test"""
+        service = NexusService()
 
         # Mock the HTTP client
         with patch.object(service, '_client') as mock_client:
@@ -38,13 +38,13 @@ class TestClarityServiceConnection:
 
 
 @pytest.mark.unit
-class TestClarityServiceVerificationPull:
-    """Test pulling verification subjects from Clarity"""
+class TestNexusServiceVerificationPull:
+    """Test pulling verification subjects from Nexus"""
 
     @pytest.mark.asyncio
     async def test_pull_verification_subjects_structure(self):
         """Test that pull returns correct structure"""
-        service = ClarityService()
+        service = NexusService()
 
         # Verify method exists and is callable
         assert hasattr(service, 'pull_verification_subjects')
@@ -52,14 +52,14 @@ class TestClarityServiceVerificationPull:
 
     @pytest.mark.asyncio
     async def test_pull_verification_subjects_mock_data(self):
-        """Test pulling with mocked Clarity data"""
-        service = ClarityService()
+        """Test pulling with mocked Nexus data"""
+        service = NexusService()
 
-        # Mock data structure from Clarity
+        # Mock data structure from Nexus
         mock_response = {
             "verifications": [
                 {
-                    "id": "clarity-123",
+                    "id": "nexus-123",
                     "status": "IN_PROGRESS",
                     "event_type": "Suivi des Enfants",
                     "phone": "+50912345678",
@@ -75,26 +75,26 @@ class TestClarityServiceVerificationPull:
 
 
 @pytest.mark.unit
-class TestClarityServiceEventTypeMapping:
-    """Test event type mapping from Clarity to internal categories"""
+class TestNexusServiceEventTypeMapping:
+    """Test event type mapping from Nexus to internal categories"""
 
     @pytest.mark.asyncio
     async def test_map_event_type_child_vaccination(self):
         """Test mapping child vaccination event type"""
-        service = ClarityService()
+        service = NexusService()
 
         # Verify the service has event type configuration
         assert hasattr(service, 'event_type_config')
 
 
 @pytest.mark.unit
-class TestClarityServicePhoneNormalization:
-    """Test phone number normalization for Clarity"""
+class TestNexusServicePhoneNormalization:
+    """Test phone number normalization for Nexus"""
 
     @pytest.mark.asyncio
     async def test_normalize_phone_e164_format(self):
         """Test phone normalization to E.164 format"""
-        service = ClarityService()
+        service = NexusService()
 
         # Mock phone normalization
         test_cases = [
@@ -108,13 +108,13 @@ class TestClarityServicePhoneNormalization:
 
 
 @pytest.mark.unit
-class TestClarityServiceResultPush:
-    """Test pushing call results back to Clarity"""
+class TestNexusServiceResultPush:
+    """Test pushing call results back to Nexus"""
 
     @pytest.mark.asyncio
     async def test_push_verification_result_success(self):
-        """Test pushing successful call result to Clarity"""
-        service = ClarityService()
+        """Test pushing successful call result to Nexus"""
+        service = NexusService()
 
         # Verify method exists
         assert hasattr(service, 'push_verification_result')
@@ -122,8 +122,8 @@ class TestClarityServiceResultPush:
 
     @pytest.mark.asyncio
     async def test_push_result_status_mapping(self):
-        """Test mapping recipient status to Clarity status"""
-        service = ClarityService()
+        """Test mapping recipient status to Nexus status"""
+        service = NexusService()
 
         # Status mappings we expect
         status_mappings = {
@@ -133,19 +133,19 @@ class TestClarityServiceResultPush:
         }
 
         # Verify these statuses are handled
-        for internal_status, clarity_status in status_mappings.items():
+        for internal_status, nexus_status in status_mappings.items():
             assert internal_status is not None
-            assert clarity_status is not None
+            assert nexus_status is not None
 
 
 @pytest.mark.unit
-class TestClarityServiceConversationResultExtraction:
-    """Test extracting conversation results for Clarity push"""
+class TestNexusServiceConversationResultExtraction:
+    """Test extracting conversation results for Nexus push"""
 
     @pytest.mark.asyncio
     async def test_extract_side_effects_from_transcript(self):
         """Test extracting side effects information from call transcript"""
-        service = ClarityService()
+        service = NexusService()
 
         # Mock transcript data
         mock_result = {
@@ -161,28 +161,28 @@ class TestClarityServiceConversationResultExtraction:
     @pytest.mark.asyncio
     async def test_extract_urgency_from_transcript(self):
         """Test extracting urgency information from transcript"""
-        service = ClarityService()
+        service = NexusService()
 
         # Verify method would exist
         assert service is not None
 
 
 @pytest.mark.unit
-class TestClarityServiceErrorHandling:
-    """Test error handling in Clarity operations"""
+class TestNexusServiceErrorHandling:
+    """Test error handling in Nexus operations"""
 
     @pytest.mark.asyncio
     async def test_handle_connection_error(self):
-        """Test handling Clarity API connection errors"""
-        service = ClarityService()
+        """Test handling Nexus API connection errors"""
+        service = NexusService()
 
         # Verify service is resilient
         assert service is not None
 
     @pytest.mark.asyncio
     async def test_handle_malformed_response(self):
-        """Test handling malformed Clarity responses"""
-        service = ClarityService()
+        """Test handling malformed Nexus responses"""
+        service = NexusService()
 
         # Mock malformed data
         mock_bad_response = {
@@ -194,26 +194,26 @@ class TestClarityServiceErrorHandling:
 
 
 @pytest.mark.unit
-class TestClarityServiceRetryLogic:
-    """Test retry logic for Clarity API calls"""
+class TestNexusServiceRetryLogic:
+    """Test retry logic for Nexus API calls"""
 
     @pytest.mark.asyncio
     async def test_retry_on_transient_error(self):
         """Test retrying on transient errors"""
-        service = ClarityService()
+        service = NexusService()
 
         # Verify service has retry capabilities
         assert service is not None
 
 
 @pytest.mark.unit
-class TestClarityServiceBulkOperations:
-    """Test bulk operations with Clarity"""
+class TestNexusServiceBulkOperations:
+    """Test bulk operations with Nexus"""
 
     @pytest.mark.asyncio
     async def test_batch_pull_verifications(self):
         """Test pulling batch of verifications"""
-        service = ClarityService()
+        service = NexusService()
 
         # Verify method exists
         assert hasattr(service, 'pull_verification_subjects')
@@ -221,20 +221,20 @@ class TestClarityServiceBulkOperations:
     @pytest.mark.asyncio
     async def test_batch_push_results(self):
         """Test pushing batch of results"""
-        service = ClarityService()
+        service = NexusService()
 
         # Verify method exists
         assert hasattr(service, 'push_verification_result')
 
 
 @pytest.mark.unit
-class TestClarityServiceRateLimiting:
-    """Test rate limiting for Clarity API"""
+class TestNexusServiceRateLimiting:
+    """Test rate limiting for Nexus API"""
 
     @pytest.mark.asyncio
     async def test_rate_limit_handling(self):
-        """Test handling Clarity API rate limits"""
-        service = ClarityService()
+        """Test handling Nexus API rate limits"""
+        service = NexusService()
 
         # Verify service can be called repeatedly
         assert service is not None

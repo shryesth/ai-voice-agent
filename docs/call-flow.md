@@ -102,9 +102,9 @@ Call End Flow - Chronological Timeline
   CallRecord.english_translation fields updated:
   - status, source_language, messages[], completed_at, attempts
 
-  Phase 7: Clarity Sync (Scheduled every 60s)
+  Phase 7: Nexus Sync (Scheduled every 60s)
 
-  Task: sync_results_to_clarity in backend/app/tasks/clarity_sync.py:111-274
+  Task: sync_results_to_nexus in backend/app/tasks/nexus_sync.py:111-274
 
   Recipient fields updated:
   - sync_status = SYNCED (or FAILED with sync_error)
@@ -131,11 +131,11 @@ Call End Flow - Chronological Timeline
       ├─► [Async] Twilio status webhook
       │       └─► update_call_from_webhook task → CallRecord
       │               └─► sync_recipient_from_call → Recipient
-      │                       └─► sync_results_to_clarity (if auto-push)
+      │                       └─► sync_results_to_nexus (if auto-push)
       │
       ├─► [Async] Twilio recording webhook (delayed)
       │       └─► download_twilio_recording task → CallRecord.recording
       │
       └─► [Scheduled] Periodic tasks
-              ├─► sync-clarity-results (60s) → Recipient.sync_status
+              ├─► sync-nexus-results (60s) → Recipient.sync_status
               └─► process-campaign-queues (30s) → CallQueue.stats

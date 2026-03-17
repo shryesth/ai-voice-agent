@@ -1,7 +1,7 @@
 """
-Celery Tasks for Clarity Integration
+Celery Tasks for Nexus Integration
 
-Periodic tasks for syncing with Clarity API.
+Periodic tasks for syncing with Nexus API.
 """
 
 import asyncio
@@ -16,19 +16,19 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(
     bind=True,
-    name="sync_clarity_queues",
+    name="sync_nexus_queues",
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,  # Max 10 minutes
     max_retries=3,
 )
-def sync_clarity_queues(self) -> Dict[str, Any]:
+def sync_nexus_queues(self) -> Dict[str, Any]:
     """
-    Sync all Clarity-type queues with their respective Clarity APIs.
+    Sync all Nexus-type queues with their respective Nexus APIs.
 
     This task:
-    1. Finds all active queues with queue_type="clarity"
-    2. For each queue, fetches pending verifications from Clarity
+    1. Finds all active queues with queue_type="nexus"
+    2. For each queue, fetches pending verifications from Nexus
     3. Creates CallEntry records for new verifications
 
     Run periodically via Celery Beat (default: every 5 minutes).
@@ -36,36 +36,36 @@ def sync_clarity_queues(self) -> Dict[str, Any]:
     Returns:
         Dict with sync statistics
     """
-    logger.info("Starting Clarity queue sync...")
+    logger.info("Starting Nexus queue sync...")
 
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
         try:
-            result = loop.run_until_complete(_sync_clarity_queues_async())
+            result = loop.run_until_complete(_sync_nexus_queues_async())
         finally:
             loop.close()
 
-        logger.info(f"Clarity sync completed: {result}")
+        logger.info(f"Nexus sync completed: {result}")
         return result
 
     except Exception as e:
-        logger.error(f"Failed to sync Clarity queues: {e}")
+        logger.error(f"Failed to sync Nexus queues: {e}")
         raise  # Re-raise to trigger retry
 
 
-async def _sync_clarity_queues_async() -> Dict[str, Any]:
-    """Async implementation of Clarity sync."""
+async def _sync_nexus_queues_async() -> Dict[str, Any]:
+    """Async implementation of Nexus sync."""
     from backend.app.infrastructure.database.queue_repository import (
         get_queue_repository,
         get_call_entry_repository,
     )
-    from backend.app.integrations.clarity.sync_service import ClaritySyncService
+    from backend.app.integrations.nexus.sync_service import NexusSyncService
 
     queue_repo = get_queue_repository()
     call_entry_repo = get_call_entry_repository()
-    sync_service = ClaritySyncService(queue_repo, call_entry_repo)
+    sync_service = NexusSyncService(queue_repo, call_entry_repo)
 
     results: Dict[str, Any] = {
         "queues_processed": 0,
@@ -79,17 +79,17 @@ async def _sync_clarity_queues_async() -> Dict[str, Any]:
     # Get all active queues
     queues = await queue_repo.list_queues(state=QueueState.ACTIVE)
 
-    # Filter to Clarity queues
-    clarity_queues = [
-        q for q in queues if q.metadata.get("queue_type") == "clarity"
+    # Filter to Nexus queues
+    nexus_queues = [
+        q for q in queues if q.metadata.get("queue_type") == "nexus"
     ]
 
-    logger.info(f"Found {len(clarity_queues)} Clarity queues to sync")
+    logger.info(f"Found {len(nexus_queues)} Nexus queues to sync")
 
-    for queue in clarity_queues:
+    for queue in nexus_queues:
         try:
-            logger.info(f"Syncing Clarity queue: {queue.queue_id}")
-            stats = await sync_service.sync_queue_from_clarity(queue)
+            logger.info(f"Syncing Nexus queue: {queue.queue_id}")
+            stats = await sync_service.sync_queue_from_nexus(queue)
 
             results["queues_processed"] += 1
             results["total_created"] += stats["created"]
@@ -110,15 +110,15 @@ async def _sync_clarity_queues_async() -> Dict[str, Any]:
 
 @celery_app.task(
     bind=True,
-    name="sync_clarity_result",
+    name="sync_nexus_result",
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=300,  # Max 5 minutes
     max_retries=5,
 )
-def sync_clarity_result(self, entry_id: str) -> Dict[str, Any]:
+def sync_nexus_result(self, entry_id: str) -> Dict[str, Any]:
     """
-    Sync a completed call result back to Clarity.
+    Sync a completed call result back to Nexus.
 
     Called after a call is marked SUCCESS or DEAD_LETTER.
 
@@ -128,7 +128,7 @@ def sync_clarity_result(self, entry_id: str) -> Dict[str, Any]:
     Returns:
         Sync result
     """
-    logger.info(f"Syncing call result to Clarity: {entry_id}")
+    logger.info(f"Syncing call result to Nexus: {entry_id}")
 
     try:
         loop = asyncio.new_event_loop()
@@ -152,27 +152,27 @@ async def _sync_result_async(entry_id: str) -> bool:
         get_queue_repository,
         get_call_entry_repository,
     )
-    from backend.app.integrations.clarity.sync_service import ClaritySyncService
+    from backend.app.integrations.nexus.sync_service import NexusSyncService
 
     queue_repo = get_queue_repository()
     call_entry_repo = get_call_entry_repository()
-    sync_service = ClaritySyncService(queue_repo, call_entry_repo)
+    sync_service = NexusSyncService(queue_repo, call_entry_repo)
 
     entry = await call_entry_repo.get_entry(entry_id)
     if not entry:
         logger.error(f"Entry {entry_id} not found")
         return False
 
-    return await sync_service.sync_result_to_clarity(entry)
+    return await sync_service.sync_result_to_nexus(entry)
 
 
 @celery_app.task(
     bind=True,
-    name="sync_single_clarity_queue",
+    name="sync_single_nexus_queue",
 )
-def sync_single_clarity_queue(self, queue_id: str) -> Dict[str, Any]:
+def sync_single_nexus_queue(self, queue_id: str) -> Dict[str, Any]:
     """
-    Manually sync a single Clarity queue.
+    Manually sync a single Nexus queue.
 
     Used for on-demand sync via API.
 
@@ -208,23 +208,23 @@ async def _sync_single_queue_async(queue_id: str) -> Dict[str, Any]:
         get_queue_repository,
         get_call_entry_repository,
     )
-    from backend.app.integrations.clarity.sync_service import ClaritySyncService
+    from backend.app.integrations.nexus.sync_service import NexusSyncService
 
     queue_repo = get_queue_repository()
     call_entry_repo = get_call_entry_repository()
-    sync_service = ClaritySyncService(queue_repo, call_entry_repo)
+    sync_service = NexusSyncService(queue_repo, call_entry_repo)
 
     queue = await queue_repo.get_queue(queue_id)
     if not queue:
         return {"error": f"Queue {queue_id} not found", "queue_id": queue_id}
 
-    if queue.metadata.get("queue_type") != "clarity":
+    if queue.metadata.get("queue_type") != "nexus":
         return {
-            "error": f"Queue {queue_id} is not a Clarity queue",
+            "error": f"Queue {queue_id} is not a Nexus queue",
             "queue_id": queue_id,
         }
 
-    stats = await sync_service.sync_queue_from_clarity(queue)
+    stats = await sync_service.sync_queue_from_nexus(queue)
     return {
         "queue_id": queue_id,
         "success": True,

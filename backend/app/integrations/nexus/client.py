@@ -1,7 +1,7 @@
 """
-Clarity HMIS API Client
+Nexus HMIS API Client
 
-Async HTTP client for interacting with Clarity HMIS verification API.
+Async HTTP client for interacting with Nexus HMIS verification API.
 Supports multiple environments with per-queue credentials.
 """
 
@@ -11,52 +11,52 @@ from typing import Optional, Dict, Any
 
 import httpx
 
-from backend.app.integrations.clarity.models import (
-    ClarityVerification,
-    ClarityEventInfo,
-    ClarityPaginatedResponse,
-    ClarityVerificationUpdate,
+from backend.app.integrations.nexus.models import (
+    NexusVerification,
+    NexusEventInfo,
+    NexusPaginatedResponse,
+    NexusVerificationUpdate,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class ClarityClientError(Exception):
-    """Base exception for Clarity client errors."""
+class NexusClientError(Exception):
+    """Base exception for Nexus client errors."""
 
     def __init__(self, message: str, status_code: Optional[int] = None):
         super().__init__(message)
         self.status_code = status_code
 
 
-class ClarityAuthenticationError(ClarityClientError):
+class NexusAuthenticationError(NexusClientError):
     """Raised when authentication fails (401/403)."""
 
     pass
 
 
-class ClarityNotFoundError(ClarityClientError):
+class NexusNotFoundError(NexusClientError):
     """Raised when resource is not found (404)."""
 
     pass
 
 
-class ClarityForbiddenError(ClarityClientError):
+class NexusForbiddenError(NexusClientError):
     """Raised when action is forbidden (e.g., canBeChanged=false)."""
 
     pass
 
 
-class ClarityClient:
+class NexusClient:
     """
-    Async client for Clarity HMIS API.
+    Async client for Nexus HMIS API.
 
-    Each queue can have its own Clarity configuration, so this client
+    Each queue can have its own Nexus configuration, so this client
     is instantiated with queue-specific credentials.
 
     Usage:
-        client = ClarityClient(
-            api_url="https://clarity.hnd.shifo.org/api/v1",
+        client = NexusClient(
+            api_url="https://nexus.hnd.acme.org/api/v1",
             api_key="bearer-token",
             environment="honduras"
         )
@@ -74,10 +74,10 @@ class ClarityClient:
         timeout: float = 30.0,
     ):
         """
-        Initialize Clarity client with queue-specific credentials.
+        Initialize Nexus client with queue-specific credentials.
 
         Args:
-            api_url: Base URL for Clarity API (e.g., https://clarity.hnd.shifo.org/api/v1)
+            api_url: Base URL for Nexus API (e.g., https://nexus.hnd.acme.org/api/v1)
             api_key: API key or Bearer token
             environment: Environment name for logging (staging, haiti, honduras)
             timeout: Request timeout in seconds
@@ -88,7 +88,7 @@ class ClarityClient:
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
 
-    async def __aenter__(self) -> "ClarityClient":
+    async def __aenter__(self) -> "NexusClient":
         """Async context manager entry."""
         await self._ensure_client()
         return self
@@ -118,7 +118,7 @@ class ClarityClient:
 
     def _log_prefix(self) -> str:
         """Get log prefix with environment."""
-        return f"[Clarity:{self.environment}]"
+        return f"[Nexus:{self.environment}]"
 
     async def fetch_pending_verifications(
         self,
@@ -126,9 +126,9 @@ class ClarityClient:
         date_to: Optional[str] = None,
         page: int = 1,
         page_size: int = 100,
-    ) -> ClarityPaginatedResponse:
+    ) -> NexusPaginatedResponse:
         """
-        Fetch pending verifications from Clarity API.
+        Fetch pending verifications from Nexus API.
 
         Args:
             date_from: Start date filter (YYYY-MM-DD)
@@ -140,8 +140,8 @@ class ClarityClient:
             Paginated response with verification items
 
         Raises:
-            ClarityAuthenticationError: If authentication fails
-            ClarityClientError: For other API errors
+            NexusAuthenticationError: If authentication fails
+            NexusClientError: For other API errors
         """
         client = await self._ensure_client()
 
@@ -166,12 +166,12 @@ class ClarityClient:
             response = await client.get(url, params=params)
 
             if response.status_code == 401:
-                raise ClarityAuthenticationError(
+                raise NexusAuthenticationError(
                     "Authentication failed. Check API key.",
                     status_code=401,
                 )
             if response.status_code == 403:
-                raise ClarityAuthenticationError(
+                raise NexusAuthenticationError(
                     "Access forbidden. Check API permissions.",
                     status_code=403,
                 )
@@ -191,7 +191,7 @@ class ClarityClient:
                     )
                     continue
 
-            result = ClarityPaginatedResponse(
+            result = NexusPaginatedResponse(
                 items=items,
                 total=data.get("total", len(items)),
                 page=data.get("page", page),
@@ -210,21 +210,21 @@ class ClarityClient:
 
         except httpx.TimeoutException:
             logger.error(f"{self._log_prefix()} Request timeout after {self.timeout}s")
-            raise ClarityClientError(f"Request timeout after {self.timeout}s")
+            raise NexusClientError(f"Request timeout after {self.timeout}s")
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"{self._log_prefix()} HTTP error: {e.response.status_code} - {e.response.text}"
             )
-            raise ClarityClientError(
+            raise NexusClientError(
                 f"HTTP error: {e.response.status_code}",
                 status_code=e.response.status_code,
             )
 
-    def _parse_verification(self, item: Dict[str, Any]) -> ClarityVerification:
+    def _parse_verification(self, item: Dict[str, Any]) -> NexusVerification:
         """Parse a verification item from API response."""
         event_info_data = item.get("eventInfo", {})
 
-        event_info = ClarityEventInfo(
+        event_info = NexusEventInfo(
             eventDate=event_info_data.get("eventDate", ""),
             eventFacility=event_info_data.get("eventFacility", ""),
             eventType=event_info_data.get("eventType", ""),
@@ -233,7 +233,7 @@ class ClarityClient:
             sptDocumentIds=event_info_data.get("sptDocumentIds", []),
         )
 
-        return ClarityVerification(
+        return NexusVerification(
             id=item["id"],
             status=item.get("status", 999),
             canBeChanged=item.get("canBeChanged", True),
@@ -252,7 +252,7 @@ class ClarityClient:
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
         page_size: int = 100,
-    ) -> list[ClarityVerification]:
+    ) -> list[NexusVerification]:
         """
         Fetch all pending verifications, handling pagination automatically.
 
@@ -264,7 +264,7 @@ class ClarityClient:
         Returns:
             List of all verification items across all pages
         """
-        all_items: list[ClarityVerification] = []
+        all_items: list[NexusVerification] = []
         page = 1
 
         while True:
@@ -298,10 +298,10 @@ class ClarityClient:
         is_visit_confirmed: Optional[bool] = None,
     ) -> bool:
         """
-        Update verification result in Clarity.
+        Update verification result in Nexus.
 
         Args:
-            verification_id: Clarity verification ID
+            verification_id: Nexus verification ID
             status: New status code (1=verified, 2=failed)
             recording_url: URL to call recording (presigned URL)
             is_visit_confirmed: Whether visit was confirmed
@@ -310,16 +310,16 @@ class ClarityClient:
             True if update succeeded
 
         Raises:
-            ClarityNotFoundError: If verification not found
-            ClarityForbiddenError: If verification cannot be changed
-            ClarityClientError: For other API errors
+            NexusNotFoundError: If verification not found
+            NexusForbiddenError: If verification cannot be changed
+            NexusClientError: For other API errors
         """
         client = await self._ensure_client()
 
         url = f"{self.api_url}/hmis/client-visits/verification/{verification_id}"
 
         # Build request body using alias names
-        update = ClarityVerificationUpdate(
+        update = NexusVerificationUpdate(
             status=status,
             recording_url=recording_url,
             is_visit_confirmed=is_visit_confirmed,
@@ -332,17 +332,17 @@ class ClarityClient:
             response = await client.put(url, json=body)
 
             if response.status_code == 401:
-                raise ClarityAuthenticationError(
+                raise NexusAuthenticationError(
                     "Authentication failed. Check API key.",
                     status_code=401,
                 )
             if response.status_code == 403:
-                raise ClarityForbiddenError(
+                raise NexusForbiddenError(
                     f"Cannot update verification {verification_id}. It may be locked.",
                     status_code=403,
                 )
             if response.status_code == 404:
-                raise ClarityNotFoundError(
+                raise NexusNotFoundError(
                     f"Verification {verification_id} not found.",
                     status_code=404,
                 )
@@ -354,38 +354,38 @@ class ClarityClient:
 
         except httpx.TimeoutException:
             logger.error(f"{self._log_prefix()} Request timeout updating verification {verification_id}")
-            raise ClarityClientError(f"Request timeout updating verification {verification_id}")
+            raise NexusClientError(f"Request timeout updating verification {verification_id}")
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"{self._log_prefix()} Failed to update verification {verification_id}: "
                 f"{e.response.status_code} - {e.response.text}"
             )
-            raise ClarityClientError(
+            raise NexusClientError(
                 f"Failed to update verification: {e.response.status_code}",
                 status_code=e.response.status_code,
             )
 
 
-def create_clarity_client(metadata: Dict[str, Any]) -> ClarityClient:
+def create_nexus_client(metadata: Dict[str, Any]) -> NexusClient:
     """
-    Create a ClarityClient from queue metadata.
+    Create a NexusClient from queue metadata.
 
     Args:
-        metadata: Queue metadata dict containing clarity_api_url, clarity_api_key, etc.
+        metadata: Queue metadata dict containing nexus_api_url, nexus_api_key, etc.
 
     Returns:
-        Configured ClarityClient
+        Configured NexusClient
 
     Raises:
         ValueError: If required metadata fields are missing
     """
-    required_fields = ["clarity_api_url", "clarity_api_key"]
+    required_fields = ["nexus_api_url", "nexus_api_key"]
     for field in required_fields:
         if not metadata.get(field):
             raise ValueError(f"Missing required metadata field: {field}")
 
-    return ClarityClient(
-        api_url=metadata["clarity_api_url"],
-        api_key=metadata["clarity_api_key"],
-        environment=metadata.get("clarity_environment", "unknown"),
+    return NexusClient(
+        api_url=metadata["nexus_api_url"],
+        api_key=metadata["nexus_api_key"],
+        environment=metadata.get("nexus_environment", "unknown"),
     )

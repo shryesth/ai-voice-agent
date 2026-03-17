@@ -1,5 +1,5 @@
 """
-Celery task for pushing completed call results to Clarity.
+Celery task for pushing completed call results to Nexus.
 
 This task runs separately from call execution to avoid race conditions.
 It only processes recipients that are READY_TO_SYNC, meaning:
@@ -69,7 +69,7 @@ def _determine_terminal_status(recipient) -> RecipientStatus:
 
 
 @celery_app.task(
-    name="tasks.push_ready_recipients_to_clarity",
+    name="tasks.push_ready_recipients_to_nexus",
     bind=True,
     autoretry_for=(Exception,),
     retry_backoff=True,
@@ -77,15 +77,15 @@ def _determine_terminal_status(recipient) -> RecipientStatus:
     retry_jitter=True,
     max_retries=3,
 )
-def push_ready_recipients_to_clarity(
+def push_ready_recipients_to_nexus(
     self,
     geography_id: Optional[str] = None,
     max_count: int = 50,
 ):
     """
-    Push recipients with READY_TO_SYNC status to Clarity.
+    Push recipients with READY_TO_SYNC status to Nexus.
 
-    This task is the ONLY place where Clarity push happens, ensuring:
+    This task is the ONLY place where Nexus push happens, ensuring:
     - No race conditions with call execution
     - Recording URL is always available
     - Metrics are fully populated
@@ -94,7 +94,7 @@ def push_ready_recipients_to_clarity(
     1. Find recipients with status=READY_TO_SYNC and sync_status=PENDING
     2. For each recipient:
        a. Verify recording_url exists (if required by geography)
-       b. Push to Clarity API
+       b. Push to Nexus API
        c. Set sync_status=SYNCED
        d. Transition to terminal status (COMPLETED/FAILED/NOT_REACHABLE)
 
@@ -111,24 +111,24 @@ def push_ready_recipients_to_clarity(
         from backend.app.models.recipient import Recipient
         from backend.app.models.call_queue import CallQueue
         from backend.app.models.call_record import CallRecord
-        from backend.app.services.clarity_service import ClarityService
+        from backend.app.services.nexus_service import NexusService
         from backend.app.infrastructure.storage.s3_storage import S3StorageClient
 
         # Build query for ready-to-sync recipients
         query = {
             "status": RecipientStatus.READY_TO_SYNC.value,
             "sync_status": SyncStatus.PENDING.value,
-            "external_source": "clarity",  # Only sync Clarity-sourced recipients
+            "external_source": "nexus",  # Only sync Nexus-sourced recipients
         }
 
         # Find recipients to sync
         recipients = await Recipient.find(query).limit(max_count).to_list()
 
         if not recipients:
-            logger.debug("No recipients ready to sync to Clarity")
+            logger.debug("No recipients ready to sync to Nexus")
             return 0
 
-        logger.info(f"Found {len(recipients)} recipients ready to sync to Clarity")
+        logger.info(f"Found {len(recipients)} recipients ready to sync to Nexus")
 
         # Group by geography for efficient service creation
         by_geography = {}
@@ -147,17 +147,17 @@ def push_ready_recipients_to_clarity(
         storage_client = S3StorageClient()
 
         for geo_id, geo_recipients in by_geography.items():
-            # Get geography and verify Clarity is configured
+            # Get geography and verify Nexus is configured
             geography = await Geography.get(ObjectId(geo_id))
-            if not geography or not geography.clarity_config.enabled:
-                logger.debug(f"Clarity not enabled for geography {geo_id}")
+            if not geography or not geography.nexus_config.enabled:
+                logger.debug(f"Nexus not enabled for geography {geo_id}")
                 continue
 
-            if not geography.clarity_config.auto_push_results:
+            if not geography.nexus_config.auto_push_results:
                 logger.debug(f"Auto push not enabled for geography {geo_id}")
                 continue
 
-            clarity_service = ClarityService(geography.clarity_config)
+            nexus_service = NexusService(geography.nexus_config)
 
             for recipient in geo_recipients:
                 try:
@@ -165,7 +165,7 @@ def push_ready_recipients_to_clarity(
                     recording_url = recipient.recording_url
 
                     # If recording URL is required but missing, try to generate it
-                    if geography.clarity_config.include_recording_url and not recording_url:
+                    if geography.nexus_config.include_recording_url and not recording_url:
                         if recipient.current_call_record_id:
                             call_record = await CallRecord.get(
                                 ObjectId(recipient.current_call_record_id)
@@ -185,14 +185,14 @@ def push_ready_recipients_to_clarity(
 
                     # Log recipient details before push
                     logger.info(
-                        f"Pushing recipient {recipient.id} to Clarity - "
+                        f"Pushing recipient {recipient.id} to Nexus - "
                         f"External ID: {recipient.external_id}, "
                         f"Has Recording URL: {recording_url is not None}, "
                         f"Visit Confirmed: {recipient.conversation_result.is_visit_confirmed if recipient.conversation_result else None}"
                     )
 
-                    # Push to Clarity
-                    success = await clarity_service.push_verification_result(
+                    # Push to Nexus
+                    success = await nexus_service.push_verification_result(
                         recipient=recipient,
                         recording_url=recording_url,
                     )
@@ -213,21 +213,21 @@ def push_ready_recipients_to_clarity(
                         synced_count += 1
 
                         logger.info(
-                            f"Successfully synced recipient {recipient.id} to Clarity, "
+                            f"Successfully synced recipient {recipient.id} to Nexus, "
                             f"terminal status: {terminal_status.value}"
                         )
                     else:
                         # Mark sync as failed but keep ready_to_sync status for retry
                         recipient.sync_status = SyncStatus.FAILED
-                        recipient.sync_error = "Clarity API returned failure"
+                        recipient.sync_error = "Nexus API returned failure"
                         recipient.updated_at = datetime.now(timezone.utc)
                         await recipient.save()
 
-                        logger.warning(f"Failed to sync recipient {recipient.id} to Clarity")
+                        logger.warning(f"Failed to sync recipient {recipient.id} to Nexus")
 
                 except Exception as e:
                     logger.error(
-                        f"Error pushing recipient {recipient.id} to Clarity: {e}",
+                        f"Error pushing recipient {recipient.id} to Nexus: {e}",
                         exc_info=True
                     )
 
@@ -237,7 +237,7 @@ def push_ready_recipients_to_clarity(
                     recipient.updated_at = datetime.now(timezone.utc)
                     await recipient.save()
 
-        logger.info(f"Synced {synced_count} recipients to Clarity")
+        logger.info(f"Synced {synced_count} recipients to Nexus")
         return synced_count
 
     # Run async function using worker's event loop
@@ -246,13 +246,13 @@ def push_ready_recipients_to_clarity(
 
 
 @celery_app.task(
-    name="tasks.retry_failed_clarity_sync",
+    name="tasks.retry_failed_nexus_sync",
     bind=True,
     max_retries=1,
 )
-def retry_failed_clarity_sync(self, recipient_id: str):
+def retry_failed_nexus_sync(self, recipient_id: str):
     """
-    Retry Clarity sync for a specific recipient that failed.
+    Retry Nexus sync for a specific recipient that failed.
 
     This can be called manually to retry a failed sync.
 
@@ -277,7 +277,7 @@ def retry_failed_clarity_sync(self, recipient_id: str):
         recipient.updated_at = datetime.now(timezone.utc)
         await recipient.save()
 
-        logger.info(f"Reset recipient {recipient_id} for Clarity sync retry")
+        logger.info(f"Reset recipient {recipient_id} for Nexus sync retry")
         return True
 
     loop = get_worker_event_loop()

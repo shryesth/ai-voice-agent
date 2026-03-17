@@ -2,7 +2,7 @@ services:
   # MongoDB Database (Production)
   mongodb:
     image: mongo:8.0.17
-    container_name: shifo-supervisor-mongodb-prod
+    container_name: acme-supervisor-mongodb-prod
     restart: always
     ports:
       - "27017:27017"
@@ -39,7 +39,7 @@ services:
   # Redis Cache & Message Broker (Production)
   redis:
     image: redis:7-alpine
-    container_name: shifo-supervisor-redis-prod
+    container_name: acme-supervisor-redis-prod
     restart: always
     ports:
       - "6379:6379"
@@ -75,8 +75,8 @@ services:
       dockerfile: docker/Dockerfile.api
       args:
         - BUILD_ENV=production
-    image: shifo-supervisor-api:${VERSION:-latest}
-    container_name: shifo-supervisor-api-prod
+    image: acme-supervisor-api:${VERSION:-latest}
+    container_name: acme-supervisor-api-prod
     restart: always
     ports:
       - "3000:3000"
@@ -132,8 +132,8 @@ services:
       dockerfile: docker/Dockerfile.worker
       args:
         - BUILD_ENV=production
-    image: shifo-supervisor-worker:${VERSION:-latest}
-    container_name: shifo-supervisor-celery-worker-prod
+    image: acme-supervisor-worker:${VERSION:-latest}
+    container_name: acme-supervisor-celery-worker-prod
     restart: always
     env_file:
       - config/.env.prod
@@ -181,8 +181,8 @@ services:
       dockerfile: docker/Dockerfile.beat
       args:
         - BUILD_ENV=production
-    image: shifo-supervisor-beat:${VERSION:-latest}
-    container_name: shifo-supervisor-celery-beat-prod
+    image: acme-supervisor-beat:${VERSION:-latest}
+    container_name: acme-supervisor-celery-beat-prod
     restart: always
     env_file:
       - config/.env.prod
@@ -222,14 +222,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: shifo-vaccination-voice-agent:production
-    container_name: shifo-celery-worker-prod
+    image: acme-vaccination-voice-agent:production
+    container_name: acme-celery-worker-prod
     restart: always
     environment:
       RUN_MODE: worker
       CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-4}
       MONGODB_URI: mongodb://${MONGODB_ROOT_USER:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
-      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-shifo-supervisor}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-acme-supervisor}
       QUEUE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       QUEUE_ENABLED: "true"
       PUBLIC_URL: ${PUBLIC_URL}
@@ -245,20 +245,20 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - shifo-supervisor-network
+      - acme-supervisor-network
 
   # Celery Beat Service (scheduler for periodic tasks)
   celery-beat:
     build:
       context: .
       dockerfile: Dockerfile
-    image: shifo-vaccination-voice-agent:production
-    container_name: shifo-celery-beat-prod
+    image: acme-vaccination-voice-agent:production
+    container_name: acme-celery-beat-prod
     restart: always
     environment:
       RUN_MODE: beat
       MONGODB_URI: mongodb://${MONGODB_ROOT_USER:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
-      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-shifo-supervisor}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-acme-supervisor}
       QUEUE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       QUEUE_ENABLED: "true"
       QUEUE_PROCESSOR_INTERVAL_SECONDS: ${QUEUE_PROCESSOR_INTERVAL_SECONDS:-30}
@@ -268,7 +268,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - shifo-supervisor-network
+      - acme-supervisor-network
 
 networks:
   # Backend network (database, cache, workers)

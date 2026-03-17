@@ -13,7 +13,7 @@
    ```bash
    caprover login
    ```
-   - URL: `https://captain.ss-apps.shifo.org`
+   - URL: `https://captain.ss-apps.acme.org`
    - Password: Your CapRover admin password
    - Machine name: `captain-ss`
 
@@ -33,9 +33,9 @@ Deploy all services (backend, worker, beat) at once:
 ```
 
 This will:
-- Deploy backend to `shifo-supervisor-uat-backend`
-- Deploy worker to `shifo-supervisor-uat-worker`
-- Deploy beat to `shifo-supervisor-uat-beat`
+- Deploy backend to `acme-supervisor-uat-backend`
+- Deploy worker to `acme-supervisor-uat-worker`
+- Deploy beat to `acme-supervisor-uat-beat`
 
 #### Option 2: Manual Deployment
 
@@ -51,7 +51,7 @@ cat > captain-definition <<EOF
 }
 EOF
 
-caprover deploy --caproverName captain-ss --caproverApp shifo-supervisor-uat-backend
+caprover deploy --caproverName captain-ss --caproverApp acme-supervisor-uat-backend
 ```
 
 **Worker:**
@@ -64,7 +64,7 @@ cat > captain-definition <<EOF
 }
 EOF
 
-caprover deploy --caproverName captain-ss --caproverApp shifo-supervisor-uat-worker
+caprover deploy --caproverName captain-ss --caproverApp acme-supervisor-uat-worker
 ```
 
 **Beat:**
@@ -77,14 +77,14 @@ cat > captain-definition <<EOF
 }
 EOF
 
-caprover deploy --caproverName captain-ss --caproverApp shifo-supervisor-uat-beat
+caprover deploy --caproverName captain-ss --caproverApp acme-supervisor-uat-beat
 ```
 
 ### Verify Deployment
 
 Check the health endpoint:
 ```bash
-curl https://shifo-supervisor-uat-backend.ss-apps.shifo.org/api/v1/health/live
+curl https://acme-supervisor-uat-backend.ss-apps.acme.org/api/v1/health/live
 ```
 
 Expected response:
@@ -96,13 +96,13 @@ Expected response:
 
 Via CapRover CLI:
 ```bash
-caprover logs --caproverName captain-ss --caproverApp shifo-supervisor-uat-backend
-caprover logs --caproverName captain-ss --caproverApp shifo-supervisor-uat-worker
-caprover logs --caproverName captain-ss --caproverApp shifo-supervisor-uat-beat
+caprover logs --caproverName captain-ss --caproverApp acme-supervisor-uat-backend
+caprover logs --caproverName captain-ss --caproverApp acme-supervisor-uat-worker
+caprover logs --caproverName captain-ss --caproverApp acme-supervisor-uat-beat
 ```
 
 Or via CapRover Dashboard:
-- Navigate to: https://captain.ss-apps.shifo.org
+- Navigate to: https://captain.ss-apps.acme.org
 - Go to Apps → Select app → View Logs
 
 ## GitLab CI/CD Deployment
@@ -123,8 +123,8 @@ The project uses GitLab CI/CD for automated deployments:
 
 Environment variables are configured in CapRover dashboard:
 
-1. Go to: https://captain.ss-apps.shifo.org
-2. Select the app (e.g., `shifo-supervisor-uat-backend`)
+1. Go to: https://captain.ss-apps.acme.org
+2. Select the app (e.g., `acme-supervisor-uat-backend`)
 3. Click **App Configs** tab
 4. Scroll to **Environment Variables** → **Bulk Edit**
 5. Use templates from `config/caprover/*.env.caprover.uat.*`
@@ -142,9 +142,9 @@ The following services must be running before deploying apps:
 
 | Service | App Name | Notes |
 |---------|----------|-------|
-| MongoDB | `shifo-supervisor-uat-mongodb` | One-Click App |
-| Redis | `shifo-supervisor-uat-redis` | One-Click App |
-| MinIO | `shifo-supervisor-uat-minio` | One-Click App |
+| MongoDB | `acme-supervisor-uat-mongodb` | One-Click App |
+| Redis | `acme-supervisor-uat-redis` | One-Click App |
+| MinIO | `acme-supervisor-uat-minio` | One-Click App |
 
 ## Rollback
 
@@ -157,7 +157,7 @@ Deploy a previous commit or the `:develop` tagged image:
 ```bash
 caprover deploy \
   --caproverName captain-ss \
-  --caproverApp shifo-supervisor-uat-backend \
+  --caproverApp acme-supervisor-uat-backend \
   --imageName registry.gitlab.com/your-project/api:develop
 ```
 

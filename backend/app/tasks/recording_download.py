@@ -334,14 +334,14 @@ async def _update_recipient_recording_url(call_record: CallRecord) -> None:
     """
     Update Recipient with recording URL and set READY_TO_SYNC status.
 
-    This is the critical step that marks a recipient as ready for Clarity sync.
-    Recording URL + READY_TO_SYNC status ensures Clarity gets complete data.
+    This is the critical step that marks a recipient as ready for Nexus sync.
+    Recording URL + READY_TO_SYNC status ensures Nexus gets complete data.
 
     Flow:
     1. Generate presigned URL for recording
     2. Update Recipient.recording_url
     3. Set Recipient.status = READY_TO_SYNC (if call was successful)
-    4. clarity_push task will pick up the recipient
+    4. nexus_push task will pick up the recipient
 
     Args:
         call_record: CallRecord with recording metadata

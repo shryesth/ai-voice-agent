@@ -210,8 +210,7 @@ For issues or questions:
 
 ## 🗂️ Project Structure
 
-```
-
+```text
 ai-voice-agent/
 ├── backend/
 │   └── app/

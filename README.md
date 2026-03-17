@@ -1,222 +1,123 @@
-# Shifo Supervisor
+# AI Voice Agent (FastAPI)
 
-AI-powered voice agent system for patient feedback collection and flexible call management powered by FastAPI, Pipecat, and OpenAI Realtime API.
+An AI-powered voice agent system for automated patient feedback collection via phone calls. Built with FastAPI, Pipecat, OpenAI Realtime API, Twilio, MongoDB, Redis, and Celery. Supports English, Spanish, French, Haitian Creole, and multi-geography deployment.
 
-## 🎯 Features
+## Features
 
-- **🤖 AI Voice Calls**: Automated outreach via Twilio + OpenAI Realtime API
-- **🌍 Multilingual**: English, Spanish, French, Haitian Creole support
-- **📞 Flexible Queue Modes**: Forever (continuous), Batch (one-time), Manual
-- **🔗 Clarity Integration**: Bidirectional sync for verification subjects
-- **⚠️ Urgency Detection**: Automatic flagging of emergency keywords
-- **🔄 Smart Retry Logic**: Intelligent retry with failure-specific delays
-- **📊 Call Queue Management**: Multiple queues per geography with time windows
-- **🔒 RBAC**: Admin and User roles with privacy controls
-- **📈 Monitoring**: Prometheus metrics and Dead Letter Queue (DLQ) management
-- **🧪 Test Endpoints**: Debug and test call functionality
+- Automated AI voice calls (Twilio + OpenAI Realtime)
+- Multilingual support (en, es, fr, ht)
+- Flexible queue modes: Forever, Batch, Manual
+- Clarity integration for subject sync
 
-## 🏗️ Architecture
+# AI Voice Agent (FastAPI)
 
 ```
-Shifo Supervisor (Server)
-└── Geography (Haiti, Honduras, etc.)
-    └── CallQueue (multiple per geo)
-        └── Recipients
-            └── CallRecords
+backend/app/
+├── api/v1/          # FastAPI route handlers
+├── services/        # Business logic
 ```
 
-**Tech Stack**:
-- **Framework**: FastAPI (Python async web framework)
-- **Voice Pipeline**: Pipecat v0.0.99 + OpenAI gpt-4o-realtime-preview
-- **Queue System**: Celery Beat (30s scheduler) + Redis broker
-- **Database**: MongoDB 8.0.17 with Beanie async ODM
-- **Telephony**: Twilio Media Streams (WebSocket)
-- **Storage**: S3/MinIO for call recordings
-- **Deployment**: Docker Compose + CapRover
+- Async-first: All DB, Redis, HTTP ops are async
+- State machine: FlowManager handles 6-stage conversation flow
+- Environment config: `ENVIRONMENT` variable selects `.env.local`, `.env.uat`, `.env.prod`
 
-## 🚀 Quick Start
+## Main Entry Points
 
-### Prerequisites
+- API: `backend/app/main.py` (uvicorn backend.app.main:app)
+- Celery: `backend/app/celery_app.py`
+- Voice Pipeline: `backend/app/domains/patient_feedback/voice_pipeline.py`
 
-- Docker & Docker Compose
-- Git
-- Python 3.12+ (for local development)
+## API Routes
 
-### Development Environment
+- `POST /api/v1/auth/login` - JWT login
+- `GET /api/v1/health/live`, `/ready` - Health probes
+- `GET/POST /api/v1/geographies` - Geography management
+- `GET/POST /api/v1/queues` - Call queue management
+- `GET/POST /api/v1/recipients` - Recipient management
 
-1. **Clone and navigate to project**:
-   ```bash
-   cd shifo-supervisor-backend
-   ```
+## Celery Tasks
 
-2. **Create local configuration**:
-   ```bash
-   cp config/.env.local.example config/.env.local
-   # Edit config/.env.local with your credentials
-   ```
+- `split_recording.py` - Audio file processing
+- `transcript_translation.py` - Translate transcripts
+- `clarity_sync.py` - Clarity subject/result sync (every 60s)
+- `recipients` - Queue recipients
+- `call_records` - Call data, transcripts
+- `recording_dlq` - Failed S3 uploads
+- Twilio: Telephony via WebSocket
 
-3. **Start all services** (MongoDB, Redis, MinIO, API, Celery):
-   ```bash
-   docker compose -f docker-compose.dev.yml up
-   ```
+Stages:
 
-4. **Access services**:
-   - **API Docs**: http://localhost:3000/docs
-   - **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
-   - **Health Check**: http://localhost:3000/api/v1/health/ready
+1. Confirm guardian
+2. Confirm visit
+Voice mapping: en→alloy, es→nova, fr→alloy, ht→echo
 
-## 📚 Documentation
+## Infrastructure
 
-- **[CLAUDE.md](./CLAUDE.md)** - Development guide with commands and architecture details
-- **[config/README.md](./config/README.md)** - Configuration system and environment setup
-- **[Specs](./specs/001-patient-feedback-api/)** - Feature specifications and data models
+## Development & Testing
 
-## 🛠️ Development Commands
-
-### Running Services
+### Quickstart
 
 ```bash
-# Start all services (dev)
+git clone https://github.com/shryesth/ai-voice-agent.git
+cd ai-voice-agent
+cp config/.env.local.example config/.env.local
+# Edit config/.env.local with your credentials
 docker compose -f docker-compose.dev.yml up
-
-# View API logs
-docker compose -f docker-compose.dev.yml logs -f api
-
-# Stop all services
-docker compose -f docker-compose.dev.yml down
 ```
 
 ### Testing
 
-```bash
-# Run all tests with coverage
-pytest
+pytest -m "not slow"  # Exclude slow tests
 
-# Run specific test categories
-pytest tests/unit -m unit
-pytest tests/integration -m integration
-pytest tests/contract -m contract
-
-# Run specific test file
-pytest tests/contract/test_auth.py -v
-
-# Run tests by marker
-pytest -m "not slow"
-pytest -m voice
-pytest -m queue
 ```
 
 ### Code Quality
 
 ```bash
-# Format code
-black backend/ tests/
-
-# Lint code
-ruff check backend/ tests/
-
-# Type checking
-mypy backend/
+black backend/ tests/           # Format
+ruff check backend/ tests/      # Lint
+mypy backend/                   # Type check
 ```
 
-### Celery Tasks
+### Celery
 
 ```bash
-# Start worker manually (if not running in Docker)
 celery -A backend.app.celery_app worker --loglevel=info
-
-# Start beat scheduler manually
 celery -A backend.app.celery_app beat --loglevel=info
-
-# Monitor with Flower
 celery -A backend.app.celery_app flower --port=5555
 ```
 
-## 📋 API Endpoints
+## Deployment
 
-### Authentication
-- `POST /api/v1/auth/login` - Login with email/password
+- Dev: `docker-compose.dev.yml`
+- UAT: `docker-compose.uat.yml`
+- Prod: `docker-compose.production.yml`
+- CapRover: `git push caprover main`
 
-### Health & Metrics
-- `GET /api/v1/health/live` - Liveness probe
-- `GET /api/v1/health/ready` - Readiness probe
+## Security & Privacy
 
-### Core Resources
-- `GET/POST /api/v1/geographies` - Geography management
-- `GET/POST /api/v1/queues` - Call queue management
-- `GET/POST /api/v1/recipients` - Queue recipient management
-- `GET /api/v1/calls` - Call records and transcripts
+- JWT authentication, RBAC
+- Privacy filtering: `[REDACTED]` for patient_phone in API responses
 
-### Testing
-- `POST /api/v1/test-calls` - Test voice calls
-- `GET /api/v1/queue/dlq` - Dead Letter Queue (DLQ) entries
+## Documentation
 
-## 🗄️ Database
+- [CLAUDE.md](CLAUDE.md) - Architecture, commands, patterns
+- [config/README.md](config/README.md) - Configuration details
+- [specs/001-patient-feedback-api/](specs/001-patient-feedback-api/) - Feature specs, data models
 
-MongoDB with Beanie async ODM. Key collections:
+## License
 
-| Collection | Purpose |
-|-----------|---------|
-| `users` | Admin/User accounts with role-based access |
-| `geographies` | Regional organization with Clarity integration |
-| `call_queues` | Call queue definitions and configuration |
-| `recipients` | Queue recipient management |
-| `call_records` | Call data with conversation transcripts |
-| `recording_dlq` | Failed recording upload tracking |
-
-## 🌐 Deployment
-
-### Local Development
-```bash
-docker compose -f docker-compose.dev.yml up
-```
-
-### UAT/Staging
-```bash
-# 1. Create environment file
-cp config/.env.uat.example config/.env.uat
-# Edit config/.env.uat with staging credentials
-
-# 2. Deploy
-docker compose -f docker-compose.uat.yml up -d
-```
-
-### Production
-```bash
-# 1. Create environment file
-cp config/.env.prod.example config/.env.prod
-# Edit config/.env.prod with production credentials
-
-# 2. Deploy with Docker Compose
-docker compose -f docker-compose.production.yml up -d
-
-# OR deploy with CapRover
-git push caprover main
-```
-
-See **[config/README.md](./config/README.md)** for detailed deployment and configuration instructions.
-
-## 🧪 Testing Coverage
+MIT License
 
 - **Coverage Requirement**: 80% (configured in pytest.ini)
 - **Test Markers**: unit, integration, contract, voice, queue, auth
 - **Test Fixtures**: async_client, test_db, test_admin_user, auth_headers
 
-Run tests:
-```bash
-pytest tests/ -v --cov=backend --cov-report=html
-```
-
 ## 🎙️ Voice Pipeline
-
-The Pipecat voice pipeline handles:
 
 1. **Conversation Stages**:
    - Greeting
    - Confirm Identity
-   - Confirm Visit
-   - Confirm Service
-   - Record Side Effects (health events)
    - Collect Satisfaction Rating (1-10)
    - Completion
 
@@ -248,6 +149,7 @@ See **[config/README.md](./config/README.md)** for security best practices.
 ## 🐛 Troubleshooting
 
 ### Issue: Docker containers won't start
+
 ```bash
 # Check logs
 docker compose -f docker-compose.dev.yml logs
@@ -256,13 +158,12 @@ docker compose -f docker-compose.dev.yml logs
 ls config/.env.local
 ```
 
-### Issue: API connection errors
-```bash
-# Check health endpoint
-curl http://localhost:3000/api/v1/health/ready
+curl <http://localhost:3000/api/v1/health/ready>
 
 # Check MongoDB connection
+
 docker compose -f docker-compose.dev.yml exec mongodb mongosh
+
 ```
 
 ### Issue: Tests failing
@@ -270,11 +171,6 @@ docker compose -f docker-compose.dev.yml exec mongodb mongosh
 # Run with verbose output
 pytest tests/ -v -s
 
-# Run specific test
-pytest tests/contract/test_auth.py::test_login -v
-```
-
-See **[config/README.md](./config/README.md)** for detailed troubleshooting.
 
 ## 📝 Git Workflow
 
@@ -315,7 +211,8 @@ For issues or questions:
 ## 🗂️ Project Structure
 
 ```
-shifo-supervisor-backend/
+
+ai-voice-agent/
 ├── backend/
 │   └── app/
 │       ├── api/v1/              # REST API endpoints
@@ -336,4 +233,5 @@ shifo-supervisor-backend/
 ├── docker-compose.*.yml         # Docker Compose files
 ├── CLAUDE.md                    # Development guide
 └── README.md                    # This file
+
 ```
